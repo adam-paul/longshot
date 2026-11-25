@@ -1,0 +1,103 @@
+# longshot method 0.1: which values on file count towards a row's state.
+#
+# A PROPOSAL until Adam freezes it. After that no threshold here changes; a change is a new method version.
+# longshot/ledger.py reads every number below; it holds none of its own. docs/method.md explains each.
+#
+# Every table carries `kind` and `source`:
+#   measured  = measured from data on disk by a script in tools/
+#   quoted    = quoted from a file under docs/research, or from the source's own documentation
+#   judgement = a choice made here, with what it was chosen from
+
+schema = 1
+method = "0.1"
+status = "proposal"
+
+[period]
+# The lowest lightcurve grade that counts towards a measured spin row.
+min_grade = "2-"
+min_grade_kind = "quoted"
+min_grade_source = "the lightcurve database's own rule, readme.pdf section 4.1.6: 'only those objects with a U code of 2- or greater'"
+# Two periods differ when the larger is more than this fraction above the smaller.
+tolerance = 0.20
+tolerance_kind = "judgement"
+tolerance_source = "no source gives a figure. Sources that copy one measurement agree to rounding; the 16 disagreements on file differ by a factor of 1.4 or more (build/records.jsonl, 2026-11-25), so any line from 0.05 to 0.35 picks the same rows"
+# A period with no grade.
+ungraded = "counts"
+ungraded_rule = "A published period with no grade on file counts, whichever source holds it, unless a graded source gives the same period with a grade under U 2-. The lightcurve database's own ungraded entry and JPL's copy of it are treated alike."
+ungraded_kind = "judgement"
+ungraded_source = "method/v0_1/missions.toml [rules.period] (27 list members have a period only on a literature card, with no grade). The lightcurve database's readme, section 4.1.6: a missing U usually means the period came from a source with no lightcurve to grade, such as radar"
+# A number another source gives only as a limit.
+copy_of_a_limit = "An ungraded period equal, as printed, to a period another source flags '>' or '<' is a copy of that limit without its sign. It is kept on file and not used; the limit decides."
+copy_of_a_limit_kind = "measured"
+copy_of_a_limit_source = "12 list members on 2026-11-25: JPL's rot_per equals the lightcurve database's PERIOD where column 144 holds '>' or '<' (readme.pdf section 4.1.4.11: '<' a maximum, '>' a minimum)"
+# When a newer measurement and a fixed table disagree.
+superseded = "A graded period from a fixed table does not rule out an ungraded one that two other sources hold, one of them citing a reference dated after the table's edition. Both stay in use and in conflict, and the newer one is listed first."
+superseded_kind = "judgement"
+superseded_source = "1998 KY26: the lightcurve database of 2023-10-01 holds 0.1784 h (U 3); JPL and the literature card hold 0.0892 h from Santana-Ros et al. 2025, which docs/research/verify-capability.md row 24 confirms ('11 m, five minutes')"
+
+[push]
+# A fitted push value counts as measured at this many sigma, from its own stated error.
+detection_sigma = 3.0
+counts = ["A1", "A2", "drift_au_per_myr"]
+listed_only = ["A3"]
+listed_only_why = "A3 is the out-of-plane term. Sunlight's two effects, radiation pressure and drift, show in A1 and A2."
+kind = "quoted"
+source = "docs/plan.md, Terms: 'Three is the usual bar for a detection'; the plan's counts use it"
+
+[spitzer]
+# A Spitzer fit counts only at this signal-to-noise in the 4.5 micron band (the table's ch2snr column).
+min_snr = 5.0
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt: every fitted reflectivity above 1 among the faint objects is a fit at signal-to-noise under 5, and the derivation's own sensitivity run keeps 5 or more (1,410 of 1,576 objects)"
+
+[reflectivity]
+# A fitted reflectivity above this is not a measurement of a surface.
+max = 1.0
+kind = "judgement"
+source = "a geometric albedo above 1 needs a surface brighter than a perfect diffuser seen face on; 17 of 1,630 Spitzer rows are fitted above it (priors.toml [reflectivity].n_fitted_above_1)"
+
+[fixed_tables]
+# A table that is not updated says nothing about an asteroid found after it was made.
+rule = "A fixed table counts as checked for an asteroid only if the asteroid's first observation is not later than the table's edition date. Otherwise that source is not checked for it."
+reason = "older than this object"
+sources = ["pravec", "lcdb", "spitzer"]
+kind = "judgement"
+source = "AGENTS.md, traps: a source not knowing an object is 'not checked'. Decided at the review of 2026-11-25"
+
+[closed_tables]
+# A table from a programme that has ended is final. An asteroid found after it ended was never observed by it,
+# so the table has nothing for it and never will: that is "looked for and absent", not "not checked".
+rule = "A table from a finished programme counts as checked and absent for an asteroid first observed after the table's edition date."
+sources = ["spitzer"]
+reason = "found after the Spitzer surveys ended"
+kind = "judgement"
+source = "The Spitzer Space Telescope was switched off on 30 January 2020; recalled, not read from a project file. The table on disk is its final near-Earth-object compilation (docs/research/catalogs.md)."
+
+# ----------------------------------------------------------------------------------------------------------------
+# Upstream values the research found to be wrong. Pinned to the value, so a corrected one is not caught.
+
+[[known_bad]]
+designation = "2010 NU71"
+prop = "diameter_m"
+value = 1126.0
+why = "The 1,126 m on file comes from a main-belt table (Masiero+2011) and does not fit this brightness."
+kind = "quoted"
+source = "docs/research/verify-coverage.md, section on sizes and its summary table: '2010 NU71 mis-association: 1.126 km at H 22.7 in SBDB and SsODNet'"
+
+[[known_bad]]
+designation = "2010 NU71"
+prop = "albedo"
+value = 0.042
+why = "The 0.042 reflectivity on file is from the same mis-matched fit."
+kind = "quoted"
+source = "same fit as the diameter above (SsODNet gives Masiero+2011 for both): docs/research/verify-coverage.md"
+
+# ----------------------------------------------------------------------------------------------------------------
+# Bodies on JPL's list that no longer exist.
+
+[[gone]]
+designation = "2008 TC3"
+date = "2008-10-07"
+text = "Entered Earth's atmosphere on 7 October 2008, a day after it was found. About 10.5 kg was recovered as the Almahata Sitta meteorites."
+kind = "quoted"
+source = "docs/research/ground-truth.md, table of asteroids seen before impact, row 1: impact 2008-10-07 02:45:40; 'Almahata Sitta: 47 stones / 3.95 kg in the first search, about 600 stones / 10.5 kg in all'; 'In NHATS'. Jenniskens et al. 2009, doi:10.1038/nature07920"

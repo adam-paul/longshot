@@ -1,0 +1,871 @@
+# What is in the rock: constants for longshot/value.py. Method 0.1.
+#
+# A proposal until Adam freezes it. docs/method-value.md explains each choice.
+# Every derived number here is printed by tools/value_inputs.py. Sections 10 and
+# 11 (single-draw checks and the worked examples) are printed by
+# tools/value_examples.py --toml, which is also the reference implementation of
+# the procedure below.
+#
+# Evidence: docs/research/value-inputs.md as corrected by
+# docs/research/verify-value-inputs.md (check date 2026-11-21). No number the
+# checker corrected or refuted is carried. One correction is applied only in
+# part: the mix of metals in irons (see [mix.iron_low]). Read tags: P = primary source read,
+# S = secondary, R = recalled, L = read from a copy saved on 2026-11-21.
+#
+# No mean, median or expected value is defined here, and none may be exported.
+
+[meta]
+method = "0.1"
+status = "proposal"
+written = "2026-11-24"
+research_checked = "2026-11-21"
+block_label = "Price tag"            # the owner's word. No sentence says "worth" or "value".
+
+# ---------------------------------------------------------------------------
+# 1. Procedure (value.py implements this; tools/value_examples.py is the reference)
+# ---------------------------------------------------------------------------
+#
+# Input: the object's joint draws, each (class, reflectivity, diameter_m,
+# density_kg_m3) with class one of S, C, X, other; and whether the size row is
+# measured. Value code never substitutes its own size or reflectivity.
+#
+# For each draw, six uniform numbers in [0, 1), independent, from a generator
+# seeded by the object key and the method version:
+#   u_kind   which material, within the draw's class and reflectivity band
+#   u_grade  where the grade falls in its range
+#   u_metal  metal fraction of an iron-rich body
+#   u_rho    density, for a material that has its own
+#   u_hyd    hydrated or not
+#   u_water  water fraction if hydrated
+# The same six numbers serve all three scenarios (low, central, high), so a
+# draw that holds metal or water in "low" also holds some in "high".
+#
+# Per draw and scenario s:
+#   band      = dark if reflectivity < bands.dark_below; bright if >= bands.bright_from; else mid
+#   material  = first row of kinds.<class>.<band> whose cumulative share[s] exceeds u_kind
+#   diameter  = diameter_m x size.diameter_factor[s] if the size row is not measured, else diameter_m
+#   density   = density_kg_m3 of the draw, unless the material has its own density_kg_m3:
+#               then lo + (hi - lo) x u_rho. The two class X mid-band materials have their own,
+#               because the scenarios change which draws are iron-rich. The joint draw's 38%
+#               metal-rich densities (priors.toml [density.X]) are not used here.
+#   mass_t    = pi/6 x diameter^3 x density / 1000
+#   grade_ppm = lo + (hi - lo) x u_grade                      (chondrites)
+#             = table(u_grade) x (0.5 + 0.5 x u_metal)         (iron_rich; table is log-linear between points)
+#   kg        = mass_t x grade_ppm / 1000 if the material is counted, else 0   (all six metals)
+#   usd       = sum over Pt, Pd, Rh, Ir, Ru of min(kg x mix[el], market.cap_kg[el]) x prices.usd_per_kg[el][s]
+#   water_t   = mass_t x (lo + (hi - lo) x u_water) if the row has "hydrated" and u_hyd < hydrated[s], else 0
+#
+# Exports: section 7. Statements: section 8.
+
+[scenarios]
+order = ["low", "central", "high"]   # every three-element array below is in this order
+use = "lower-bound statements use low; upper-bound statements use high; central is used only for the chance of nothing"
+
+# ---------------------------------------------------------------------------
+# 2. What counts
+# ---------------------------------------------------------------------------
+
+[counted]
+metal = "the six platinum-group metals (Pt, Pd, Rh, Ir, Ru, Os) held in grains of iron-nickel metal"
+metal_not_counted = "platinum-group metal spread through dark clay-rich rock (2.9 to 4.0 ppm in CI and CM meteorites), bright enstatite rock or basalt"
+metal_phrase = "in metal grains"
+where_phrase = "in the rock, before any cost"
+priced = ["Pt", "Pd", "Rh", "Ir", "Ru"]
+unpriced = "Os"                      # no benchmark price (IPA osmium factsheet, May 2026, P). About 16% of the mass.
+water = "water bound in clay minerals"
+left_out = "digging, refining, the trip home, any buyer; nickel, cobalt and iron"
+source = "verify-value-inputs.md section 4, objections 4 and 5: name the row 'in metal grains'; lead with kilograms"
+
+[bands]
+# Reflectivity bands. Tholen's split of featureless spectra: E above 0.3, M 0.1 to 0.3, P below 0.1.
+dark_below = 0.10
+bright_from = 0.30
+source = "Tholen limits as quoted by Moskovitz et al. 2026, arXiv:2603.15872 (P)"
+dark_is_hydrated_basis = "hydrated classes are dark: Bus Ch median 0.056 (163 objects), Cgh 0.065 (15), Mainzer et al. 2011, arXiv:1109.6407, Table 1 (L)"
+check = "Spitzer, a < 2 au, class X: 0.29 dark, 0.31 mid, 0.40 bright over all 68 labels (tools/value_inputs.py section 7); 0.37, 0.29, 0.34 over the 38 with a spectrum (priors.toml [reflectivity.link])"
+
+# ---------------------------------------------------------------------------
+# 3. Share of each material within each class
+# ---------------------------------------------------------------------------
+# kinds.<class>.<band> is a list of rows {material, share[low, central, high], hydrated[low, central, high]}.
+# Shares in a list sum to 1 in each scenario. A material whose share is a range is listed first.
+# "any" means the band does not matter.
+
+[kinds.S]
+basis = "ordinary chondrite. Split between the fall mix and the kilometre-scale mix (value-inputs.md 5.2, S, weak); LL-heavy, which lowers the grade"
+any = [
+  { material = "oc_h", share = [0.25, 0.25, 0.25] },
+  { material = "oc_l", share = [0.35, 0.35, 0.35] },
+  { material = "oc_ll", share = [0.40, 0.40, 0.40] },
+]
+
+[kinds.C]
+basis = "dark draws are clay-rich rock; a share of them hydrated. Brighter draws labelled C are counted as holding neither: colour-based classes disagree with spectra for a third of shared objects on four classes (verify-prior-null.md section 1), and 60% of the Spitzer C-types classed from a spectrum are dark against 19% of those classed from colours (method/v0_1/derivation/reflectivity.txt)"
+hydrated_basis = "0.30: 0.7 micron band, 30 +/- 5% (Rivkin 2012 in Rivkin & DeMeo 2019, P). 0.50: value-inputs.md 5.2. 0.77: 17 of 22, Usui et al. 2019 (P)"
+dark = [ { material = "carbonaceous", share = [1.0, 1.0, 1.0], hydrated = [0.30, 0.50, 0.77] } ]
+mid = [ { material = "none", share = [1.0, 1.0, 1.0] } ]
+bright = [ { material = "none", share = [1.0, 1.0, 1.0] } ]
+
+[kinds.X]
+basis = "E (bright): enstatite achondrite, nothing counted. M (mid): iron-rich or enstatite chondrite. P (dark): primitive, like C"
+iron_rich_basis = "0.38: 11 of 29 main-belt M-class asteroids metal-dominated by radar (Shepard et al. 2015, P abstract). 0.10 and 0.60: the range the checker tested (verify-value-inputs.md section 3). Untested at this size"
+iron_rich_cross_check = "irons are 4.4% of meteorite falls (49 of 1,102; 4.6% of the 1,062 classified; data to 2012, S), a sample that favours strong material"
+hydrated_basis = "0.30 for P-types (value-inputs.md 5.2, a judgement)"
+dark = [ { material = "carbonaceous", share = [1.0, 1.0, 1.0], hydrated = [0.30, 0.30, 0.30] } ]
+mid = [
+  { material = "iron_rich", share = [0.10, 0.38, 0.60] },
+  { material = "enstatite_chondrite", share = [0.90, 0.62, 0.40] },
+]
+bright = [ { material = "none", share = [1.0, 1.0, 1.0] } ]
+
+[kinds.other]
+basis = "205 'other' asteroids with a < 2 au: V, A 0.43 (differentiated, nothing counted); K, L, R 0.44 (chondritic, metal grains uncertain); D, T, Z 0.13 (dark primitive). tools/value_inputs.py section 7"
+grains_basis = "of the draws that are not dark, half are K, L or R. Whether those carry metal grains is not known: none (low), half (central), all (high), at L-chondrite grade (value-inputs.md 5.2, a simplification)"
+dark = [ { material = "carbonaceous", share = [1.0, 1.0, 1.0], hydrated = [0.30, 0.30, 0.30] } ]
+mid = [
+  { material = "oc_l", share = [0.0, 0.25, 0.50] },
+  { material = "none", share = [1.0, 0.75, 0.50] },
+]
+bright = [
+  { material = "oc_l", share = [0.0, 0.25, 0.50] },
+  { material = "none", share = [1.0, 0.75, 0.50] },
+]
+
+# ---------------------------------------------------------------------------
+# 4. Grades and water fractions by material
+# ---------------------------------------------------------------------------
+# grade_ppm: grams of the six platinum-group metals per tonne of rock, uniform
+# between the lowest and highest meteorite of the group in Horan et al. 2003,
+# Table 1 (P; rhodium not measured there, added at 0.30 x iridium, the CI ratio, R).
+
+[material.oc_h]
+label = "H chondrite"
+counted = true
+grade_ppm = { lo = 3.32, hi = 6.29 }
+mix = "ordinary_chondrite"
+basis = "ten analyses of nine H chondrites, Ceniceros to Rose City (replicate). The first Rose City aliquot (iridium 112 ppb, no osmium value) is left out"
+corrected = "was 5.2 to 5.6 ppm from three of the nine (verify-value-inputs.md, error 5)"
+
+[material.oc_l]
+label = "L chondrite"
+counted = true
+grade_ppm = { lo = 3.03, hi = 4.40 }
+mix = "ordinary_chondrite"
+basis = "Farmington and Chico (two aliquots). Both are heavily shocked; Chico is about 60% impact melt"
+
+[material.oc_ll]
+label = "LL chondrite"
+counted = true
+grade_ppm = { lo = 1.93, hi = 2.32 }
+mix = "ordinary_chondrite"
+basis = "Semarkona (two aliquots) and Chainpur. Both are unequilibrated type 3"
+
+[material.enstatite_chondrite]
+label = "enstatite chondrite"
+counted = true
+grade_ppm = { lo = 1.84, hi = 5.47 }
+density_kg_m3 = { lo = 2000.0, hi = 3500.0 }
+mix = "enstatite_chondrite"
+basis = "eleven analyses of nine EH and EL chondrites, Blithfield to Yilmia (replicate). Density: priors.toml [density.X.mid_silicate]"
+
+[material.iron_rich]
+label = "iron-rich"
+counted = true
+grade_table = "iron_meteorite"
+metal_fraction = { lo = 0.5, hi = 1.0 }
+density_kg_m3 = { lo = 3000.0, hi = 7500.0 }
+mix = ["iron_low", "iron_central", "iron_high"]
+basis = "metal fraction: 1986 DA about 85% metal (Sanchez et al. 2021, P abstract); mesosiderites about half. Density: porous mix to solid iron (value-inputs.md section 4), as priors.toml [density.X.mid_metal]"
+caution = "Cannon et al. 2023: the grades are for 100% metal and 'should be interpreted as upper values'; 'no known way to remotely identify' the grade"
+
+[material.carbonaceous]
+label = "dark clay-rich rock"
+counted = false
+not_counted_grade_ppm = { lo = 2.92, hi = 3.95 }
+water_fraction = { lo = 0.019, hi = 0.105 }
+basis = "water: CM chondrites, 1.9 to 10.5 wt% indigenous water (Lee et al. 2023, S). Inside the range: Ryugu 6.84 +/- 0.34 wt% (Yokoyama et al. 2023, P); Bennu at most 7.5 to 8.5 wt% from 0.84 to 0.95 wt% hydrogen (Lauretta et al. 2024, P)"
+left_out = "Ivuna's 12.73 wt%: half of it is interlayer water, part picked up on Earth. Elvis 2014's 20 wt%: no sample supports it"
+
+[material.none]
+label = "no metal grains counted"
+counted = false
+basis = "enstatite achondrite, basalt, olivine-rich rock, or a class label too uncertain to assign"
+
+[grade_table]
+# Total of six platinum-group metals in iron meteorites, ppm, by percentile.
+# Cannon, Gialich & Acain 2023, Planet. Space Sci. 225, 105608, Table 2 (P); the
+# ends are the paper's "between ~6 and 230 ppm". Interpolate log-linearly in ppm.
+iron_meteorite = [
+  [0.0, 6.0], [0.1, 14.70], [0.2, 20.75], [0.3, 27.05], [0.4, 34.77], [0.5, 40.78],
+  [0.6, 52.88], [0.7, 63.48], [0.8, 91.23], [0.9, 107.86], [1.0, 230.0],
+]
+
+# Mass share of each metal in the total. Sums to 1.
+[mix.ordinary_chondrite]
+Os = 0.1557
+Ir = 0.1405
+Ru = 0.2134
+Pt = 0.2855
+Pd = 0.1627
+Rh = 0.0422
+basis = "mean over the 16 H, L and LL analyses in Horan et al. 2003 Table 1"
+
+[mix.enstatite_chondrite]
+Os = 0.1476
+Ir = 0.1351
+Ru = 0.2025
+Pt = 0.2746
+Pd = 0.1996
+Rh = 0.0405
+basis = "mean over the 11 EH and EL analyses in Horan et al. 2003 Table 1"
+
+# Iron. The paper that gives the grades says chondritic proportions fail for
+# irons ("Ru, Rh, and Pt roll over at higher Ir values ... Pd is inversely
+# correlated with Ir") and gives the real mix only as a chart and a supplementary
+# table that is not on disk. So the mix is bracketed by two mixes chosen here.
+# They are a judgement, not the extremes of the paper's data: an iron with more
+# rhodium than iron_high would be dearer per kilogram (rhodium at the chondritic
+# ratio to iridium gives about $111,000 per kg at the high prices), and one
+# of platinum and ruthenium alone would be cheaper than iron_low (about $24,000).
+#
+# The checker asked for one of two things before any metal-rich dollar figure is
+# shown: fix the mix from that supplementary table, or show the branch in
+# kilograms only (verify-value-inputs.md section 4, objection 8). Neither is done.
+# The iron-rich sentence leads with kilograms and says its dollars rest on an
+# assumed mix. To take the checker's second option, drop "({usd_range})" and the
+# last clause from the iron_rich template in section 8.
+[mix.iron_low]
+Os = 0.0
+Ir = 0.0
+Ru = 0.3030
+Pt = 0.4396
+Pd = 0.2574
+Rh = 0.0
+basis = "a judgement, not a bound: no iridium, osmium or rhodium; platinum, ruthenium and palladium in CI proportions to each other (Lodders 2003, R). $26,206 per kg at the low prices"
+
+[mix.iron_central]
+Os = 0.1344
+Ir = 0.1300
+Ru = 0.2099
+Pt = 0.3045
+Pd = 0.1784
+Rh = 0.0428
+basis = "iridium 0.13; platinum plus ruthenium 0.51, as the paper says ('more than half'). Used for nothing that is exported"
+
+[mix.iron_high]
+Os = 0.2689
+Ir = 0.2600
+Ru = 0.1344
+Pt = 0.1951
+Pd = 0.1142
+Rh = 0.0274
+basis = "a judgement, not a bound: iridium 0.26, the share in Avce (59.5 of about 230 ppm), the richest iron the paper supports; osmium at the CI ratio to iridium; the rest in CI proportions, which puts rhodium at a third of its chondritic ratio to iridium. $80,353 per kg at the high prices, against $79,735 for the chondritic mix"
+
+# ---------------------------------------------------------------------------
+# 5. Prices, the market rule and the size allowance
+# ---------------------------------------------------------------------------
+
+[prices]
+basis = "annual average list prices, 2021 to 2025"
+phrase = "2021–2025 yearly average list prices"
+source = "USGS Mineral Commodity Summaries 2026, platinum-group metals: 'Price, dollars per troy ounce' (Engelhard unfabricated metal). 2025 is an estimate"
+url = "https://pubs.usgs.gov/periodicals/mcs2026/mcs2026-platinum-group.pdf"
+read = "2025 column confirmed at source 2026-11-21 (P); 2021 to 2024 read from the copy saved that day (L)"
+years = [2021, 2022, 2023, 2024, 2025]
+g_per_troy_ounce = 31.1034768
+rule = "low: each metal's lowest yearly average. high: each metal's highest yearly average. central: the five-year average, used in no exported figure"
+why = "one day's dealer quote is too fragile: on 20 November 2026 platinum moved 3.5% between the 10am quote and the close and stood 54% below its January record of $2,923 (verify-value-inputs.md section 4, objection 7)"
+
+[prices.usd_per_troy_ounce]            # by year, in the order of prices.years
+Pt = [1094.31, 966.54, 973.00, 960.70, 1200.00]
+Pd = [2419.18, 2133.81, 1351.66, 994.90, 1100.00]
+Rh = [20254.10, 15585.00, 6660.58, 4660.44, 5800.00]
+Ir = [5158.40, 4581.93, 4672.78, 4810.40, 4400.00]
+Ru = [576.12, 577.02, 466.49, 451.02, 690.00]
+
+[prices.usd_per_kg]                    # [low, central, high], derived from the table above
+Pt = [30887.0, 33402.0, 38581.0]
+Pd = [31987.0, 51438.0, 77778.0]
+Rh = [149837.0, 340541.0, 651184.0]
+Ir = [141463.0, 151903.0, 165846.0]
+Ru = [14501.0, 17751.0, 22184.0]
+
+[prices.context]
+# Not used in any figure. For the method page.
+quote_date = "2026-11-20"
+quote_source = "Umicore 10am prices (P): Pt 1,336, Pd 912, Rh 8,950, Ir 10,200, Ru 1,900 dollars per troy ounce"
+quote_over_high = 1.12                 # an ordinary-chondrite mix at that day's quotes over the same mix at the high prices
+mix_usd_per_kg = [43314.0, 57397.0, 79162.0]   # ordinary-chondrite mix, [low, central, high], osmium unpriced
+iridium_and_rhodium_share_of_usd = [0.61, 0.64]  # at the low and the high prices
+iridium_supply_t = 7.0
+rhodium_supply_t = 22.0
+
+[market]
+rule = "cap"
+cap_share_of_supply = 0.10
+supply_year = 2025
+supply_source = "International Platinum Group Metals Association factsheets, May 2026 (SFA Oxford), primary supply (P)"
+choice = "A choice, not a finding. Each metal is priced only up to a tenth of one year's world mine supply; beyond that it counts as kilograms and no dollars. The published alternative, Kargel's rule p' = p (P'/P)^-0.60 as used by Sanchez et al. 2021, never stops adding dollars; the cap is the lower of the two"
+binds = "first for iridium: an H-chondrite body above about 84 m, or an iron-rich one above about 33 to 42 m (tools/value_inputs.py section 3)"
+
+[market.supply_t]
+Pt = 178.0
+Pd = 197.0
+Rh = 22.0
+Ir = 7.0
+Ru = 30.0
+
+[market.cap_kg]
+Pt = 17800.0
+Pd = 19700.0
+Rh = 2200.0
+Ir = 700.0
+Ru = 3000.0
+
+[size]
+# Applied unless the size row's state is "measured" (so: prior, limit or unchecked).
+diameter_factor = [0.3333, 1.0, 1.0]
+basis = "both small targets measured since came out 2 to 3 times smaller than the working size (docs/plan.md 1.2); a lower bound takes the far end, 3. One size rule for every class, the plan's alternative to tying size to class, cuts the water tonnage twelve to twenty times (verify-value-inputs.md verdict 3), a factor of 0.37 to 0.44 in diameter, which this covers"
+
+# ---------------------------------------------------------------------------
+# 6. How the three placeholder inputs are folded into the ranges
+# ---------------------------------------------------------------------------
+
+[folded]
+metal_rich_share = "kinds.X.mid: 0.10 in low, 0.60 in high. Every 'under' figure is computed at 0.60 and every 'over' figure at 0.10; the count of iron-rich bodies prints as a band"
+dark_reflectivity = "no fixed value. A draw holds bound water only if its own reflectivity is under 0.10, and the same reflectivity sets its size. The checker's two candidates, 0.05 and 0.13, are one inside and one outside the band"
+size_rule = "sizes come from the pipeline's joint draw (measured reflectivities, tied to class). size.diameter_factor adds, to every lower bound from a brightness-based size, the case where that size is 3 times too large"
+iron_proportions = "mix.iron_low and mix.iron_high bracket the dollars per kilogram, by judgement and not from measured irons; the iron-rich statement leads with kilograms and says its dollars rest on an assumed mix"
+prices = "low and high yearly averages per metal"
+check = "tools/value_examples.py prints, for H 26.2, each alternative the checker ran against the exported range"
+
+# ---------------------------------------------------------------------------
+# 7. Exports
+# ---------------------------------------------------------------------------
+
+[exports]
+quantile_rule = "nearest rank: sort ascending, take the value at index ceil(q x n) - 1"
+min_draws = 2000
+min_draws_for_a_range = 20             # fewer draws than this in a subset: export no range for it
+never = ["mean", "median", "q50", "expected value", "a single dollar figure"]
+
+[exports.metal]
+# Over all draws, zeros counted.
+p_nothing = "share of draws with kg = 0, central"
+p_nothing_lo = "the same in high (fewest hold nothing)"
+p_nothing_hi = "the same in low"
+kg = "q05 and q25 from low; q75 and q95 from high"
+usd = "q05 and q25 from low; q75 and q95 from high. Dollars are sorted on their own: a dollar quantile is not the dollars of the kg quantile's draw"
+capped = "true if, in high, the q95 of dollars without the cap is more than 1.05 times the q95 with it; or the same for the iron_rich subset"
+
+[exports.iron_rich]
+p_lo = "share of draws that are iron_rich in low"
+p_hi = "the same in high"
+subset = "every class X draw in the mid band, each computed as if iron-rich (the share is independent of size, and this uses about ten times more draws)"
+kg = "q05 from low, q95 from high, over that subset"
+usd = "q05 from low, q95 from high, over that subset"
+
+[exports.water]
+p_nothing = "share of draws with water_t = 0, central"
+p_nothing_lo = "the same in high"
+p_nothing_hi = "the same in low"
+tonnes = "q05 from low over the draws with water in low; q95 from high over the draws with water in high. These two are not over all draws: the statement says so"
+
+[exports.basis]
+# value.basis is this one string. The entry prints it after the statements, as "prices: ...".
+text = "USGS yearly average list prices, 2021–2025: each metal's lowest year for a lower bound, its highest for an upper bound. Osmium has no list price."
+sources = [
+  "Horan et al. 2003, Chem. Geol. 196, 5 (metal in chondrites)",
+  "Cannon, Gialich & Acain 2023, Planet. Space Sci. 225, 105608 (metal in irons)",
+  "Shepard et al. 2015, Icarus 245, 38 (iron-rich share)",
+  "Lee et al. 2023, Meteorit. Planet. Sci. 58, 1760 (water in CM chondrites)",
+  "USGS Mineral Commodity Summaries 2026 (prices)",
+  "International Platinum Group Metals Association factsheets, May 2026 (mine supply)",
+]
+
+[exports.field_file]
+none = "The field file carries no figure from this block. A bare dollar column for every asteroid, with no range and no chance of nothing beside it, is what DESIGN.md section 7 rules out; it was also unread by the app (review of 2026-11-25)"
+
+[exports.seed]
+rule = "The six uniform numbers are seeded as the joint draws were: by the object key, or, when only brightness went into the draw, by H and its error. Two unobserved asteroids of the same H print the same price tag (DESIGN.md section 7)"
+
+# ---------------------------------------------------------------------------
+# 8. Statements
+# ---------------------------------------------------------------------------
+# value.statements is the list of filled templates, in this order. A page prints
+# them as they are. value.statement_ids is the list of their ids, in the same
+# order; the ladder's fourth rung picks two sentences by id.
+# One denominator throughout: 100 asteroids like this one.
+
+[format]
+count = "a whole number of 100, halves rounded up. Both ends under 0.5: 'fewer than 1'. Both over 99.5: 'more than 99'. A band prints as '38 to 43'; when both ends round to the same number, 'about 40'; when the low end rounds to 0, 'up to 4'; when the high end rounds to 100, '99 or more'"
+figures = "one significant figure; two when the first digit is 1 or 2. An 'under' figure rounds up, an 'over' figure rounds down"
+range = "'A to B'; when both carry the same unit word it prints once ('20 to 10,000 tonnes', '1 to 30 tonnes')"
+usd = "'$700', '$40 thousand', '$1.9 million', '$2 billion'"
+usd_range = "both ends carry their scale word ('$3 million to $40 million'); when the low end is under $1,000, so has no word, and the high end has one, both print in figures ('$40 to $160,000'), so the low end cannot be read as sharing the high end's word"
+tonne = "'1 tonne', never '1 tonnes'"
+kg = "under 1 kg in grams ('400 g'); from 1,000 kg in tonnes ('1.4 tonnes'); else 'N kg'"
+tonnes = "'N tonnes'; thousands with a comma; from a million, 'N million tonnes'"
+
+[[statement]]
+id = "metal_none"
+when = "always, unless metal_none_measured applies"
+template = "Of 100 like it, {n_none} hold no platinum-group metal in metal grains."
+slots = { n_none = "count band from metal.p_nothing_lo and p_nothing_hi" }
+
+[[statement]]
+id = "metal_none_measured"
+when = "the class is measured, and p_nothing_hi < 0.005 or p_nothing_lo > 0.995 (one answer is left)"
+template_some = "Rock of its class ({class_label}) and reflectivity carries platinum-group metal in metal grains."
+template_none = "Rock of its class ({class_label}) and reflectivity is counted as holding no platinum-group metal in metal grains."
+label_error = "A class label is wrong at a stated rate, and that rate is in the draws (priors.toml [class.label_error]: 21 of 100 for a label from colours, 12.5 of 100 for any other). So a labelled class leaves a chance of nothing, metal_none prints it first, and this statement applies only where the rate is zero. The sentence 'Colour and spectral surveys disagree on S/Q against the rest for 21 of 100 asteroids' that used to follow it is not printed: it stood beside a zero chance of nothing and a nineteen-in-twenty floor in dollars (review of 2026-11-25)"
+label_error_source = "Sergeyev against Mahlke, 874 shared objects, verify-prior-null.md. The earlier 'under 1 in 10' is not carried (verify-value-inputs.md, error 2)"
+slots = { class_label = "S/Q, C, X or other" }
+
+[[statement]]
+id = "metal_under"
+when = "metal.usd.q95 > 0"
+template = "Counting those, three in four hold under {kg75} ({usd75}) and nineteen in twenty under {kg95} ({usd95}), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025."
+template_q95_only = "Nineteen in twenty hold under {kg95} ({usd95}), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025."
+note = "use template_q95_only when metal.usd.q75 is 0. Drop 'Counting those, ' when metal_none_measured is printed"
+slots = { kg75 = "metal.kg.q75", usd75 = "metal.usd.q75", kg95 = "metal.kg.q95", usd95 = "metal.usd.q95" }
+
+[[statement]]
+id = "metal_over"
+when = "metal.usd.q25 > 0"
+template = "Three in four hold over {kg25} ({usd25}) and nineteen in twenty over {kg05} ({usd05}), in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025{size_clause}."
+template_q25_only = "Three in four hold over {kg25} ({usd25}), in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025{size_clause}."
+size_clause = ", if it is no more than 3 times smaller than its brightness suggests"
+note = "use template_q25_only when metal.usd.q05 is 0. size_clause is empty when the size row is measured"
+slots = { kg25 = "metal.kg.q25", usd25 = "metal.usd.q25", kg05 = "metal.kg.q05", usd05 = "metal.usd.q05" }
+
+[[statement]]
+id = "iron_rich"
+when = "iron_rich.p_hi >= 0.005"
+template = "{n_iron} of the 100 would be iron-rich and hold {kg_range} ({usd_range}). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons."
+note = "the range is wide mostly from size, grade and metal fraction; the two mixes add a factor of about 3 (tools/value_inputs.py section 4)"
+slots = { n_iron = "count band from iron_rich.p_lo and p_hi", kg_range = "iron_rich.kg.q05 to q95", usd_range = "iron_rich.usd.q05 to q95" }
+
+[[statement]]
+id = "metal_cap"
+when = "metal.capped"
+template = "Dollars count each metal only up to a tenth of a year's world mine supply."
+
+[[statement]]
+id = "water_none"
+when = "always"
+template = "Of 100 like it, {n_none} hold no water bound in minerals."
+template_all = "Rock of its class and reflectivity is counted as holding no water bound in minerals."
+template_all_no_class = "Rock this reflective is counted as holding no water bound in minerals."
+note = "when water.p_nothing_lo > 0.995: template_all where a class is measured, template_all_no_class where none is"
+slots = { n_none = "count band from water.p_nothing_lo and p_nothing_hi" }
+
+[[statement]]
+id = "water_some"
+when = "water.tonnes is exported"
+template = "Nine in ten of the rest hold {t_range}."
+slots = { t_range = "water.tonnes.q05 to q95" }
+
+[[statement]]
+id = "water_market"
+when = "always"
+template = "As of 21 November 2026 we found nobody buying water in orbit."
+basis = "no buyer has restated any published price; every one found is for propellant, not water, from business cases of 2014 to 2020, or a figure a paper assumed (verify-value-inputs.md 2.4). No dollar figure is computed for water"
+wording = "DESIGN.md section 7 gives the reason as 'Nobody buys water in orbit'. Printed on an entry it is a universal negative, so it carries 'we found' and the date of the search (verify-capability.md section 4, objection 14). The space station's water is launched by its own agencies (3.3 t in a year)"
+
+# An asteroid a spacecraft brought a sample back from (ladder.toml, facts of kind sample_return). The statements
+# above, which rest on its class, give way to these: value.statements holds one of the three, then water_market
+# where water is named. The ladder's fourth rung prints the analysis of the sample itself.
+[[statement]]
+id = "sample_water"
+when = "the fact gives water_wt_pct (Ryugu)"
+template = "If the whole body matches the returned sample, it holds {t_range} of water."
+slots = { t_range = "the 5th of the mass draws at the low end of water_wt_pct, to the 95th at the high end" }
+
+[[statement]]
+id = "sample_water_at_most"
+when = "the fact gives water_wt_pct_at_most (Bennu: hydrogen was measured, not water)"
+template = "If the whole body matches the returned sample, and all its hydrogen is in water, it holds at most {t_max} of water."
+slots = { t_max = "the 95th of the mass draws at water_wt_pct_at_most" }
+
+[[statement]]
+id = "sample_no_analysis"
+when = "the fact gives no analysis (Itokawa)"
+template = "No analysis of the returned sample is on file here, so no figure is given."
+
+# For method.html, not for an entry.
+[[method_statement]]
+id = "price_basis"
+template = "Dollar figures use USGS yearly average list prices for 2021 to 2025, the lowest year of each metal for a lower bound and the highest for an upper bound. Osmium has no list price and counts as kilograms only."
+
+[[method_statement]]
+id = "thin_markets"
+template = "About three fifths of each dollar figure is iridium and rhodium. The world's mines supply about 7 and 22 tonnes of them a year."
+
+[[method_statement]]
+id = "price_today"
+template = "At dealer quotes of 20 November 2026 a stony asteroid's figure is 1.12 times its upper bound here; iridium stood at twice its highest yearly average."
+
+[[method_statement]]
+id = "not_claimed"
+template = "These figures are contents at list prices. They are not what anyone could sell an asteroid for, and no cost is subtracted."
+
+[[method_statement]]
+id = "returned_sample"
+template = "The 121.6 g returned from Bennu, had it been iron meteorite, would contain 2 to 13 milligrams of platinum-group metal."
+basis = "121.6 g at Cannon's 10th and 90th percentile grades, 14.70 and 107.86 ppm. The earlier wording, what the sample would sell for, is not carried (verify-value-inputs.md section 4, objection 11)"
+
+# ---------------------------------------------------------------------------
+# 8a. The entry's two price tables (record.value.table; longshot/value.py table)
+# ---------------------------------------------------------------------------
+# The same figures as the statements above, rounded by [format], laid out as rows beside a chart of 100 cells.
+# Words only: no number is set here. A row is written only where its statement would be.
+[table.metal]
+none = "Hold none"
+over_q05 = "19 in 20 hold over"
+over_q25 = "3 in 4 hold over"
+under_q75 = "3 in 4 hold under"
+under_q95 = "19 in 20 hold under"
+iron_rich = "Iron-rich"
+
+[table.water]
+none = "Hold none"
+some = "9 in 10 of the rest hold"
+all = "all 100"
+
+[table.cells]
+# The chart's cells, in order: the chance of nothing first. An uncertain cell is one the low and high scenarios
+# disagree on ([format].count rounds each end).
+none = "None"
+none_or_some = "None or some"
+some = "Some"
+iron_rich_or_not = "Iron-rich or not"
+iron_rich = "Iron-rich"
+
+[table.notes]
+iron_rich = "No observation from Earth tells which would be iron-rich, and their dollar figures rest on an assumed mix of metals in irons."
+prices = "In the rock, before any cost."      # the price rule is the Prices line under the notes (value.basis)
+size = "An over figure holds if it is no more than 3 times smaller than its brightness suggests."
+
+# ---------------------------------------------------------------------------
+# 9. Reference draw (tools/value_examples.py and tests only)
+# ---------------------------------------------------------------------------
+# The pipeline's draws come from longshot/draws.py. This stand-in follows steps 1
+# to 5 of priors.toml [joint], with the constants below copied from priors.toml
+# on 2026-11-25, so the worked examples can be reproduced without the pipeline.
+# If priors.toml changes, the pipeline's figures move and these do not.
+
+[reference_draw]
+copied_from = "method/v0_1/priors.toml, 2026-11-25"
+steps = [
+  "1. H: normal(H, h_sigma)",
+  "2. reflectivity: from the size if the size is measured; else from by_class_S if the class is measured S and the draw is not mislabelled (step 4); else from pv. Inverse transform, log10 linear in p, clamped to the table ends",
+  "3. diameter: the measured size (lognormal, the stated spread) or coefficient_m x 10^(-H/5) / sqrt(reflectivity)",
+  "4. class: the measured class, except in label_error of the draws, which are mislabelled: those take a class from the other side of S/Q against the rest. A mislabelled draw, and a draw with no measured class, is drawn with weight joint_weight[class] x link[class][bin of reflectivity]",
+  "5. density: flat within density_kg_m3 for the class; for X, by reflectivity band",
+]
+coefficient_m = 1329000.0
+h_sigma = 0.36
+label_error_spectrum = 0.125           # priors.toml [class.label_error].spectrum; example 2 carries it in its inputs
+label_error_note = "The pipeline draws a mislabelled draw's reflectivity from the table of the class it takes; this stand-in has only the S table and uses the all-class one. The two agree on the chance of nothing to within a count of 100"
+p = [0.025, 0.050, 0.100, 0.150, 0.200, 0.250, 0.300, 0.350, 0.400, 0.450, 0.500, 0.550, 0.600, 0.650, 0.700, 0.750, 0.800, 0.850, 0.900, 0.950, 0.975]
+pv = [0.0320, 0.0575, 0.0990, 0.1303, 0.1600, 0.1820, 0.2020, 0.2192, 0.2350, 0.2548, 0.2725, 0.2910, 0.3100, 0.3280, 0.3460, 0.3750, 0.4050, 0.4517, 0.5200, 0.6653, 0.7972]
+by_class_S = [0.1120, 0.1325, 0.1575, 0.1735, 0.1967, 0.2140, 0.2225, 0.2397, 0.2540, 0.2692, 0.2875, 0.2960, 0.3100, 0.3232, 0.3335, 0.3538, 0.3799, 0.4042, 0.4425, 0.5005, 0.6126]
+link_edges = [0.10, 0.20, 0.30, 0.45]
+
+[reference_draw.link]
+S = [0.0175, 0.1923, 0.3601, 0.3357, 0.0944]
+C = [0.6000, 0.0571, 0.0857, 0.0857, 0.1714]
+X = [0.3684, 0.2105, 0.0789, 0.1316, 0.2105]
+other = [0.0577, 0.2115, 0.1538, 0.2885, 0.2885]
+
+[reference_draw.joint_weight]
+band_26_28 = { S = 0.5081, C = 0.1865, X = 0.1998, other = 0.1057 }
+band_22_24 = { S = 0.5983, C = 0.2208, X = 0.1089, other = 0.0720 }
+
+[reference_draw.density_kg_m3]         # [lo, hi]
+S = [1700.0, 3400.0]
+C = [900.0, 2300.0]
+other = [1200.0, 3300.0]
+X_dark = [900.0, 2300.0]
+X_mid = [2000.0, 3500.0]
+X_bright = [2000.0, 3300.0]
+
+# ---------------------------------------------------------------------------
+# 10. Single-draw checks (exact; value.py must reproduce every line)
+# ---------------------------------------------------------------------------
+# Printed by tools/value_examples.py --toml. expect is [low, central, high].
+
+[[check]]
+id = "stony_measured_size"
+class = "S"
+reflectivity = 0.25
+diameter_m = 15.0
+density_kg_m3 = 2500.0
+size_measured = true
+u = { u_kind = 0.1, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "oc_h", mass_t = 4417.864669, kg = 21.22784, usd = 919498.943523, water_t = 0.0 },
+  { material = "oc_h", mass_t = 4417.864669, kg = 21.22784, usd = 1218615.954155, water_t = 0.0 },
+  { material = "oc_h", mass_t = 4417.864669, kg = 21.22784, usd = 1680921.171848, water_t = 0.0 },
+]
+
+[[check]]
+id = "stony_size_from_brightness"
+class = "S"
+reflectivity = 0.25
+diameter_m = 15.0
+density_kg_m3 = 2500.0
+size_measured = false
+u = { u_kind = 0.7, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "oc_ll", mass_t = 163.575535, kg = 0.347598, usd = 15056.454565, water_t = 0.0 },
+  { material = "oc_ll", mass_t = 4417.864669, kg = 9.387962, usd = 538930.052566, water_t = 0.0 },
+  { material = "oc_ll", mass_t = 4417.864669, kg = 9.387962, usd = 743383.45269, water_t = 0.0 },
+]
+
+[[check]]
+id = "iron_rich"
+class = "X"
+reflectivity = 0.15
+diameter_m = 19.7
+density_kg_m3 = 2800.0
+size_measured = true
+u = { u_kind = 0.05, u_grade = 0.5, u_metal = 0.5, u_rho = 0.3333333333333333, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "iron_rich", mass_t = 18013.985738, kg = 550.957754, usd = 14437948.212607, water_t = 0.0 },
+  { material = "iron_rich", mass_t = 18013.985738, kg = 550.957754, usd = 31622731.512978, water_t = 0.0 },
+  { material = "iron_rich", mass_t = 18013.985738, kg = 550.957754, usd = 44271291.253868, water_t = 0.0 },
+]
+
+[[check]]
+id = "iron_rich_only_above_low_share"
+class = "X"
+reflectivity = 0.15
+diameter_m = 19.7
+density_kg_m3 = 2800.0
+size_measured = true
+u = { u_kind = 0.3, u_grade = 0.5, u_metal = 0.5, u_rho = 0.3333333333333333, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "enstatite_chondrite", mass_t = 10007.769854, kg = 36.578399, usd = 1572237.527182, water_t = 0.0 },
+  { material = "iron_rich", mass_t = 18013.985738, kg = 550.957754, usd = 31622731.512978, water_t = 0.0 },
+  { material = "iron_rich", mass_t = 18013.985738, kg = 550.957754, usd = 44271291.253868, water_t = 0.0 },
+]
+
+[[check]]
+id = "dark_hydrated"
+class = "C"
+reflectivity = 0.05
+diameter_m = 34.2
+density_kg_m3 = 1400.0
+size_measured = true
+u = { u_kind = 0.5, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.4, u_water = 0.5 }
+expect = [
+  { material = "carbonaceous", mass_t = 29322.768802, kg = 0.0, usd = 0.0, water_t = 0.0 },
+  { material = "carbonaceous", mass_t = 29322.768802, kg = 0.0, usd = 0.0, water_t = 1818.011666 },
+  { material = "carbonaceous", mass_t = 29322.768802, kg = 0.0, usd = 0.0, water_t = 1818.011666 },
+]
+
+[[check]]
+id = "class_c_not_dark"
+class = "C"
+reflectivity = 0.2
+diameter_m = 17.1
+density_kg_m3 = 1400.0
+size_measured = true
+u = { u_kind = 0.5, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.1, u_water = 0.5 }
+expect = [
+  { material = "none", mass_t = 3665.3461, kg = 0.0, usd = 0.0, water_t = 0.0 },
+  { material = "none", mass_t = 3665.3461, kg = 0.0, usd = 0.0, water_t = 0.0 },
+  { material = "none", mass_t = 3665.3461, kg = 0.0, usd = 0.0, water_t = 0.0 },
+]
+
+[[check]]
+id = "other_grains_uncertain"
+class = "other"
+reflectivity = 0.33
+diameter_m = 13.3
+density_kg_m3 = 2250.0
+size_measured = true
+u = { u_kind = 0.3, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "none", mass_t = 2771.635168, kg = 0.0, usd = 0.0, water_t = 0.0 },
+  { material = "none", mass_t = 2771.635168, kg = 0.0, usd = 0.0, water_t = 0.0 },
+  { material = "oc_l", mass_t = 2771.635168, kg = 10.296625, usd = 815335.643657, water_t = 0.0 },
+]
+
+[[check]]
+id = "market_cap_binds"
+class = "S"
+reflectivity = 0.25
+diameter_m = 300.0
+density_kg_m3 = 2500.0
+size_measured = true
+u = { u_kind = 0.1, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "oc_h", mass_t = 35342917.352885, kg = 169822.717881, usd = 1652101000.0, water_t = 0.0 },
+  { material = "oc_h", mass_t = 35342917.352885, kg = 169822.717881, usd = 2516659500.0, water_t = 0.0 },
+  { material = "oc_h", mass_t = 35342917.352885, kg = 169822.717881, usd = 3834217400.0, water_t = 0.0 },
+]
+
+[[check]]
+id = "example_1_stony"
+class = "S"
+reflectivity = 0.273
+diameter_m = 14.64
+density_kg_m3 = 2550.0
+size_measured = false
+u = { u_kind = 0.1, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "oc_h", mass_t = 155.120064, kg = 0.745352, usd = 32285.446749, water_t = 0.0 },
+  { material = "oc_h", mass_t = 4189.498439, kg = 20.13054, usd = 1155623.818232, water_t = 0.0 },
+  { material = "oc_h", mass_t = 4189.498439, kg = 20.13054, usd = 1594031.76705, water_t = 0.0 },
+]
+
+[[check]]
+id = "example_1_dark"
+class = "C"
+reflectivity = 0.05
+diameter_m = 34.2
+density_kg_m3 = 1600.0
+size_measured = false
+u = { u_kind = 0.5, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.2, u_water = 0.5 }
+expect = [
+  { material = "carbonaceous", mass_t = 1240.803084, kg = 0.0, usd = 0.0, water_t = 76.929791 },
+  { material = "carbonaceous", mass_t = 33511.735774, kg = 0.0, usd = 0.0, water_t = 2077.727618 },
+  { material = "carbonaceous", mass_t = 33511.735774, kg = 0.0, usd = 0.0, water_t = 2077.727618 },
+]
+
+[[check]]
+id = "example_3_stony"
+class = "S"
+reflectivity = 0.41
+diameter_m = 60.0
+density_kg_m3 = 2550.0
+size_measured = true
+u = { u_kind = 0.1, u_grade = 0.5, u_metal = 0.5, u_rho = 0.5, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "oc_h", mass_t = 288398.2056, kg = 1385.753378, usd = 60024891.033162, water_t = 0.0 },
+  { material = "oc_h", mass_t = 288398.2056, kg = 1385.753378, usd = 79551249.48727, water_t = 0.0 },
+  { material = "oc_h", mass_t = 288398.2056, kg = 1385.753378, usd = 109730534.09825, water_t = 0.0 },
+]
+
+[[check]]
+id = "example_3_iron_rich"
+class = "X"
+reflectivity = 0.2
+diameter_m = 60.0
+density_kg_m3 = 2750.0
+size_measured = true
+u = { u_kind = 0.05, u_grade = 0.5, u_metal = 0.5, u_rho = 0.3333333333333333, u_hyd = 0.5, u_water = 0.5 }
+expect = [
+  { material = "iron_rich", mass_t = 508938.009882, kg = 15565.869032, usd = 383016068.926268, water_t = 0.0 },
+  { material = "iron_rich", mass_t = 508938.009882, kg = 15565.869032, usd = 687619895.530234, water_t = 0.0 },
+  { material = "iron_rich", mass_t = 508938.009882, kg = 15565.869032, usd = 695661990.623605, water_t = 0.0 },
+]
+
+# ---------------------------------------------------------------------------
+# 11. Worked examples (reference draw; value.py fed the same draws must agree)
+# ---------------------------------------------------------------------------
+# Printed by tools/value_examples.py --toml at 200,000 draws. Draws: reference_draws(method, id, n).
+# Agreement at 20,000 draws: counts of 100 within 1, every other figure within 15%. At 2,000 draws the tail figures move by up to 30%.
+# The iron-rich range of example 2 rests on its mislabelled draws alone, about 1 in 80, and moves by up to 35% at 20,000 draws.
+# tools/method_check.py recomputes every figure below from this file alone, with no code shared with that script.
+
+[[example]]
+id = 1
+title = "H 26.2, nothing else measured"
+size_measured = false
+draws = 200000
+inputs = { h = 26.2, weights = "band_26_28" }
+statements = [
+  "Of 100 like it, 31 to 36 hold no platinum-group metal in metal grains.",
+  "Counting those, three in four hold under 21 kg ($1.6 million) and nineteen in twenty under 100 kg ($8 million), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.",
+  "1 to 4 of the 100 would be iron-rich and hold 2.8 kg to 3 tonnes ($70 thousand to $230 million). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons.",
+  "Of 100 like it, 94 to 97 hold no water bound in minerals.",
+  "Nine in ten of the rest hold 12 to 8,000 tonnes.",
+  "As of 21 November 2026 we found nobody buying water in orbit.",
+]
+[example.metal]
+p_nothing = 0.33272
+p_nothing_lo = 0.305165
+p_nothing_hi = 0.359165
+kg = { q05 = 0.0, q25 = 0.0, q75 = 20.098044, q95 = 91.474342 }
+usd = { q05 = 0.0, q25 = 0.0, q75 = 1591768.492066, q95 = 7254743.096808 }
+capped = false
+[example.iron_rich]
+p_lo = 0.006555
+p_hi = 0.039095
+kg = { q05 = 2.820417, q95 = 2911.802472 }
+usd = { q05 = 73909.553274, q95 = 224508424.322672 }
+[example.water]
+p_nothing = 0.95865
+p_nothing_lo = 0.9433
+p_nothing_hi = 0.96996
+tonnes = { q05 = 12.583468, q95 = 7916.02605 }
+
+[[example]]
+id = 2
+title = "the same after a spectrum says S-type"
+size_measured = false
+draws = 200000
+inputs = { h = 26.2, class = "S", class_label = "S/Q", label_error = 0.125, weights = "band_26_28" }
+statements = [
+  "Of 100 like it, 8 to 10 hold no platinum-group metal in metal grains.",
+  "Counting those, three in four hold under 23 kg ($1.9 million) and nineteen in twenty under 70 kg ($5 million), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.",
+  "Three in four hold over 200 g ($8 thousand), in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025, if it is no more than 3 times smaller than its brightness suggests.",
+  "Up to 1 of the 100 would be iron-rich and hold 2.4 kg to 2.7 tonnes ($60 thousand to $220 million). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons.",
+  "Of 100 like it, 99 or more hold no water bound in minerals.",
+  "Nine in ten of the rest hold 13 to 9,000 tonnes.",
+  "As of 21 November 2026 we found nobody buying water in orbit.",
+]
+[example.metal]
+p_nothing = 0.090085
+p_nothing_lo = 0.07993
+p_nothing_hi = 0.09976
+kg = { q05 = 0.0, q25 = 0.207007, q75 = 22.930396, q95 = 62.950371 }
+usd = { q05 = 0.0, q25 = 8965.785611, q75 = 1815822.924545, q95 = 4986055.069033 }
+capped = false
+[example.iron_rich]
+p_lo = 0.00252
+p_hi = 0.014885
+kg = { q05 = 2.4077, q95 = 2640.695909 }
+usd = { q05 = 63094.217901, q95 = 212188714.829772 }
+[example.water]
+p_nothing = 0.994785
+p_nothing_lo = 0.99274
+p_nothing_hi = 0.996235
+tonnes = { q05 = 13.254167, q95 = 8714.563358 }
+
+[[example]]
+id = 3
+title = "H 22.7 with a measured size of 60 m, good to 30%"
+size_measured = true
+draws = 200000
+inputs = { h = 22.7, d_m = 60.0, d_sigma_ln = 0.26, weights = "band_22_24" }
+statements = [
+  "Of 100 like it, 31 to 36 hold no platinum-group metal in metal grains.",
+  "Counting those, three in four hold under 1.5 tonnes ($120 million) and nineteen in twenty under 4 tonnes ($300 million), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.",
+  "Up to 1 of the 100 would be iron-rich and hold 7 to 230 tonnes ($190 million to $4 billion). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons.",
+  "Dollars count each metal only up to a tenth of a year's world mine supply.",
+  "Of 100 like it, 99 or more hold no water bound in minerals.",
+  "Nine in ten of the rest hold 16,000 to 170,000 tonnes.",
+  "As of 21 November 2026 we found nobody buying water in orbit.",
+]
+[example.metal]
+p_nothing = 0.336465
+p_nothing_lo = 0.310105
+p_nothing_hi = 0.36298
+kg = { q05 = 0.0, q25 = 0.0, q75 = 1402.32383, q95 = 3750.803294 }
+usd = { q05 = 0.0, q25 = 0.0, q75 = 111045066.769181, q95 = 296684059.149736 }
+capped = true
+[example.iron_rich]
+p_lo = 0.00249
+p_hi = 0.013345
+kg = { q05 = 7391.02308, q95 = 221999.233269 }
+usd = { q05 = 193683104.966803, q95 = 3834217400.0 }
+[example.water]
+p_nothing = 0.995025
+p_nothing_lo = 0.992985
+p_nothing_hi = 0.99666
+tonnes = { q05 = 16291.961201, q95 = 165575.83218 }

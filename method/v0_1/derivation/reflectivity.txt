@@ -1,0 +1,146 @@
+REFLECTIVITY FROM THE SPITZER TABLE
+input: data/research/dl/coverage-exact/spitzer/spitzerneos.csv
+rows 2204; rows with a < 2 au and a size and reflectivity 1630; distinct objects 1576 (repeat rows combined by geometric mean)
+median 0.273; mean of log10 -0.613; sd of log10 0.314
+objects with fitted reflectivity above 1.0: 17 (1.1%); below 0.10: 159 (10.1%)
+
+[reflectivity] quantiles, all objects (a < 2 au)
+p      pv      D/D(pv=0.14)
+0.025  0.0320  2.092
+0.050  0.0575  1.560
+0.100  0.0990  1.189
+0.150  0.1303  1.037
+0.200  0.1600  0.935
+0.250  0.1820  0.877
+0.300  0.2020  0.833
+0.350  0.2192  0.799
+0.400  0.2350  0.772
+0.450  0.2548  0.741
+0.500  0.2725  0.717
+0.550  0.2910  0.694
+0.600  0.3100  0.672
+0.650  0.3280  0.653
+0.700  0.3460  0.636
+0.750  0.3750  0.611
+0.800  0.4050  0.588
+0.850  0.4517  0.557
+0.900  0.5200  0.519
+0.950  0.6653  0.459
+0.975  0.7972  0.419
+
+size against the size at reflectivity 0.14, by row (the plan's check) and by object
+  rows: N 1630; median ratio 0.713; 5th-95th 0.46-1.54; share within half to double of the median 93%
+  objects: N 1576; median ratio 0.716; 5th-95th 0.46-1.55; share within half to double of the median 93%
+
+by H band (objects): the median holds to H 24; the spread widens at H 22-24, and the 15 objects at H 24-26
+have a higher median (several are fits at low signal-to-noise; see the list below)
+H band    N    median pv  16th   84th
+under_20  997  0.274      0.138  0.429
+20_22     472  0.268      0.143  0.428
+22_24     92   0.270      0.093  0.549
+24_26     15   0.453      0.155  1.223
+26_28     0    -          -      -
+28_up     0    -          -      -
+objects at H >= 25: 3; at H >= 24: 15; brightest H 11.0, faintest H 25.7, median H 19.5
+objects at H >= 24.5 (values withheld: the table is shown one value at a time on an object's own page):
+desig      H >= 25  fitted pv > 1  signal-to-noise under 5
+2002 TS69  no       yes            yes
+2003 LN6   no       yes            yes
+2011 EP51  yes      no             no
+2014 QH33  no       yes            yes
+2014 YD    no       yes            yes
+2015 XC    yes      no             no
+2016 LG    yes      no             no
+
+sensitivity: signal-to-noise of 5 or more in the 4.5 micron band
+  N 1410; median 0.258; 2.5% 0.030; 97.5% 0.663   (all objects: 2.5% 0.032; 97.5% 0.797)
+sensitivity: list members only (reachable asteroids in the Spitzer table)
+  N 112; median 0.285; 16th 0.111; 84th 0.542
+
+CLASS-CONDITIONAL REFLECTIVITY
+(a) literature cards with a measured (not computed) reflectivity and a class
+  cards 1704; with a reflectivity 124; of those computed from size and H 119; measured 5
+  object     method       class  group
+  Bennu      SPACE        B      C
+  Ryugu      SPACE        C      C
+  Anteros    Polarimetry  S      S
+  2010 NU71  NEATM        None   None
+  Itokawa    SPACE        S      S
+  counts: S 2, C 2, X 0, other 0; no class 1
+
+(b) Spitzer reflectivity (a < 2 au) joined to the 21 November class labels
+  labels: data/research/out-prior-null/labels.csv
+  Spitzer objects with a class: 713 of 1576
+  class source of the joined objects: mahlke 357, sergeyev 185, deshapriya23 73, ieva20 43, perna16 33, marsset 16, sbdb 5, erasmus17 1
+  from a spectrum: 411; from colours or a compilation: 302
+
+  class from a spectrum (the table used):
+class  N    median  5th    25th   75th   95th   share < 0.10  median H
+S      286  0.287   0.133  0.214  0.354  0.500  2%            18.4
+C      35   0.072   0.014  0.029  0.309  0.726  60%           18.9
+X      38   0.174   0.027  0.082  0.443  0.831  37%           18.9
+other  52   0.328   0.093  0.191  0.469  0.742  6%            18.2
+  of these at H >= 22: 7; at H >= 24: 2
+  class from colours or a compilation (not used: these classes disagree with spectra for 33% of shared
+  objects on four classes, docs/research/verify-prior-null.md section 1):
+class  N    median  5th    25th   75th   95th   share < 0.10  median H
+S      163  0.276   0.127  0.209  0.352  0.546  3%            19.2
+C      68   0.234   0.029  0.114  0.412  0.740  19%           19.6
+X      30   0.226   0.034  0.115  0.589  0.794  20%           19.2
+other  41   0.332   0.080  0.248  0.436  0.818  10%           19.4
+
+[reflectivity.by_class.S] N 286
+  pv = [0.1120, 0.1325, 0.1575, 0.1735, 0.1967, 0.2140, 0.2225, 0.2397, 0.2540, 0.2692, 0.2875, 0.2960, 0.3100, 0.3232, 0.3335, 0.3538, 0.3799, 0.4042, 0.4425, 0.5005, 0.6126]
+[reflectivity.by_class.C] N 35
+  pv = [0.0124, 0.0137, 0.0200, 0.0209, 0.0246, 0.0295, 0.0368, 0.0409, 0.0482, 0.0508, 0.0720, 0.0750, 0.0974, 0.2044, 0.2620, 0.3095, 0.3870, 0.4905, 0.5668, 0.7263, 0.8048]
+[reflectivity.by_class.X] N 38
+  pv = [0.0227, 0.0273, 0.0543, 0.0652, 0.0708, 0.0818, 0.0961, 0.0989, 0.1074, 0.1334, 0.1745, 0.1849, 0.2262, 0.2864, 0.4123, 0.4427, 0.4834, 0.5455, 0.5599, 0.8308, 1.1112]
+[reflectivity.by_class.other] N 52
+  pv = [0.0569, 0.0929, 0.1140, 0.1354, 0.1692, 0.1910, 0.2178, 0.2379, 0.2744, 0.3250, 0.3285, 0.3401, 0.3654, 0.4004, 0.4364, 0.4688, 0.5428, 0.5817, 0.6286, 0.7423, 0.7849]
+
+(c) counts by reflectivity bin and class (class from a spectrum)
+class  < 0.10  0.10-0.20  0.20-0.30  0.30-0.45  >= 0.45  all
+S      5       55         103        96         27       286
+C      21      2          3          3          6        35
+X      14      8          3          5          8        38
+other  3       11         8          15         15       52
+  share of each class falling in each bin, P(bin | class):
+class  < 0.10  0.10-0.20  0.20-0.30  0.30-0.45  >= 0.45
+S      0.017   0.192      0.360      0.336      0.094
+C      0.600   0.057      0.086      0.086      0.171
+X      0.368   0.211      0.079      0.132      0.211
+other  0.058   0.212      0.154      0.288      0.288
+  all Spitzer objects (a < 2 au) by the same bins: < 0.10 159 (0.101), 0.10-0.20 307 (0.195), 0.20-0.30 441 (0.280), 0.30-0.45 429 (0.272), >= 0.45 240 (0.152)
+
+(d) Spitzer reflectivity joined to the class on a literature card (list members only)
+  S: N 30, median 0.293; C: N 12, median 0.078; X: N 9, median 0.430; other: N 13, median 0.421
+
+H UNCERTAINTY (JPL's H_sigma)
+  all near-Earth asteroids: 24951 of 43170 have H_sigma; median 0.360
+  list members: 7231 on the list, 7231 matched in JPL's table, 4970 with H_sigma
+  list members with H_sigma: median 0.360; 10th 0.250; 25th 0.300; 75th 0.440; 90th 0.520; max 1.190
+  list members with no H in JPL's table: 6
+  list members at H >= 25, where the reflectivity table is extrapolation: 5402 of 7231 (75%)
+  H uncertainty the Spitzer fits assumed (absmagsig column), distinct values: [0.13, 0.14, 0.15, 0.21, 0.22, 0.29, 0.3]
+
+SIZE AT A GIVEN H (metres): D = 1.329e6 * 10^(-H/5) / sqrt(pv), no H uncertainty added
+H     5%     25%    50%    75%    95%    95%/5%
+20.0  162.9  217.0  254.6  311.5  554.2  3.4
+22.0  64.9   86.4   101.4  124.0  220.6  3.4
+24.0  25.8   34.4   40.3   49.4   87.8   3.4
+25.0  16.3   21.7   25.5   31.2   55.4   3.4
+26.2  9.4    12.5   14.7   17.9   31.9   3.4
+27.7  4.7    6.3    7.3    9.0    16.0   3.4
+28.0  4.1    5.5    6.4    7.8    13.9   3.4
+30.0  1.6    2.2    2.5    3.1    5.5    3.4
+
+the same with H drawn as normal(H, 0.36), the default when JPL gives no H_sigma
+H     5%     25%    50%    75%    95%    95%/5%
+20.0  155.0  208.8  257.8  327.7  577.2  3.7
+22.0  61.7   83.1   102.6  130.5  229.8  3.7
+24.0  24.6   33.1   40.9   51.9   91.5   3.7
+25.0  15.5   20.9   25.8   32.8   57.7   3.7
+26.2  8.9    12.0   14.8   18.9   33.2   3.7
+27.7  4.5    6.0    7.4    9.5    16.6   3.7
+28.0  3.9    5.2    6.5    8.2    14.5   3.7
+30.0  1.5    2.1    2.6    3.3    5.8    3.7

@@ -1,0 +1,321 @@
+# longshot method 0.1: elimination by mission type.
+#
+# A PROPOSAL until Adam freezes it. After that no threshold here changes; a change is a new method version.
+# Presets are fixed, not sliders (docs/plan.md section 5.1). docs/method.md explains each gate.
+#
+# Every gate carries `kind` and `source`:
+#   measured  = measured from data on disk by a script in tools/
+#   quoted    = quoted from a file under docs/research, which names the published source
+#   judgement = a choice made here between quoted values; `range` and `alternatives` give what it was chosen from
+#
+# The named-target check at the end of each mission is written by hand from the output of
+# tools/method_missions.py (method/v0_1/derivation/missions.txt), which reads the pipeline's own records, so the
+# check and the entry pages cannot drift apart; `uv run python -I tools/method_missions.py --check` fails if a
+# recorded status or probability no longer matches. tools/method_check.py recomputes the untested probabilities
+# by plain random draws, with no code shared with the pipeline or with that script.
+
+schema = 1
+method = "0.1"
+status = "proposal"
+order = ["surface", "capture"]
+
+[rules]
+# How gates become a status. The same for every mission type.
+gate = [
+  "pass or fail when a measurement decides it: the measured value clears the threshold by 2 of its stated one-sigma errors, or, with no stated error, by a factor of 2",
+  "untested otherwise, with p = the share of the object's 2,000 joint draws of size, class, reflectivity, density and spin that pass the gate",
+  "an untested p is never 0 or 1: with n draws it is held between 1/n and 1 - 1/n, and prints as 'under 1%' or 'over 99%'",
+]
+mission = [
+  "fail if any gate fails",
+  "pass if every gate passes",
+  "untested otherwise, with p = the share of joint draws that pass every gate; a gate decided by measurement is fixed in every draw",
+]
+kind = "quoted"
+source = "DESIGN.md section 3 (known pass, known fail, untested with a probability) and docs/plan.md Appendix C, WP2"
+
+[rules.decide]
+# How far a measured value must stand from a threshold before it decides a gate.
+sigma = 2.0
+no_range_factor = 2.0
+stated_errors = "one sigma: JPL's diameter_sigma, Spitzer's d1sigl and d1sigu, the error.min and error.max of a literature card, the +/- of Pravec's table"
+draw = "a measured value is drawn from its stated error, each side its own width, with no clamp; a size with no stated error is drawn log-normally with two sigma equal to a factor of 2"
+period_without_error = "a period with no stated error decides as it stands ([rules.period])"
+kind = "judgement"
+source = "Review of 2026-11-25: with the one-sigma range read as the whole range, 17 of 381 size gates were decided with the threshold inside two sigma, and 8 more by a size with no stated error within a factor of 2 of it; 2 of the 3 capture passes rested on sizes with no error. Two sigma leaves about 1 chance in 40 on the far side. The factor of 2 for a size with no error is the reviewer's line; 1998 KY26 and Kamoʻoalewa came out 2 to 3 times smaller than first given (AGENTS.md, traps)"
+alternatives = [
+  { value = 1.0, what = "the stated range taken as the whole range: the rule before the review" },
+  { value = 2.0, what = "about 97.7% on one side" },
+  { value = 3.0, what = "the detection bar of ledger.toml [push]" },
+]
+
+[rules.period]
+# Which rotation period decides a spin gate.
+min_grade = 2
+decides = "a period graded U 2 or 3, or a published period with no grade on file"
+does_not_decide = "a period whose only grade is under 2: the gate is untested and its text gives the period and the grade"
+kind = "quoted"
+source = "docs/research/verify-coverage.md section 2.1 (reliable = U of 2 or more); AGENTS.md, traps: JPL's 10 h for 2011 AA37 is graded unreliable in the lightcurve database"
+decides_kind = "judgement"
+decides_source = "Periods on the literature cards carry no grade, and 27 list members have a period only there (docs/research/verify-coverage.md section 2.1). Leaving them out would call measured fast rotators untested"
+
+[rules.size]
+# A measured size that would make the surface impossibly dark does not decide a gate; the entry shows it as a conflict.
+min_implied_reflectivity = 0.005
+# Nor does one that would make it brighter than a perfect diffuser. ledger.toml [reflectivity] holds the same line
+# for a reflectivity a source states.
+max_implied_reflectivity = 1.0
+max_source = "ledger.toml [reflectivity].max. Six list members carried a used Spitzer size with a fitted reflectivity of 1.07 to 1.40, each a fit at signal-to-noise 0.9 to 3.3 (review of 2026-11-25)"
+implied = "pv = (1.329e6 * 10^(-H/5) / D[m])^2"
+h_allowance = "H carries its own error. A size is turned away only when the implied reflectivity is outside the two lines for every H within 2 of its one-sigma errors: Kamoʻoalewa's 18 m (JWST) implies 1.01 at JPL's H 24.33 and 0.52 at H 25.05"
+kind = "judgement"
+source = "docs/research/verify-coverage.md section 1.1: 2010 NU71 (H 22.7) carries 1.126 km from a main-belt table in both JPL's database and the literature cards, and 'should be dropped'. tools/method_missions.py, method/v0_1/derivation/missions.txt: that size implies a reflectivity of 0.0012; the next lowest among list members is 0.013, so 0.005 removes it and nothing else"
+
+[rules.conflict]
+# Sources that disagree across a threshold.
+spin = "When periods in use fall on both sides of a spin gate's threshold, by value or by stated range, no period decides: the gate is untested with the prior for its brightness, and its text says the sources disagree."
+kind = "judgement"
+source = "2013 NJ: 250 h in Pravec's table (U 3) and the lightcurve database, 2.02 h on its literature card (U 2). The only such row on 2026-11-25"
+
+[rules.gone]
+text = "A body ledger.toml lists as gone fails every mission: its orbit gate fails with the reason, and no observation is ranked."
+kind = "quoted"
+source = "ledger.toml [[gone]]"
+
+[rules.unchecked]
+text = "When a source for a gate's row was not checked, the gate's text says not checked, never not measured. The gate is untested with its prior."
+no_h = "An object with no H has no size, mass or spin prior: those gates are untested with no p, and so is the mission."
+kind = "quoted"
+source = "AGENTS.md, traps; docs/mvp.md section 4, Row"
+
+[rules.mass]
+# The mass gate has no direct measurement for any list member but the three sampled asteroids.
+decides = "pass when the upper end of a measured size at 7,500 kg/m3 is under the ceiling; fail when its lower end at 900 kg/m3 is over it"
+otherwise = "untested, with p from the joint draws of density given class and reflectivity"
+density_on_file = "A bulk density on file (JPL's for the three sampled asteroids; a literature card's from radiation pressure or drift) replaces the class range in the draws, so it narrows the mass range and p. It does not decide the gate: 12 of the 15 on file come from a model of the push, not from a measured mass"
+kind = "judgement"
+source = "7,500 and 900 kg/m3 are the two ends of priors.toml [density]"
+
+# ----------------------------------------------------------------------------------------------------------------
+[surface]
+label = "Surface work"
+summary = "Land on or anchor to a body tens of metres or more across and work loose material."
+kind = "quoted"
+source = "docs/plan.md section 1.4 and section 6 (proposed mission types); DESIGN.md section 9"
+
+[[surface.gates]]
+id = "findable"
+label = "Orbit code 5 or better"
+quantity = "occ"
+unit = "orbit condition code, 0 best to 9 worst"
+op = "<="
+preset = 5
+range = [2, 5]
+label_note = "The label names the test. Code 5 or better is the line docs/plan.md uses for 'an orbit good enough to find again', but JPL flags the next window of 137 list members that pass it as survey-recovery-only (130 at code 5, 7 at code 4), so the gate does not claim findability; its text says when JPL finds the position too uncertain to point at. Whether such an object should pass is Adam's call."
+kind = "judgement"
+source = "docs/plan.md section 1.4 counts 'orbit good enough to find again' with code 5 or better (data/research/scripts/rv_users_sieve2.py). docs/research/verify-obs-window.md section 1: no object with code 0-3 is flagged survey-recovery-only, 2,339 of 2,655 windowed objects with code 6-9 are; code 5 or better and JPL's own pointing test give the same count under 6 km/s but not the same objects. docs/research/industry.md 'Which properties matter', item 1: codes 0-2 are 13.6% of the list, 6 or worse 69.8%"
+alternatives = [
+  { value = 2, what = "the strict cut in docs/research/industry.md item 1" },
+  { value = 3, what = "the worst code JPL never flags survey-recovery-only (docs/research/verify-obs-window.md section 1)" },
+  { value = 5, what = "the cut used for the counts in docs/plan.md section 1.4" },
+]
+
+[[surface.gates]]
+id = "size"
+label = "30 m or wider"
+quantity = "diameter_m"
+unit = "m"
+op = ">="
+preset = 30.0
+range = [18.0, 100.0]
+kind = "judgement"
+source = "docs/research/industry.md, ASIME 2018: Patrick Michel, '30m size is borderline.. asteroid could be a really fast spinner'; docs/research/capability.md section 7.2 puts its class boundary at 30 m. No source states a minimum size for working a surface; the others below are economic minimums or a preference"
+alternatives = [
+  { value = 18.0, what = "Elvis 2014, smallest water ore body (docs/research/industry.md, quantitative literature table)" },
+  { value = 30.0, what = "Michel, ASIME 2018: 'borderline' (docs/research/industry.md)" },
+  { value = 40.0, what = "the H 24 line of the sketch in docs/plan.md section 1.4" },
+  { value = 100.0, what = "Elvis 2014, smallest platinum-group ore body (docs/research/industry.md)" },
+]
+not_used = "Karman+ wanted a rubble pile 'with a diameter measured in hundreds of meters' (docs/research/industry.md item 3). It is a preference; two of the five targets the company has named are fainter than H 22.5."
+
+[[surface.gates]]
+id = "spin"
+label = "Turns once in 2.2 h or slower"
+quantity = "period_h"
+unit = "h"
+op = ">="
+preset = 2.2
+range = [1.0, 3.0]
+formula = "P_crit = sqrt(3 * pi / (G * density)): the period at which gravity and the outward pull balance at the equator of a sphere with no cohesion"
+density_kgm3 = 2250
+gravitational_constant = 6.6743e-11
+kind = "judgement"
+source = "docs/research/capability.md section 2: 2.3 h at 2,000 kg/m3, 3.0 h at 1,200, 1.2 h for solid iron. docs/research/industry.md item 4: Karman+ 'uses the 2.2 h spin barrier'. 2.2 h is the formula at 2,250 kg/m3; it is chosen because every count in docs/plan.md section 1.2 and every spin prior in priors.toml is stated at 2.2 h"
+alternatives = [
+  { value = 1.0, what = "period over 1 h: Alarcon et al. 2026 for surface work, Thirouin et al. 2016 for a viable target (docs/research/industry.md item 4; docs/research/verify-coverage.md section 2.3)" },
+  { value = 2.2, what = "2,250 kg/m3; the spin barrier Karman+ uses" },
+  { value = 2.3, what = "2,000 kg/m3, the density Karman+'s Prospector assumes for every body (docs/research/verify-facts-missions.md)" },
+  { value = 3.0, what = "1,200 kg/m3, a body like Bennu or Ryugu (docs/research/capability.md section 2)" },
+]
+caveat = "A screening line, not a physical limit: slight cohesion lets a small body turn faster and keep its surface (docs/plan.md section 1.2). As of 21 November 2026 we found no spacecraft that has touched an asteroid turning faster than once in about 4 h (docs/research/capability.md section 2)."
+
+[surface.not_gated]
+delta_v = "Reach is a filter the visitor sets, not a gate. JPL's figure is the cheapest round trip over all launch dates, and first missions choose by launch date (docs/research/industry.md item 2)."
+tumbling = "Karman+ ranks 'slow rotation, and not tumbling' (docs/research/industry.md item 4). The lightcurve database flags tumblers, Apophis among them, and Apophis is the company's first target. No source gives a line for how much tumbling rules a body out."
+class = "No class is required: the first missions filter loosely on class and choose by launch date (docs/plan.md section 1.3)."
+kind = "quoted"
+source = "as given in each entry"
+
+# Check of the presets against the targets a company has named for surface work
+# (docs/research/summaries-review.md, reviewer 3; docs/research/novelty.md; docs/research/industry.md section d).
+# Values are from the 24 November 2026 snapshots, through tools/method_missions.py.
+[surface.check]
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt: the pipeline's records for these objects, from the snapshot of 24 November 2026 and the research snapshot of literature cards"
+known_pass = 2
+untested = 3
+known_fail = 0
+
+[[surface.named]]
+designation = "2008 EV5"
+pdes = "341843"
+named_by = "Karman+, reference target, 2023 payload call (docs/research/industry.md section d); NASA's cancelled boulder mission (docs/research/capability.md section 4.3)"
+status = "pass"
+p = 1.0
+gates = { findable = "pass", size = "pass", spin = "pass" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "Orbit code 0. 344 m (338 to 350, one sigma; literature card, MacLennan et al. 2022). 3.72 h, graded U 2 (Pravec's table)."
+
+[[surface.named]]
+designation = "2011 AA37"
+pdes = "2011 AA37"
+named_by = "Karman+, reference target, 2023 payload call (docs/research/industry.md section d)"
+status = "untested"
+p = 0.3485
+gates = { findable = "pass", size = "untested", spin = "untested" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "Not a known pass. Its only period, 10 h, is graded unreliable (Pravec's table: U column 1, remark 'U = 1+ or 2-'), so the spin gate falls back to the prior for H 22.9: 0.35 that it turns once in 2.2 h or slower. No size is measured; from brightness it is 41–149 m (5th-95th), 30 m or wider in 0.997 of draws. Orbit code 0."
+
+[[surface.named]]
+designation = "2022 DC5"
+pdes = "895813"
+named_by = "Karman+, primary target of its first mission as of the 2025 abstract (docs/research/novelty.md section 3)"
+status = "untested"
+p = 0.9975
+gates = { findable = "pass", size = "untested", spin = "pass" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "Not a known pass only because no size is measured: at H 22.93 and a class S from colours, a label taken as wrong in 21 of 100 draws, it is 42–163 m (5th-95th), 30 m or wider in 0.9975 of draws. Orbit code 1. 9.675 h, graded U 3 (Pravec's table). It needs 7.24 km/s, which is a filter here, not a gate."
+
+[[surface.named]]
+designation = "2021 UH2"
+pdes = "2021 UH2"
+named_by = "Karman+, backup target of its first mission as of the 2025 abstract (docs/research/novelty.md section 3)"
+status = "untested"
+p = 0.3235
+gates = { findable = "pass", size = "untested", spin = "pass" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "A probable miss on size. No size is measured; at H 25.08 it is 14–57 m (5th-95th), 30 m or wider in 0.32 of draws (0.82 at the 18 m end of the range). Karman+ chose it on brightness as a stand-in for size, on reach and on rotation period. Orbit code 1. 3.8 h, graded U 2- (Pravec's table, from its remark)."
+
+[[surface.named]]
+designation = "Apophis"
+pdes = "99942"
+named_by = "Karman+, target of its first mission since 21 July 2026 (docs/research/industry.md section d)"
+status = "pass"
+p = 1.0
+gates = { findable = "pass", size = "pass", spin = "pass" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "Orbit code 0. 340 m (300 to 380, one sigma; literature card, Brozović et al. 2018): 260 m at two sigma. 30.56 h (JPL). The lightcurve database flags it a tumbler, which is not gated."
+
+# ----------------------------------------------------------------------------------------------------------------
+[capture]
+label = "Whole-body capture"
+summary = "Enclose an asteroid a few metres across and move all of it."
+kind = "quoted"
+source = "docs/plan.md section 1.4 (last paragraph) and section 6; docs/research/capability.md section 4.3"
+
+[[capture.gates]]
+id = "findable"
+label = "Orbit code 5 or better"
+quantity = "occ"
+unit = "orbit condition code, 0 best to 9 worst"
+op = "<="
+preset = 5
+range = [2, 5]
+kind = "judgement"
+source = "as for surface work. The Keck study on what is known beforehand: 'only a few dozen of these are currently known. Fewer still have secure orbits' (docs/research/capability.md section 4.3)"
+
+[[capture.gates]]
+id = "size"
+label = "10 m or smaller"
+quantity = "diameter_m"
+unit = "m"
+op = "<="
+preset = 10.0
+range = [7.0, 10.0]
+kind = "judgement"
+source = "docs/research/capability.md section 7.2: 'whole-body capture, under about 10 m'; section 3: TransAstra's capture bag is 10 m, inflated and closed on the ground in November 2026. docs/research/nongrav.md section 5: NASA's Asteroid Redirect Mission 'needed a target of about 7-10 m and about 500 t'. The Keck study (Brophy et al. 2012) designed for 'roughly 7 m' with a bag for a body 6 m by 12 m (saved copy, data/research/dl/keck.txt lines 134 and 1046-1047)"
+alternatives = [
+  { value = 7.0, what = "Keck study nominal: a 7 m, 500 t asteroid (docs/research/capability.md section 4.3)" },
+  { value = 10.0, what = "TransAstra's bag; capability.md section 7.2" },
+]
+
+[[capture.gates]]
+id = "mass"
+label = "1,300 t or lighter"
+quantity = "mass_t"
+unit = "t"
+op = "<="
+preset = 1300.0
+range = [100.0, 1300.0]
+kind = "judgement"
+source = "docs/research/capability.md section 4.3 and docs/research/verify-capability.md row 52: 'the Keck capture hardware was sized for 250 to 1,300 t'. It is the top of that one design's range, not a limit: the same report lists trajectories for 1,800 and 3,600 t, and only this one capture study was read"
+alternatives = [
+  { value = 100.0, what = "TransAstra: about 100 t; Karman+ 'Roc': whole asteroids up to 100,000 kg (docs/research/capability.md section 3)" },
+  { value = 500.0, what = "Keck study nominal (docs/research/capability.md section 4.3)" },
+  { value = 1000.0, what = "Keck study: 'could retrieve NEAs with masses up to about 1,000,000 kg' (saved copy, data/research/dl/keck.txt line 1063)" },
+  { value = 1300.0, what = "Keck study, top of the range its hardware was sized for" },
+]
+
+[capture.not_gated]
+spin = "No spin gate (docs/plan.md Appendix C, WP2). TransAstra's bag 'is designed to tolerate tumbling' (docs/research/industry.md section d). The Keck design set an upper limit of one turn a minute and sized its de-spin for 1,100 t at that rate (docs/research/capability.md section 4.3; saved copy, data/research/dl/keck.txt lines 986-987). priors.toml has no figure for periods under a minute, so that limit is recorded here and not applied. As of 21 November 2026 we found nothing that has enclosed a tumbling rock."
+delta_v = "Reach is a filter the visitor sets, not a gate. The Keck case needed 0.17 km/s to come back, on an object whose orbit returns it to Earth (docs/research/capability.md section 4.2)."
+class = "No class is required. The Keck study wanted a C-type and noted that none of the known candidates had a spectral type (docs/research/capability.md section 4.3)."
+kind = "quoted"
+source = "as given in each entry"
+
+# Check of the presets against the targets named for whole-body capture: two candidates for NASA's Asteroid
+# Redirect Mission, both observed with Spitzer (docs/research/summaries-review.md, reviewer 3;
+# docs/research/nongrav.md section 5; docs/research/verify-obs-window.md section 3, thermal infrared row).
+[capture.check]
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt: the pipeline's records for these objects"
+known_pass = 1
+untested = 1
+known_fail = 0
+
+[[capture.named]]
+designation = "2009 BD"
+pdes = "2009 BD"
+named_by = "candidate target of NASA's Asteroid Redirect Mission, which needed about 7-10 m and about 500 t (Mommert et al. 2014; docs/research/nongrav.md section 5)"
+status = "pass"
+p = 1.0
+gates = { findable = "pass", size = "pass", mass = "pass" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "Orbit code 1. 4 ± 1 m from a thermal model (Mommert et al. 2014, literature card); the paper's other solution, 2.9 m, also passes. At 6 m, two sigma above, and 7,500 kg/m³ it is 850 t, under the ceiling whatever it is made of. At the 100 t end of the range it would be untested, 0.64."
+
+[[capture.named]]
+designation = "2011 MD"
+pdes = "2011 MD"
+named_by = "candidate target of NASA's Asteroid Redirect Mission, which needed about 7-10 m and about 500 t (Mommert et al. 2014; docs/research/nongrav.md section 5)"
+status = "untested"
+p = 0.9995
+gates = { findable = "pass", size = "pass", mass = "untested" }
+kind = "measured"
+source = "tools/method_missions.py, method/v0_1/derivation/missions.txt"
+why = "Not a known pass only because its mass is not measured: 6 ± 2 m (Mommert et al. 2014, literature card) is 10 m at two sigma, which at solid-iron density would be 3,900 t. With the density on its literature card, about 750 kg/m³ from radiation pressure and a 2.2-sigma thermal detection, it is 4.6–380 t (5th-95th), under 1,300 t in every draw; a chance is never recorded as 1, so 0.9995. The density narrows the draws and decides no gate. Orbit code 2."

@@ -1,0 +1,108 @@
+# longshot method 0.1: which observation would settle the most.
+#
+# A PROPOSAL until Adam freezes it. docs/method.md explains each section.
+#
+# Every table carries `kind` and `source`:
+#   measured  = measured from data on disk by a script in tools/
+#   quoted    = quoted from a file under docs/research, which names the published source
+#   judgement = a choice made here, with what it was chosen from
+
+schema = 1
+method = "0.1"
+status = "proposal"
+
+[gain]
+# How much one observation would settle, for one object and one mission type.
+# It is the expected drop in the uncertainty of the mission's pass-or-fail outcome, in bits, when the result of
+# one gate becomes known. Computed from the object's joint draws (priors.toml [joint]); nothing is multiplied.
+unit = "bits"
+formula = "gain = H2(p) - q * H2(p / q)"
+entropy = "H2(x) = -x * log2(x) - (1 - x) * log2(1 - x), and H2(0) = H2(1) = 0"
+p = "share of the object's joint draws that pass every gate of the mission; a gate decided by measurement is fixed"
+q = "share of the same draws that pass the gate the observation resolves"
+range = [0.0, 1.0]
+bounded = "an untested p or q is never 0 or 1 (missions.toml [rules].gate), so an untested mission always has a gain to rank"
+zero_when = [
+  "the mission status is already pass or fail (p is 1 or 0)",
+  "the gate the observation resolves is already decided by measurement (q is 1 or 0)",
+  "the mission has no gate the observation resolves",
+]
+reading = "1 bit settles an even bet. 0.47 bits is a 9-in-10 guess made certain. 0.08 bits is a 99-in-100 guess made certain."
+kind = "judgement"
+source = "docs/plan.md Appendix C, WP2: rank the untested objects 'by how much one lightcurve or one colour would change that probability'; Appendix A names the bit as the unit of a probability forecast. The formula is the mutual information between the mission outcome M and the gate result G: H(M) - H(M | G), where a failed gate leaves no uncertainty and a passed gate leaves p / q"
+not_counted = "What the observation teaches beyond its own gate. A size also narrows the mass of a capture target, and a period can show tumbling; neither adds to the gain."
+
+[[observations]]
+id = "lightcurve"
+label = "Rotation lightcurve"
+resolves = "spin"
+gives = "the rotation period, so the spin gate"
+kind = "quoted"
+source = "docs/research/verify-obs-window.md section 3, row Rotation lightcurve: 'Period and amplitude; tumbling. Decides whether a spacecraft can work at the surface'"
+
+[[observations]]
+id = "size"
+label = "Size or reflectivity measurement"
+resolves = "size"
+gives = "the diameter (a reflectivity gives it through H), so the size gate"
+kind = "quoted"
+source = "docs/research/verify-obs-window.md section 3, rows Thermal infrared, Polarimetry and Radar: each gives a reflectivity or a size"
+
+[choice]
+# One answer per object: the pair of mission type and observation with the largest gain.
+best = "the observation with the largest gain over both mission types"
+tie = "lightcurve before size; surface before capture"
+none_when = "every gain is zero: the record's observe field is null"
+kind = "judgement"
+source = "tie order from docs/research/verify-obs-window.md section 3: 'The useful ordering for a 10 m target is: lightcurve first (cheap ...)'; thermal and radar data 'are not obtainable on request'"
+
+[rank]
+# Order of list/observe.html.
+order = ["window kind: pointable, then survey-recovery-only, then none", "year the window opens, earliest first", "gain, largest first", "window start, earliest first", "object key"]
+said = "pointable first, then the year the window opens, then what one observation settles"   # the order in words, for list/observe.html
+kind = "judgement"
+source = "docs/plan.md Appendix C, WP2: the ranking is 'joined to when the object can next be pointed at'. Review of 2026-11-25: by gain alone the list opened with a 2037 window and an asteroid only a survey could recover; of 1,956 ranked, 136 were survey-recovery-only and 522 had no window through 2045"
+unchecked = "When a source for the row the observation would settle was not checked, the record's observe.unchecked names it and its text says 'Not checked: ...': the measurement may already exist there"
+gone = "A body ledger.toml lists as gone has no observation ranked"
+
+[window]
+# The next observing window, from JPL's reachable list. A dated fact as of the data date, never 'open now'.
+fields = { start = "obs_start", end = "obs_end", peak_mag = "obs_mag", flag = "obs_flag" }
+pointable = "a window is listed and obs_flag is not 'S'"
+survey_only = "obs_flag 'S': JPL finds the position too uncertain to point at; only a survey could recover it"
+none = "no window listed: none through 2045"
+magnitude = "peak visual magnitude V in the window, as JPL predicts it"
+kind = "quoted"
+source = "docs/research/verify-obs-window.md section 1: JPL's definition of the window (ephemeris to 2045; peak V 24.0 or brighter; plane-of-sky uncertainty under 1.5 degrees) and of the 'S' flag. docs/plan.md section 7: these peak magnitudes are JPL's; no detailed position forecast was run"
+
+# ----------------------------------------------------------------------------------------------------------------
+# What it takes, by the peak brightness of the window. A tier applies when peak_mag <= max_mag; tiers are in order.
+
+[needs.lightcurve]
+tiers = [
+  { max_mag = 18.0, label = "small telescope" },
+  { max_mag = 20.0, label = "2-metre class" },
+  { max_mag = 22.0, label = "4-metre class" },
+]
+fainter = "larger than 4-metre class"
+kind = "quoted"
+source = "docs/research/verify-obs-window.md section 3, row Rotation lightcurve: 'V < 17-18 with 0.4-0.8 m; V 18-20 with 2 m; V up to about 21-22 with 4 m'. docs/plan.md Terms, Magnitude: 'About 18 is the limit for a small telescope to time a rotation, about 20 for a 2-metre one, and 21-22 needs a 4-metre one'"
+edges_kind = "judgement"
+edges_source = "18.0 and 22.0 are the faint ends of the quoted ranges 17-18 and 21-22"
+fainter_source = "no quoted figure for timing a rotation fainter than V 22. 2022 OB5's period came from the 10.4 m GTC (docs/research/verify-obs-window.md section 3)"
+caveat = "A fast rotator needs exposures of seconds, so aperture matters more than for a slow one (same row)."
+
+[needs.size]
+tiers = [
+  { max_mag = 17.0, label = "1-2 m polarimeter, or an infrared space telescope" },
+]
+fainter = "infrared space telescope"
+kind = "quoted"
+source = "docs/research/verify-obs-window.md section 3. Thermal infrared: 'Space only at this size ... JWST discretionary time, or NEO Surveyor after its 2027 launch'. Polarimetry: 'Needs several phase angles and V below about 17 on a 1-2 m polarimeter' (that report's estimate). Radar: Goldstone is offline until October 2028"
+caveat = "Not obtainable on request: 'Thermal and radar data are not obtainable on request' (same section)."
+
+[needs.not_pointable]
+survey_only = "a survey must find it again first"
+no_window = "a window: JPL lists none through 2045"
+kind = "quoted"
+source = "docs/research/verify-obs-window.md section 1"

@@ -1,0 +1,118 @@
+MISSION PRESETS AGAINST THE NAMED TARGETS
+snapshot 2026-11-24; presets from method/v0_1/missions.toml; priors from method/v0_1/priors.toml
+read from the pipeline's records (longshot.ledger, longshot.model): 2,000 stratified draws per object,
+the research snapshot of SsODNet cards alone. A gate is decided when the measured value clears the line by 2 sigma.
+
+== surface: findable <= 5; size >= 30; spin >= 2.2
+2008 EV5 (341843): H 20.05, H_sigma None, 6.291 km/s, orbit code 0
+    size   344 m (338 to 350, one sigma), SsODNet, MacLennan+2022b
+    period 3.717 h, U 2, Pravec's table
+    class  C (Bus-DeMeo Spec VISNIR, SsODNet, Binzel+2019); wrong side of S/Q in 0.125 of draws
+    draws: size 334.1 to 353.9 m, mass 2.086e+07 to 5.965e+07 t (5th to 95th)
+    findable pass              
+    size     pass              
+    spin     pass              
+    => pass
+       with size at 18 (loosest): pass
+       with size at 100 (tightest): pass
+    recorded in missions.toml: pass, p 1.0
+2011 AA37 (2011 AA37): H 22.9, H_sigma None, 5.851 km/s, orbit code 0
+    size   none measured
+    period 10 h on file, graded unreliable (U 1+, Pravec's table); it does not decide
+    class  none on file
+    draws: size 40.62 to 148.8 m, mass 74020 to 3.444e+06 t (5th to 95th)
+    findable pass              
+    size     untested  p 0.9970
+    spin     untested  p 0.3500  The period on file is graded unreliable, so it does not decide.
+    => untested, p 0.3485
+       with size at 18 (loosest): untested, p 0.3500
+       with size at 100 (tightest): untested, p 0.0555
+    recorded in missions.toml: untested, p 0.3485
+2022 DC5 (895813): H 22.93, H_sigma 0.4, 7.237 km/s, orbit code 1
+    size   none measured
+    period 9.675 h, U 3, Pravec's table
+    class  S (Bus-DeMeo Phot VIS, SsODNet, Birlan+2024); wrong side of S/Q in 0.21 of draws
+    draws: size 41.84 to 163.1 m, mass 88640 to 3.82e+06 t (5th to 95th)
+    findable pass              
+    size     untested  p 0.9975  Size not checked (the Spitzer table).
+    spin     pass              
+    => untested, p 0.9975
+       with size at 18 (loosest): untested, p 0.9995
+       with size at 100 (tightest): untested, p 0.1385
+    recorded in missions.toml: untested, p 0.9975
+2021 UH2 (2021 UH2): H 25.08, H_sigma 0.48, 5.397 km/s, orbit code 1
+    size   none measured
+    period 3.8 h, U 2-, Pravec's table
+    class  none on file
+    draws: size 14 to 57.23 m, mass 3121 to 183700 t (5th to 95th)
+    findable pass              
+    size     untested  p 0.3235  Size not checked (the Spitzer table).
+    spin     pass              
+    => untested, p 0.3235
+       with size at 18 (loosest): untested, p 0.8150
+       with size at 100 (tightest): untested, p 0.0040
+    recorded in missions.toml: untested, p 0.3235
+Apophis (99942): H 19.09, H_sigma 0.19, 6.049 km/s, orbit code 0
+    size   340 m (300 to 380, one sigma), SsODNet, Brozović+2018b
+    period 30.56 h, no grade on file, JPL's database
+    class  S (Mahlke Spec VISNIR, SsODNet, Mahlke+2022); wrong side of S/Q in 0.125 of draws
+    draws: size 274.1 to 405.7 m, mass 2.394e+07 to 9.639e+07 t (5th to 95th)
+    findable pass              
+    size     pass              
+    spin     pass              
+    => pass
+       with size at 18 (loosest): pass
+       with size at 100 (tightest): pass
+    recorded in missions.toml: pass, p 1.0
+
+== capture: findable <= 5; size <= 10; mass <= 1300
+2009 BD (2009 BD): H 28.1, H_sigma None, 4.729 km/s, orbit code 1
+    size   4 m (3 to 5, one sigma), SsODNet, Mommert+2014a
+    period none measured
+    class  none on file
+    density on file 2287.74 kg/m3: it narrows the mass draws and decides no gate
+    draws: size 2.353 to 5.642 m, mass 14.6 to 233.8 t (5th to 95th)
+    findable pass              
+    size     pass              
+    mass     pass                At most 850 t: 6 m at 7,500 kg/m³, the densest material allowed for.
+    => pass
+       with size at 10 (loosest): pass
+       with size at 7 (tightest): pass
+       with mass at 1300 (loosest): pass
+       with mass at 100 (tightest): untested, p 0.6400
+    recorded in missions.toml: pass, p 1.0
+2011 MD (2011 MD): H 27.98, H_sigma None, 5.131 km/s, orbit code 2
+    size   6 m (4 to 8, one sigma), SsODNet, Mommert+2014b
+    period 0.19372 h, no grade on file, JPL's database
+    class  none on file
+    density on file 746.833 kg/m3: it narrows the mass draws and decides no gate
+    draws: size 2.705 to 9.285 m, mass 4.569 to 379.6 t (5th to 95th)
+    findable pass              
+    size     pass              
+    mass     untested  p 0.9995
+    => untested, p 0.9995
+       with size at 10 (loosest): untested, p 0.9995
+       with size at 7 (tightest): untested, p 0.6915
+       with mass at 1300 (loosest): untested, p 0.9995
+       with mass at 100 (tightest): untested, p 0.6035
+    recorded in missions.toml: untested, p 0.9995
+
+ORBIT GATE ON THE WHOLE LIST (orbit code at most the preset)
+  surface, all: 2180 of 7231
+  surface, under 6 km/s: 438 of 726
+  surface, under 5 km/s: 212 of 286
+  capture, all: 2180 of 7231
+  capture, under 6 km/s: 438 of 726
+  capture, under 5 km/s: 212 of 286
+  of the 2180 that pass, JPL flags the next window of 137 survey-recovery-only (130 at code 5, 7 at code 4) and lists no window for 575
+
+MEASURED SIZES THAT DO NOT FIT THE BRIGHTNESS (rules.size)
+  list members with a size in use and an H: 184; lowest implied reflectivities: 2003 UC20 0.0202, 2002 AW 0.0236, 2015 YC18 0.0241, 2004 JX20 0.0249; highest: 2002 TD60 0.908, 1993 BX3 0.957, 2016 HO3 1.029
+  outside 0.005 to 1 for every H within 2 sigma: none
+
+CRITICAL PERIOD, P = sqrt(3 pi / (G density))
+  1200 kg/m3: 3.01 h
+  2000 kg/m3: 2.33 h
+  2250 kg/m3: 2.20 h
+  3300 kg/m3: 1.82 h
+  7500 kg/m3: 1.21 h

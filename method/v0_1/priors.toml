@@ -1,0 +1,537 @@
+# longshot method 0.1: priors for size, spin, class and density from brightness.
+#
+# A PROPOSAL until Adam freezes it. After that no number here changes; a change is a new method version.
+# Written by tools/method_priors_toml.py. Do not edit a number by hand: change the script and rerun it.
+# docs/method.md explains each section.
+#
+# Every table carries `kind` and `source` for the constants in it. Where constants in one table differ in
+# origin, each has its own `<name>_kind` and `<name>_source`, or a `<name>_from` naming the estimate.
+#   measured  = measured from data on disk by a script in tools/; its printed output is under
+#               method/v0_1/derivation/
+#   quoted    = quoted from a file under docs/research, which names the published source
+#   judgement = a choice made here, with the range it was chosen from
+
+schema = 1
+method = "0.1"
+status = "proposal"
+data_date = "2026-11-24"
+generated_by = "tools/method_priors_toml.py"
+
+[bands]
+# Brightness bands by absolute magnitude H. Band i holds edges[i-1] <= H < edges[i].
+ids = ["under_20", "20_22", "22_24", "24_26", "26_28", "28_up"]
+edges = [20.0, 22.0, 24.0, 26.0, 28.0]
+kind = "judgement"
+source = "the two-magnitude bins of docs/research/verify-coverage.md section 2.2, with everything brighter than H 20 in one band"
+
+[size]
+formula = "D[m] = coefficient_m * 10^(-H/5) / sqrt(pv)"
+coefficient_m = 1.329e6
+kind = "quoted"
+source = "the standard relation, D = 1,329 km * 10^(-H/5) / sqrt(reflectivity): docs/research/value-inputs.md section 5.2, row Size from H"
+# Below this brightness the reflectivity table is extrapolation.
+extrapolated_fainter_than_h = 25.0
+n_measured_at_or_fainter = 3
+faintest_measured_h = 25.7
+extrapolation_kind = "measured"
+extrapolation_source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt: 3 of 1576 Spitzer objects (a < 2 au) have H of 25 or more, 15 have H of 24 or more, median H 19.5. docs/plan.md section 7 states the same limit"
+# An object with no H gets no size prior.
+n_list_members_without_h = 6
+
+[h_uncertainty]
+# H is drawn as normal(H, sigma) before the size formula. sigma is JPL's H_sigma where JPL gives one, else default_sigma.
+use = "SBDB H_sigma"
+default_sigma = 0.36
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt: median H_sigma of the 4970 of 7231 list members that have one (10th-90th percentile 0.25-0.52). Consistent with 0.3-0.5 mag in docs/research/nongrav.md section 2.4 and 0.4 in docs/research/value-inputs.md section 5.2"
+note = "The Spitzer spread already holds the H error of its own, brighter targets, so adding H_sigma counts some of it twice: the 5%-95% size range goes from a factor of 3.4 to 3.7 at the default. It errs wide."
+
+[reflectivity]
+# Quantiles of the geometric albedo measured by Spitzer for near-Earth asteroids with a < 2 au, one value per object.
+# Sample by inverse transform: u uniform on (0,1), clamped to [p[0], p[-1]]; interpolate log10(pv) linearly in p.
+# The table says nothing about the tails beyond its end points; a draw there takes the end value.
+p = [0.025, 0.050, 0.100, 0.150, 0.200, 0.250, 0.300, 0.350, 0.400, 0.450, 0.500, 0.550, 0.600, 0.650, 0.700, 0.750, 0.800, 0.850, 0.900, 0.950, 0.975]
+pv = [0.0320, 0.0575, 0.0990, 0.1303, 0.1600, 0.1820, 0.2020, 0.2192, 0.2350, 0.2548, 0.2725, 0.2910, 0.3100, 0.3280, 0.3460, 0.3750, 0.4050, 0.4517, 0.5200, 0.6653, 0.7972]
+n_objects = 1576
+n_rows = 1630
+n_fitted_above_1 = 17
+interpolate = "log10(pv) linear in p"
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt, from data/research/dl/coverage-exact/spitzer/spitzerneos.csv (Trilling et al. 2010, AJ 140, 770; 2016, AJ 152, 172). Why Spitzer and not NEOWISE: docs/research/verify-prior-null.md Trap 2 and section 3.5"
+note = "The spread includes Spitzer's own measurement error and the error in H at the time. It is the spread of measured size at a given catalogued H, which is what the size check in docs/plan.md Appendix A tests."
+
+[reflectivity.by_class.S]
+# Same probabilities as [reflectivity].p. Used when the class is measured and the reflectivity is not.
+# Sampled the same way. Values are kept as fitted, noise included: a knot under 0.03 or over 1 is a noisy fit.
+n = 286
+pv = [0.1120, 0.1325, 0.1575, 0.1735, 0.1967, 0.2140, 0.2225, 0.2397, 0.2540, 0.2692, 0.2875, 0.2960, 0.3100, 0.3232, 0.3335, 0.3538, 0.3799, 0.4042, 0.4425, 0.5005, 0.6126]
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt section (b): Spitzer objects (a < 2 au) whose class in data/research/out-prior-null/labels.csv comes from a spectrum (Mahlke 2022, Marsset 2022, Perna 2016, JPL)"
+
+[reflectivity.by_class.C]
+# Same probabilities as [reflectivity].p. Used when the class is measured and the reflectivity is not.
+# Sampled the same way. Values are kept as fitted, noise included: a knot under 0.03 or over 1 is a noisy fit.
+n = 35
+pv = [0.0124, 0.0137, 0.0200, 0.0209, 0.0246, 0.0295, 0.0368, 0.0409, 0.0482, 0.0508, 0.0720, 0.0750, 0.0974, 0.2044, 0.2620, 0.3095, 0.3870, 0.4905, 0.5668, 0.7263, 0.8048]
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt section (b): Spitzer objects (a < 2 au) whose class in data/research/out-prior-null/labels.csv comes from a spectrum (Mahlke 2022, Marsset 2022, Perna 2016, JPL)"
+
+[reflectivity.by_class.X]
+# Same probabilities as [reflectivity].p. Used when the class is measured and the reflectivity is not.
+# Sampled the same way. Values are kept as fitted, noise included: a knot under 0.03 or over 1 is a noisy fit.
+n = 38
+pv = [0.0227, 0.0273, 0.0543, 0.0652, 0.0708, 0.0818, 0.0961, 0.0989, 0.1074, 0.1334, 0.1745, 0.1849, 0.2262, 0.2864, 0.4123, 0.4427, 0.4834, 0.5455, 0.5599, 0.8308, 1.1112]
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt section (b): Spitzer objects (a < 2 au) whose class in data/research/out-prior-null/labels.csv comes from a spectrum (Mahlke 2022, Marsset 2022, Perna 2016, JPL)"
+
+[reflectivity.by_class.other]
+# Same probabilities as [reflectivity].p. Used when the class is measured and the reflectivity is not.
+# Sampled the same way. Values are kept as fitted, noise included: a knot under 0.03 or over 1 is a noisy fit.
+n = 52
+pv = [0.0569, 0.0929, 0.1140, 0.1354, 0.1692, 0.1910, 0.2178, 0.2379, 0.2744, 0.3250, 0.3285, 0.3401, 0.3654, 0.4004, 0.4364, 0.4688, 0.5428, 0.5817, 0.6286, 0.7423, 0.7849]
+kind = "measured"
+source = "tools/method_reflectivity.py, method/v0_1/derivation/reflectivity.txt section (b): Spitzer objects (a < 2 au) whose class in data/research/out-prior-null/labels.csv comes from a spectrum (Mahlke 2022, Marsset 2022, Perna 2016, JPL)"
+
+[reflectivity.link]
+# Ties class to reflectivity in the joint draw. `all` is the share of all Spitzer objects in each reflectivity bin;
+# S, C, X, other are P(bin | class) from the counts below. Bin i holds edges[i-1] <= pv < edges[i].
+edges = [0.10, 0.20, 0.30, 0.45]
+all = [0.1009, 0.1948, 0.2798, 0.2722, 0.1523]
+S = [0.0175, 0.1923, 0.3601, 0.3357, 0.0944]
+C = [0.6000, 0.0571, 0.0857, 0.0857, 0.1714]
+X = [0.3684, 0.2105, 0.0789, 0.1316, 0.2105]
+other = [0.0577, 0.2115, 0.1538, 0.2885, 0.2885]
+counts = { S = [5, 55, 103, 96, 27], C = [21, 2, 3, 3, 6], X = [14, 8, 3, 5, 8], other = [3, 11, 8, 15, 15] }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt section LINK: the same spectrally classed Spitzer objects as [reflectivity.by_class]"
+edges_kind = "judgement"
+edges_source = "0.10 and 0.30 are Tholen's P/M/E limits (docs/research/value-inputs.md section 1.4); 0.20 and 0.45 split the two crowded bins"
+note = "Literature cards with a measured (not computed) reflectivity and a class give 4 objects (S 2, C 2, X 0, other 0), too few to use; see the derivation, section (a). Mahlke 2022 uses reflectivity as an input to its classes, so this table is partly circular."
+
+[spin]
+# Chance that the rotation period is under each threshold, for an object with no measured period, by H band.
+# central is used in draws. low and high are the spread between denominators, not a confidence interval.
+# A draw gives a category only (under 10 min; 10 min to 1 h; 1 h to 2.2 h; 2.2 h or slower), never a period.
+ids = ["under_2_2h", "under_1h", "under_10min"]
+thresholds_h = [2.2, 1.0, 0.16666667]
+kind = "quoted"
+source = "2.2 h, 1 h and 10 min are the thresholds of docs/plan.md Appendix A (channel Spin from H) and docs/research/verify-coverage.md section 2"
+independent_of = "size, reflectivity and class at a given H (an assumption; untested)"
+independent_of_kind = "judgement"
+
+[spin.bands.under_20.under_2_2h]
+low = 0.00
+central = 0.01
+high = 0.10
+low_from = "floor"
+central_from = "all near-Earth asteroids measured (12 of 1143)"
+high_from = "list members measured, 95% upper limit (0 of 36)"
+low_kind = "judgement"
+central_kind = "measured"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.under_20.under_1h]
+low = 0.00
+central = 0.01
+high = 0.10
+low_from = "floor"
+central_from = "all near-Earth asteroids measured (6 of 1143)"
+high_from = "list members measured, 95% upper limit (0 of 36)"
+low_kind = "judgement"
+central_kind = "measured"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.under_20.under_10min]
+low = 0.00
+central = 0.0009
+high = 0.10
+low_from = "floor"
+central_from = "all near-Earth asteroids measured (1 of 1143)"
+high_from = "list members measured, 95% upper limit (0 of 36)"
+low_kind = "judgement"
+central_kind = "measured"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.20_22.under_2_2h]
+low = 0.12
+central = 0.15
+high = 0.17
+low_from = "MANOS all targets (3 of 25)"
+central_from = "midpoint"
+high_from = "list members measured (9 of 53)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.20_22.under_1h]
+low = 0.04
+central = 0.07
+high = 0.09
+low_from = "MANOS all targets (1 of 25)"
+central_from = "midpoint"
+high_from = "all near-Earth asteroids measured (41 of 432)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.20_22.under_10min]
+low = 0.03
+central = 0.05
+high = 0.06
+low_from = "all near-Earth asteroids measured (14 of 431)"
+central_from = "midpoint"
+high_from = "list members measured (3 of 54)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.22_24.under_2_2h]
+low = 0.49
+central = 0.65
+high = 0.80
+low_from = "list members measured (31 of 63)"
+central_from = "midpoint"
+high_from = "Alarcon all targets, high (66 targets)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "quoted"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.22_24.under_1h]
+low = 0.43
+central = 0.46
+high = 0.49
+low_from = "list members measured (27 of 63)"
+central_from = "midpoint"
+high_from = "MANOS all targets (26 of 53)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.22_24.under_10min]
+low = 0.22
+central = 0.24
+high = 0.26
+low_from = "list members measured (14 of 63)"
+central_from = "midpoint"
+high_from = "MANOS all targets (14 of 53)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.24_26.under_2_2h]
+low = 0.70
+central = 0.80
+high = 0.89
+low_from = "MANOS all targets (58 of 83)"
+central_from = "midpoint"
+high_from = "Alarcon all targets, high (132 targets)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "quoted"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.24_26.under_1h]
+low = 0.65
+central = 0.71
+high = 0.76
+low_from = "MANOS all targets (54 of 83)"
+central_from = "midpoint"
+high_from = "all near-Earth asteroids measured (173 of 228)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.24_26.under_10min]
+low = 0.39
+central = 0.45
+high = 0.50
+low_from = "list members measured (35 of 90)"
+central_from = "midpoint"
+high_from = "all near-Earth asteroids measured (113 of 228)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.26_28.under_2_2h]
+low = 0.76
+central = 0.87
+high = 0.98
+low_from = "MANOS all targets (39 of 51)"
+central_from = "midpoint"
+high_from = "list members measured (44 of 45)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.26_28.under_1h]
+low = 0.76
+central = 0.85
+high = 0.93
+low_from = "MANOS all targets (39 of 51)"
+central_from = "midpoint"
+high_from = "list members measured (43 of 46)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.26_28.under_10min]
+low = 0.63
+central = 0.67
+high = 0.70
+low_from = "MANOS all targets (32 of 51)"
+central_from = "midpoint"
+high_from = "all near-Earth asteroids measured (83 of 118)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.28_up.under_2_2h]
+low = 0.88
+central = 0.94
+high = 1.00
+low_from = "MANOS all targets (7 of 8)"
+central_from = "midpoint"
+high_from = "list members measured (20 of 20)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.28_up.under_1h]
+low = 0.88
+central = 0.94
+high = 1.00
+low_from = "MANOS all targets (7 of 8)"
+central_from = "midpoint"
+high_from = "list members measured (20 of 20)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[spin.bands.28_up.under_10min]
+low = 0.88
+central = 0.93
+high = 0.97
+low_from = "MANOS all targets (7 of 8)"
+central_from = "midpoint"
+high_from = "all near-Earth asteroids measured (34 of 35)"
+low_kind = "measured"
+central_kind = "judgement"
+high_kind = "measured"
+source = "tools/method_spin.py, method/v0_1/derivation/spin.txt. Alarcon figures: docs/research/verify-coverage.md section 2.3"
+
+[class]
+# Shares at a given brightness, not a given size.
+ids = ["S", "C", "X", "other"]
+members = { S = "S, Q", C = "C, B, F, G", X = "X, E, M, P", other = "A, D, K, L, O, R, T, V, Z" }
+kind = "quoted"
+source = "the grouping of docs/research/verify-prior-null.md section 1"
+
+[class.label_error]
+# A measured class is a label, and labels are wrong at a known rate. In the joint draw this share of an object's
+# draws take a class from the other side of S/Q against the rest: S when the label is C, X or other; else C, X
+# or other by their weights. An asteroid a spacecraft brought a sample back from has no label error.
+colour = 0.210
+colour_kind = "quoted"
+colour_source = "docs/research/verify-prior-null.md, 'Label noise': colour-based classes (Sergeyev) disagree with spectral classes (Mahlke) for 21% of 874 shared objects on S/Q versus rest"
+spectrum = 0.125
+spectrum_kind = "quoted"
+spectrum_source = "docs/research/verify-value-inputs.md section 4, objection 2: sources disagree on the class of at least 3 of the 24 classified objects under 6 km/s (docs/plan.md section 1.2); 3 of 24 is 12.5%. It counts any change of class, not only S/Q against the rest, and it is 'at least'. No other figure for labels from spectra was found"
+colour_means = "a class from broad-band colours: SsODNet technique 'Phot'"
+spectrum_means = "any other class label: a spectrum, or JPL's Tholen and SMASSII classes"
+kind = "quoted"
+source = "as given for each rate"
+
+[class.bands.under_20]
+# central: all class labels on disk for near-Earth asteroids with a < 2 au, band under_20 pooled.
+# low, high: the smallest and largest share among the estimates listed in the derivation; *_from names each.
+# joint_weight: use in place of central in the joint draw (see [joint]); it returns central to within 0.001
+# (solved on the bin counts of [reflectivity.link]; the draw goes through the 21 quantiles, which put
+# up to 0.002 more or less in a bin).
+n = 879
+central = { S = 0.6371, C = 0.1456, X = 0.0865, other = 0.1308 }
+low = { S = 0.5538, C = 0.0941, X = 0.0859, other = 0.1143 }
+high = { S = 0.7035, C = 0.2103, X = 0.1143, other = 0.1487 }
+joint_weight = { S = 0.5985, C = 0.1815, X = 0.0947, other = 0.1252 }
+low_from = { S = "colours and compilations, a < 2 au", C = "spectra only, a < 2 au", X = "spectra only, a < 2 au", other = "list members, class on a literature card" }
+high_from = { S = "spectra only, a < 2 au", C = "colours and compilations, a < 2 au", X = "list members, class on a literature card", other = "colours and compilations, a < 2 au" }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/research/out-prior-null/labels.csv. A bound whose *_from names a paper is quoted from the docs/research file given in brackets"
+
+[class.bands.20_22]
+# central: all class labels on disk for near-Earth asteroids with a < 2 au, band 20_22 pooled.
+# low, high: the smallest and largest share among the estimates listed in the derivation; *_from names each.
+# joint_weight: use in place of central in the joint draw (see [joint]); it returns central to within 0.001
+# (solved on the bin counts of [reflectivity.link]; the draw goes through the 21 quantiles, which put
+# up to 0.002 more or less in a bin).
+n = 468
+central = { S = 0.5962, C = 0.2009, X = 0.0812, other = 0.1218 }
+low = { S = 0.5000, C = 0.0806, X = 0.0700, other = 0.1051 }
+high = { S = 0.6825, C = 0.2996, X = 0.0948, other = 0.1585 }
+joint_weight = { S = 0.5202, C = 0.2767, X = 0.0913, other = 0.1117 }
+low_from = { S = "Moskovitz et al. 2026: S+Q about 50% at H 22; C near 15% [source-prior.md section 4]", C = "spectra only, a < 2 au", X = "colours and compilations, a < 2 au", other = "colours and compilations, a < 2 au" }
+high_from = { S = "spectra only, a < 2 au", C = "colours and compilations, a < 2 au", X = "spectra only, a < 2 au", other = "list members, class on a literature card" }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/research/out-prior-null/labels.csv. A bound whose *_from names a paper is quoted from the docs/research file given in brackets"
+
+[class.bands.22_24]
+# central: all class labels on disk for near-Earth asteroids with a < 2 au, band 22_24 pooled.
+# low, high: the smallest and largest share among the estimates listed in the derivation; *_from names each.
+# joint_weight: use in place of central in the joint draw (see [joint]); it returns central to within 0.001
+# (solved on the bin counts of [reflectivity.link]; the draw goes through the 21 quantiles, which put
+# up to 0.002 more or less in a bin).
+n = 142
+central = { S = 0.6549, C = 0.1690, X = 0.0986, other = 0.0775 }
+low = { S = 0.4040, C = 0.0732, X = 0.0333, other = 0.0732 }
+high = { S = 0.7073, C = 0.3000, X = 0.1818, other = 0.1273 }
+joint_weight = { S = 0.5983, C = 0.2208, X = 0.1089, other = 0.0720 }
+low_from = { S = "Lopez-Oquendo et al. 2026, observed (5-150 m): S 40.4% [source-prior.md section 4; verify-prior-null.md section 5]", C = "spectra only, a < 2 au", X = "colours and compilations, a < 2 au", other = "spectra only, a < 2 au" }
+high_from = { S = "spectra only, a < 2 au", C = "colours and compilations, a < 2 au", X = "list members, class on a literature card", other = "list members, class on a literature card" }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/research/out-prior-null/labels.csv. A bound whose *_from names a paper is quoted from the docs/research file given in brackets"
+
+[class.bands.24_26]
+# central: all class labels on disk for near-Earth asteroids with a < 2 au, band 24_26 pooled.
+# low, high: the smallest and largest share among the estimates listed in the derivation; *_from names each.
+# joint_weight: use in place of central in the joint draw (see [joint]); it returns central to within 0.001
+# (solved on the bin counts of [reflectivity.link]; the draw goes through the 21 quantiles, which put
+# up to 0.002 more or less in a bin).
+n = 111
+central = { S = 0.4775, C = 0.1532, X = 0.2523, other = 0.1171 }
+low = { S = 0.3500, C = 0.1090, X = 0.2000, other = 0.0938 }
+high = { S = 0.6600, C = 0.1532, X = 0.3438, other = 0.1171 }
+joint_weight = { S = 0.3808, C = 0.2210, X = 0.2931, other = 0.1050 }
+low_from = { S = "pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]", C = "Devogele et al. 2019 (MANOS spectra, mean H 25): S+Q 43.8%, X 23.8%, C 10.9% [source-prior.md section 4]", X = "pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]", other = "list members, class on a literature card" }
+high_from = { S = "Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]", C = "all labels, a < 2 au, band 24_26", X = "list members, class on a literature card", other = "all labels, a < 2 au, band 24_26" }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/research/out-prior-null/labels.csv. A bound whose *_from names a paper is quoted from the docs/research file given in brackets"
+
+[class.bands.26_28]
+# central: all class labels on disk for near-Earth asteroids with a < 2 au, bands 26_28 and 28_up pooled.
+# low, high: the smallest and largest share among the estimates listed in the derivation; *_from names each.
+# joint_weight: use in place of central in the joint draw (see [joint]); it returns central to within 0.001
+# (solved on the bin counts of [reflectivity.link]; the draw goes through the 21 quantiles, which put
+# up to 0.002 more or less in a bin).
+n = 80
+central = { S = 0.5750, C = 0.1375, X = 0.1750, other = 0.1125 }
+low = { S = 0.3500, C = 0.0370, X = 0.1750, other = 0.1100 }
+high = { S = 0.6600, C = 0.1500, X = 0.2500, other = 0.1667 }
+joint_weight = { S = 0.5081, C = 0.1865, X = 0.1998, other = 0.1057 }
+low_from = { S = "Moskovitz et al. 2026: S+Q about 35% at H 28; C near 15% [source-prior.md section 4]", C = "list members, class on a literature card", X = "all labels, a < 2 au, bands 26_28+28_up", other = "list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]" }
+high_from = { S = "Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]", C = "pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]", X = "pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]", other = "list members, class on a literature card" }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/research/out-prior-null/labels.csv. A bound whose *_from names a paper is quoted from the docs/research file given in brackets"
+
+[class.bands.28_up]
+# central: all class labels on disk for near-Earth asteroids with a < 2 au, bands 26_28 and 28_up pooled.
+# low, high: the smallest and largest share among the estimates listed in the derivation; *_from names each.
+# joint_weight: use in place of central in the joint draw (see [joint]); it returns central to within 0.001
+# (solved on the bin counts of [reflectivity.link]; the draw goes through the 21 quantiles, which put
+# up to 0.002 more or less in a bin).
+n = 80
+central = { S = 0.5750, C = 0.1375, X = 0.1750, other = 0.1125 }
+low = { S = 0.3500, C = 0.0370, X = 0.1750, other = 0.1100 }
+high = { S = 0.6119, C = 0.1500, X = 0.2500, other = 0.1667 }
+joint_weight = { S = 0.5081, C = 0.1865, X = 0.1998, other = 0.1057 }
+low_from = { S = "Moskovitz et al. 2026: S+Q about 35% at H 28; C near 15% [source-prior.md section 4]", C = "list members, class on a literature card", X = "all labels, a < 2 au, bands 26_28+28_up", other = "list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]" }
+high_from = { S = "spectra only, a < 2 au", C = "pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]", X = "pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]", other = "list members, class on a literature card" }
+kind = "measured"
+source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/research/out-prior-null/labels.csv. A bound whose *_from names a paper is quoted from the docs/research file given in brackets"
+
+[density]
+# Bulk density by class, for turning a size into a mass. Drawn flat between lo and hi.
+unit = "kg/m3"
+shape = "uniform"
+kind = "quoted"
+source = "docs/research/value-inputs.md section 4 ('flat within the range'). The ranges are that report's judgement from Carry 2012 and the direct densities in docs/research/ground-truth.md section 7.1; none of those bodies is under about 150 m"
+spin_does_not_change_density = true
+spin_does_not_change_density_kind = "quoted"
+spin_does_not_change_density_source = "docs/research/verify-value-inputs.md section 2.6: the rule that a fast spin implies a denser body is refuted (2011 MD, 1.1 g/cm3, turns in about 12 minutes)"
+
+[density.S]
+lo = 1700
+hi = 3400
+kind = "quoted"
+source = "docs/research/value-inputs.md section 4, 'Recommended ranges for 5-30 m bodies', row Stony (S, Q): rubble like Itokawa or Dimorphos to a single block at meteorite density. Direct densities behind it: docs/research/ground-truth.md section 7.1"
+
+[density.C]
+lo = 900
+hi = 2300
+kind = "quoted"
+source = "docs/research/value-inputs.md section 4, row Dark (C, B, D, P): Bennu, Ryugu and lighter to a single block of CM"
+
+[density.other]
+lo = 1200
+hi = 3300
+kind = "judgement"
+source = "docs/research/value-inputs.md section 4, row Unknown class (5th-95th, median 2,300). The research gives no row for A, D, K, L, O, R, T, V, Z as a group; this takes its widest non-metal row"
+
+[density.X]
+# An X-class draw takes its density from its drawn reflectivity (Tholen's split of the X complex).
+split_edges_pv = [0.10, 0.30]
+metal_rich_share_of_mid = 0.38
+metal_rich_share_range = [0.10, 0.60]
+kind = "quoted"
+source = "split: docs/research/value-inputs.md section 1.4 (E above 0.3, M 0.1-0.3, P below 0.1). 0.38: Shepard et al. 2015, 11 of 29 main-belt M-class asteroids metal-dominated by radar, same section. Range 0.10-0.60: docs/research/verify-value-inputs.md section 1 item 3, which calls 0.38 a placeholder"
+
+[density.X.dark]
+when = "pv < 0.10 (Tholen P)"
+lo = 900
+hi = 2300
+kind = "quoted"
+source = "docs/research/value-inputs.md section 1.4 ('P is dark primitive material like C-types') and section 4, row Dark"
+
+[density.X.mid_silicate]
+when = "0.10 <= pv < 0.30 (Tholen M), not metal-rich"
+lo = 2000
+hi = 3500
+kind = "quoted"
+source = "docs/research/value-inputs.md section 4, row M, silicate-dominated"
+
+[density.X.mid_metal]
+when = "0.10 <= pv < 0.30 (Tholen M), metal-rich"
+lo = 3000
+hi = 7500
+kind = "quoted"
+source = "docs/research/value-inputs.md section 4, row M, metal-rich: porous mix (1986 DA surface 3.79) to solid iron"
+
+[density.X.bright]
+when = "pv >= 0.30 (Tholen E)"
+lo = 2000
+hi = 3300
+kind = "quoted"
+source = "docs/research/value-inputs.md section 4, row Bright enstatite (E)"
+
+[mass]
+formula = "mass[t] = (pi / 6) * D[m]^3 * density[kg/m3] / 1000"
+kind = "quoted"
+source = "a sphere: docs/research/value-inputs.md section 4"
+
+[joint]
+# One draw for an object. A measured quantity replaces its step. Nothing here multiplies separate probabilities.
+steps = [
+  "1. H: normal(H, sigma) with sigma from [h_uncertainty]. No H: no size, class or spin prior.",
+  "2. pv: measured value if there is one. Else, class measured: inverse transform through [reflectivity.by_class.<class>]. Else: inverse transform through [reflectivity].",
+  "3. D: measured size if there is one, drawn from its stated error (missions.toml [rules.decide]); then pv = (coefficient_m * 10^(-H/5) / D)^2. Else D from [size].formula.",
+  "4. class: measured class if there is one, but for the share of draws in [class.label_error] a class from the other side of S/Q against the rest, by the same weights; that class then sets pv in step 2 when pv is not measured. No measured class: draw with weight class.bands.<band>.joint_weight[c] * reflectivity.link[c][bin of pv].",
+  "5. density: a bulk density on file if there is one. Else flat within [density.<class>]; for X, by pv through [density.X].",
+  "6. mass: [mass].formula.",
+  "7. spin: measured period if one counts (missions.toml [rules]). Else a category from [spin.bands.<band>] central values.",
+]
+kind = "judgement"
+source = "docs/plan.md Appendix C, WP1: reflectivity is the shared unknown, so size, class and density are drawn together. Drawing pv first keeps the size prior equal to the Spitzer table, the one prior with a test (docs/plan.md Appendix A, Size from H)"

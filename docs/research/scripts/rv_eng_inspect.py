@@ -1,0 +1,15 @@
+import json, sys
+nh = json.load(open(sys.argv[1]))
+sb = json.load(open(sys.argv[2]))
+print("NHATS keys:", list(nh.keys()))
+print("sig:", nh.get("signature"))
+print("count:", nh.get("count"))
+d = nh["data"]
+print("n rows", len(d))
+print("row0:", json.dumps(d[0])[:900])
+print("SBDB keys:", list(sb.keys()))
+print("sig:", sb.get("signature"))
+print("fields:", sb.get("fields"))
+print("count:", sb.get("count"))
+print("row0:", sb["data"][0])
+print("row-1:", sb["data"][-1])

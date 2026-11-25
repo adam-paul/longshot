@@ -1,0 +1,639 @@
+# The difficulty ladder: constants for longshot/ladder.py. Method 0.1.
+#
+# A proposal until Adam freezes it. docs/method-value.md explains each choice.
+# Evidence: docs/research/capability.md as corrected by
+# docs/research/verify-capability.md (check date 2026-11-21). The seven
+# corrections and the refuted claim are applied; none of the original wording
+# they replaced is carried. Arithmetic: tools/value_inputs.py sections 5 and 6.
+#
+# Read tags: P = primary source read, S = secondary, L = read from a saved copy,
+# R = recalled.
+
+[meta]
+method = "0.1"
+status = "proposal"
+as_of = "2026-11-21"                   # the day the record below was last read at source
+as_of_words = "21 November 2026"
+order = ["found_again", "reached", "workable", "anything_in_it", "brought_back"]
+statuses = ["measured", "prior", "unknown"]
+status_rule = "measured: every input of the rung is measured. prior: any input is a prior or was not checked. unknown: no input at all"
+
+[format]
+period = "from 2 hours, hours to three figures ('7.63 hours'); from 2 minutes, minutes ('27.9 minutes'); below that, seconds ('92.5 seconds')"
+ratio = "one figure; two when the first digit is 1 or 2 ('15 to 40', '5,000 to 14,000')"
+count = "a whole number of 100"
+
+# ---------------------------------------------------------------------------
+# Thresholds. The size and spin lines for the last rung rest on three sampled
+# asteroids. They are judgement, not physical limits, and the page says so.
+# ---------------------------------------------------------------------------
+
+[thresholds]
+sampled_min_m = 300.0
+sampled_min_m_basis = "the smallest asteroid sampled is Itokawa, 535 x 294 m, mean 330 m"
+sampled_min_period_h = 4.0
+sampled_min_period_basis = "the fastest asteroid sampled is Bennu, once in 4.296 hours"
+touched_min_m = 160.0
+touched_min_basis = "the smallest body any spacecraft has touched is Dimorphos, 160 m (DART, an impact)"
+small_m = 100.0
+small_basis = "Tianwen-2 is the one spacecraft found to have reached an asteroid under 100 m"
+very_fast_period_min = 10.0
+very_fast_basis = "outward pull goes as one over the period squared; a two-minute rotator pulls about 200 times harder than Kamoʻoalewa, so Tianwen-2 is not cited for it (verify-capability.md section 4, objection 6)"
+judgement = "The size and spin lines come from three sampled asteroids. They are not physical limits."
+
+[classes.size]
+# d_lo and d_hi are summary.size_m q05 and q95: the 5th and 95th of the draws, which follow a measured size and its stated error.
+sampled = "d_lo >= sampled_min_m"
+may_be_sampled = "d_lo < sampled_min_m <= d_hi"
+below_sampled = "touched_min_m <= d_hi < sampled_min_m"
+untouched = "d_hi < touched_min_m"
+
+[classes.spin]
+# From the spin row. "Measured period" here and below means a period that decides a gate under
+# missions.toml [rules.period]: graded U 2 or 3, or published with no grade on file.
+slow = "a measured period of sampled_min_period_h or longer"
+faster = "a measured period from very_fast_period_min up to sampled_min_period_h"
+very_fast = "a measured period under very_fast_period_min"
+not_measured = "no measured period: the spin row is a prior, a limit or not checked, or its only period is graded under 2"
+
+[spin_limit]
+# The period at which the outward pull at the equator of a sphere equals its gravity:
+# sqrt(3 pi / (G x density)). Faster than this, loose material stays only by cohesion.
+formula = "ratio of outward pull to gravity at the equator = (limit_h / period_h)^2"
+light_rock_kg_m3 = 1200.0
+light_rock_limit_h = 3.01
+dense_rock_kg_m3 = 3300.0
+dense_rock_limit_h = 1.82
+basis = "tools/value_inputs.py section 5. Checked: 2.33 h at 2,000 kg/m3 (verify-capability.md section 2)"
+note = "The 2026 paper on 2022 OB5 gives 'nearly two orders of magnitude' for that object. Its own inputs give about 5,500; this method gives 5,000 to 14,000. The paper's figure is not quoted (verify-capability.md, side finding on row 32)"
+published_bar_h = 1.0
+published_bar_source = "a period over 1 hour 'considered viable for surface operations': Thirouin et al. 2016, as quoted by Alarcon et al. 2026, arXiv:2605.04784 (P). The criterion is Thirouin's, not the 2026 paper's"
+screening_line_h = 2.2
+screening_line_source = "docs/plan.md 1.2: 'a screening line for surface work, not a physical limit'"
+
+# ---------------------------------------------------------------------------
+# The record of what has flown. Each fact carries as_of, source and recheck.
+# ---------------------------------------------------------------------------
+
+[[fact]]
+id = "hayabusa"
+kind = "sample_return"
+mission = "Hayabusa"
+agency = "JAXA"
+asteroid = "Itokawa"
+objects = ["25143", "1998 SF36", "Itokawa"]
+returned = "More than 1,500 particles, under a milligram in all,"
+return_year = 2010
+returned_g_upper = 0.001
+returned_note = "the mass was not recorded; 'less than 1 milligram' is from a 2011 conference talk relayed by the Planetary Society (S). NASA's page says 'less than one gram'"
+launch = "2003-05-09"
+return = "2010-06-13"
+cost = "about ¥20 billion"
+cost_note = "a press figure (AFP, December 2010), not the project leader's"
+asteroid_size_m = 330.0
+asteroid_size_note = "535 x 294 m; mean 0.33 km (JPL)"
+asteroid_period_h = 12.132
+as_of = "2026-11-21"
+source = "https://science.nasa.gov/mission/hayabusa/ ; https://www.planetary.org/articles/2960 ; https://phys.org/news/2010-12-japan-low-cost-space-programme-limits.html ; https://ssd-api.jpl.nasa.gov/sbdb.api?sstr=25143&phys-par=1"
+read = "P, S"
+recheck = "2027-11-21"
+corrected = "verify-capability.md row 7: cost attribution"
+
+[[fact]]
+id = "hayabusa2"
+kind = "sample_return"
+mission = "Hayabusa2"
+agency = "JAXA"
+asteroid = "Ryugu"
+objects = ["162173", "1999 JU3", "Ryugu"]
+returned = "5.424 ± 0.217 g"
+return_year = 2020
+returned_g = 5.424
+launch = "2014-12-03"
+return = "2020-12-06"
+cost = "¥28.9 billion"
+cost_note = "total project cost for fiscal 2010 to 2021 in a 2012 ministry sheet: a plan figure, not a final account"
+asteroid_size_m = 896.0
+asteroid_period_h = 7.633
+measured_in_sample = "The sample holds 6.84 ± 0.34% water by weight (Yokoyama et al. 2023)."
+water_wt_pct = { lo = 6.50, hi = 7.18 }
+water_note = "6.84 - 0.34 and 6.84 + 0.34. value.toml [material.carbonaceous].basis cites the same figure"
+as_of = "2026-11-21"
+source = "https://curation.isas.jaxa.jp/en/sample-curation/ryugu/ ; https://www8.cao.go.jp/space/comittee/dai2/siryou2-17.pdf ; https://global.jaxa.jp/projects/sas/hayabusa2/"
+read = "P"
+recheck = "2027-11-21"
+
+[[fact]]
+id = "osiris_rex"
+kind = "sample_return"
+mission = "OSIRIS-REx"
+agency = "NASA"
+asteroid = "Bennu"
+objects = ["101955", "1999 RQ36", "Bennu"]
+returned = "121.6 g"
+return_year = 2023
+returned_g = 121.6
+returned_note = "returned and weighed. NASA preserves at least 70% of it"
+launch = "2016-09-08"
+return = "2023-09-24"
+cost = "$1.02 to 1.16 billion"
+cost_note = "two totals from the same organisation, neither adjusted for inflation; neither says whether the extended mission is inside"
+cost_usd_low = 1.02e9
+cost_usd_high = 1.16e9
+cost_per_gram = "about ten million dollars a gram, in the money of the day"
+cost_per_gram_note = "$8.4 to 9.5 million. The whole budget of a science mission divided by a by-product, not a cost of mining"
+asteroid_size_m = 484.0
+asteroid_period_h = 4.296
+measured_in_sample = "The sample holds 0.84 to 0.95% hydrogen and 4.5 to 4.7% carbon by weight (Lauretta et al. 2024)."
+water_wt_pct_at_most = 8.5
+water_note = "if all the hydrogen were in water: at most 7.5 to 8.5 wt% from 0.84 to 0.95 wt% hydrogen (value.toml [material.carbonaceous].basis). An upper limit, not a measured water content"
+as_of = "2026-11-21"
+source = "https://science.nasa.gov/blogs/osiris-rex/2024/02/15/nasa-announces-osiris-rex-bulk-sample-mass/ ; https://www.planetary.org/space-policy/cost-of-osiris-rex ; https://www.planetary.org/space-missions/osiris-rex ; https://science.nasa.gov/wp-content/uploads/2023/09/osirisrexpresskit-2023.pdf"
+read = "P for the mass and dates, S for the cost"
+recheck = "2027-11-21"
+corrected = "verify-capability.md row 4: cost is a range, so '$8.4 million a gram' is not carried"
+
+[[fact]]
+id = "tianwen_2"
+kind = "in_position"
+mission = "Tianwen-2"
+agency = "CNSA"
+asteroid = "Kamoʻoalewa"
+objects = ["469219", "2016 HO3", "Kamoʻoalewa", "Kamo`oalewa", "Kamooalewa"]
+status = "not yet attempted; one spacecraft is in position"
+launch = "2025-05-29"
+arrived = "2026-07"
+arrived_note = "CNSA release of 6 July 2026: reached 20 km from the asteroid; image of 2 July. It shows arrival. Nothing found says where the craft was in November"
+sampling = "no sampling attempt reported, and no official date for one"
+target_g = 100.0
+target_note = "about 100 g (S; no CNSA page found)"
+return_due = "late November 2027"
+return_due_note = "S only (Sky & Telescope; Wikipedia gives 29 November 2027 and departure on 24 April 2027). No CNSA date"
+asteroid_size_m = 18.0
+asteroid_size_note = "18 ± 2 m (JWST, arXiv:2606.24017). Press still prints 27 m"
+asteroid_period_min = 27.9
+asteroid_period_h = 0.465                # the same in hours, the unit of the other facts
+asteroid_ledger = "registry/curated.toml holds the same 18 ± 2 m and 27.9 minutes, so the asteroid's own entry and the sentences that name it rest on one source"
+as_of = "2026-11-21"
+source = "https://www.cnsa.gov.cn/n6758823/n6758838/c10760422/content.html ; https://arxiv.org/abs/2606.24017 ; https://en.wikipedia.org/wiki/Tianwen-2"
+read = "P for arrival and the asteroid, S for the rest"
+recheck = "2026-12-21"
+recheck_note = "monthly while it is at the asteroid; again at the reported departure (2027-04-24) and return (2027-11-29)"
+corrected = "verify-capability.md verdict 3 and objection 5: 'one is trying now' and 'under way' are not carried"
+
+[[fact]]
+id = "dart"
+kind = "contact"
+mission = "DART"
+agency = "NASA"
+asteroid = "Dimorphos"
+what = "a deliberate impact at about 6 km/s on 26 September 2022"
+asteroid_size_m = 160.0
+as_of = "2026-11-21"
+source = "https://science.nasa.gov/mission/dart/"
+read = "P for the date and size, S for the speed"
+recheck = "2027-11-21"
+
+[[fact]]
+id = "companies"
+kind = "commercial_record"
+statement = "We found no company that has reached an asteroid."
+detail = "AstroForge's Brokkr-1 (2023) never closed its command uplink and its refinery was 'NOT COMPLETED'. Its Odin (2025, built for about $3.5 million, launch and operations not included) went silent within days; the company's words on 6 March 2025 were 'The chance of talking with Odin is minimal'. Its DeepSpace-2 is a 'rendezvous and imaging mission', 'Launching Q1 2027'. Karman+ plans a mid-2028 launch to Apophis, 'a technology demonstration, not a mining mission'."
+as_of = "2026-11-21"
+source = "https://www.astroforge.com/updates-collection/odint-mission-debrief ; https://www.astroforge.com/deepspace-2 ; https://www.karmanplus.com/k-mission-1-99942-apophis/"
+read = "P"
+recheck = "2027-03-31"
+recheck_note = "DeepSpace-2's stated launch quarter"
+corrected = "verify-capability.md row 35: the company did not say 'lost'; row 50: no count of funded companies is carried"
+
+[[fact]]
+id = "sonter_1998"
+kind = "proposal"
+statement = "returning 1,000 tonnes to low Earth orbit, proposed in 1997 and 1998 (the 1998 version was read)"
+note = "its 'less than 5 tonnes' is the mass of the processing plant, not the mass launched"
+year = 1997
+tonnes = 1000.0
+as_of = "2026-11-21"
+source = "https://nss.org/wp-content/uploads/2023/05/the-technical-and-economic-feasibility-of-mining-the-near-earth-asteroids.pdf"
+read = "P (the 1998 conference version)"
+recheck = "2027-11-21"
+corrected = "verify-capability.md rows 56 and 71: 'designed on paper since 2012' is not carried"
+
+[[fact]]
+id = "keck_2012"
+kind = "proposal"
+statement = "the first costed study: about 500 tonnes (a 7 m asteroid) to high lunar orbit for about $2.6 billion in 2012 dollars, from 18 tonnes in low Earth orbit"
+note = "the capture hardware was sized for 250 to 1,300 tonnes; the same report lists trajectories returning 1,800 and 3,600 tonnes. Never started"
+year = 2012
+tonnes = 500.0
+cost_usd_2012 = 2.6e9
+as_of = "2026-11-21"
+source = "https://kiss.caltech.edu/final_reports/Asteroid_final_report.pdf"
+read = "L (the site failed certificate checks on the check date)"
+recheck = "2027-11-21"
+corrected = "verify-capability.md row 52: '1,300 tonnes is the largest mass any capture study has designed for' is not carried"
+
+[[fact]]
+id = "arm"
+kind = "proposal"
+statement = "NASA's Asteroid Redirect Mission: a boulder of up to 13.5 tonnes to lunar orbit, capped in 2016 at $1.4 billion without launch or operations, cancelled in 2017"
+year = 2016
+tonnes = 13.535
+cost_usd_2016 = 1.4e9
+as_of = "2026-11-21"
+source = "https://ntrs.nasa.gov/api/citations/20170010282/downloads/20170010282.pdf ; https://www.jpl.nasa.gov/news/nasa-asteroid-redirect-mission-completes-design-milestone/ ; https://www.nasa.gov/sites/default/files/atoms/files/2018_blueprint_nasa.pdf"
+read = "P"
+recheck = "2027-11-21"
+
+[[fact]]
+id = "gap"
+kind = "arithmetic"
+statement = "One tonne is 8,000 times the largest sample. The two costed designs, 13.5 and 500 tonnes, are 110,000 and 4 million times it."
+basis = "1,000,000 / 121.6 = 8,224; 13,535,000 / 121.6 = 111,308; 500,000,000 / 121.6 = 4.1 million. tools/value_inputs.py section 6"
+as_of = "2026-11-21"
+source = "facts osiris_rex, arm, keck_2012"
+read = "arithmetic"
+recheck = "2027-11-21"
+corrected = "verify-capability.md objection 4: 'four orders of magnitude' was the gap to one tonne only"
+
+# ---------------------------------------------------------------------------
+# Slots a template may use, and where ladder.py finds each.
+# ---------------------------------------------------------------------------
+
+[slots]
+occ = "tracking row: JPL orbit condition code, 0 (best) to 9"
+gone = "record.gone.text: ledger.toml [[gone]]"
+dv = "reach row: delta-v of the cheapest round trip, km/s"
+conflict = "spin row: its conflict sentence, as the ledger wrote it"
+r_lo = "(spin_limit.dense_rock_limit_h / period_h)^2"
+r_hi = "(spin_limit.light_rock_limit_h / period_h)^2"
+n_fast = "100 x summary.p_fast_2_2h"
+sources = "spin row: the sources not checked, by name"
+measured_in_sample = "the sample_return fact whose target is this asteroid"
+
+# ---------------------------------------------------------------------------
+# The five rungs. A rung's text is its sentences joined by one space.
+# A rung says what the rows above it on the entry do not (DESIGN.md section 5): the consequence, not the value.
+# The orbit code, the window, the delta-v and trip, the size and mass ranges, the period and the price tag are
+# each printed once, in their own row or block.
+# ---------------------------------------------------------------------------
+
+[rung.found_again]
+question = "Can it be found again?"
+inputs = "the gate with id 'findable' in missions.toml (the same in both presets; the 'findable' column of the field file), the orbit code and the days of tracking"
+
+[[rung.found_again.state]]
+id = "findable"
+status = "measured"
+when = "the orbit gate passes"
+gate = "pass"
+text = "Orbit code {occ}: 5 or better, the line used here."
+
+[[rung.found_again.state]]
+id = "not_findable"
+status = "measured"
+when = "the orbit gate fails"
+gate = "fail"
+text = "Orbit code {occ}: worse than 5, the line used here."
+
+[[rung.found_again.state]]
+id = "no_orbit_code"
+status = "unknown"
+when = "no orbit code on file, or the orbit gate is untested"
+gate = "untested"
+text = "No orbit code on file."
+
+[[rung.found_again.state]]
+id = "gone"
+status = "measured"
+when = "ledger.toml lists the body as gone"
+gate = "gone"
+text = "{gone}"
+
+# The orbit code and JPL's own pointing test are two tests and do not pick the same objects: JPL flags some
+# windows of code 4 and 5 objects as survey-recovery-only, and lists pointable windows for some of code 6
+# (docs/research/verify-obs-window.md section 1 and the short list after it). So the state above speaks only of
+# the code. The window itself is in the tracking row; a sentence follows only when JPL's test says the code
+# is not enough: the window is survey-recovery-only, or there is none (observe.toml [window]).
+[[rung.found_again.suffix]]
+id = "window_pointable"
+when = "a window is listed and it is pointable (observe.toml [window].pointable)"
+window = "pointable"
+text = ""
+
+[[rung.found_again.suffix]]
+id = "window_survey_only"
+when = "a window is listed and it is survey-recovery-only (observe.toml [window].survey_only)"
+window = "survey_only"
+text = "JPL finds its position too uncertain to point at."
+
+[[rung.found_again.suffix]]
+id = "window_none"
+when = "no window is listed (observe.toml [window].none)"
+window = "none"
+text = "JPL lists no window through 2045."
+
+[rung.reached]
+question = "Can it be reached?"
+inputs = "the reach row"
+left_out = "the launch date of that trip is not in JPL's bulk list, which gives delta-v and duration only; the rung says so. A per-object call would give it: a data gap for the next pull"
+
+[[rung.reached.state]]
+id = "round_trip"
+status = "measured"
+when = "a round trip is on file"
+text = "{dv} km/s round trip. Launch date not on file."
+
+[[rung.reached.state]]
+id = "no_round_trip"
+status = "unknown"
+when = "no round trip on file"
+text = "No round trip on file."
+
+[[rung.reached.suffix]]
+id = "small_bodies_reached"
+when = "d_hi < thresholds.small_m, and the asteroid is not Kamoʻoalewa"
+text = "As of 21 November 2026 we found one spacecraft that has reached an asteroid under 100 m: Tianwen-2, at Kamoʻoalewa (18 ± 2 m, JWST), in July 2026."
+facts = ["tianwen_2"]
+
+[rung.workable]
+question = "Is it big enough and slow enough to work on?"
+inputs = "the size row and the spin row"
+text_rule = "one sentence on what the spin means for loose material; the size, the mass and the period are in their rows and are not repeated. When the row's sources disagree, 'Sources disagree on the period.' follows"
+status_rule = "measured if the size row is measured and a period decides; unknown if there is no size, no period and no share; otherwise prior"
+
+[[rung.workable.state]]
+id = "slow"
+status = "measured"
+when = "a measured period of spin_limit.light_rock_limit_h or longer"
+row = "measured"
+period_h = [3.01, 1e9]
+text = "Slower than the 3.0 hours at which even light rock (1,200 kg/m³) would lose loose material from its equator."
+
+[[rung.workable.state]]
+id = "near_limit"
+status = "measured"
+when = "a measured period from spin_limit.dense_rock_limit_h up to spin_limit.light_rock_limit_h"
+row = "measured"
+period_h = [1.82, 3.01]
+text = "Inside the 1.8 to 3.0 hours at which the outward pull at the equator equals gravity for rock of 3,300 to 1,200 kg/m³."
+
+[[rung.workable.state]]
+id = "fast"
+status = "measured"
+when = "a measured period under spin_limit.dense_rock_limit_h"
+row = "measured"
+period_h = [0.0, 1.82]
+text = "At its equator the outward pull is {r_lo} to {r_hi} times its gravity (rock of 3,300 to 1,200 kg/m³)."
+
+[[rung.workable.state]]
+id = "spin_not_measured"
+status = "prior"
+when = "the spin row is a prior"
+row = "prior"
+text = "Of 100 like it, {n_fast} turn faster than once in 2.2 hours."
+
+[[rung.workable.state]]
+id = "spin_limit_only"
+status = "prior"
+when = "the spin row is a limit"
+row = "limit"
+text = "Spin known only as a limit. Of 100 like it, {n_fast} turn faster than once in 2.2 hours."
+
+[[rung.workable.state]]
+id = "spin_not_checked"
+status = "prior"
+when = "the spin row is not checked"
+row = "unchecked"
+text = "Spin not checked ({sources}). Of 100 like it, {n_fast} turn faster than once in 2.2 hours."
+
+[[rung.workable.state]]
+id = "period_unreliable"
+status = "prior"
+when = "the only period on file is graded under 2 (missions.toml [rules.period])"
+row = "measured"
+decides = false
+text = "The period on file is graded unreliable. Of 100 like it, {n_fast} turn faster than once in 2.2 hours."
+
+[[rung.workable.state]]
+id = "spin_conflict"
+status = "prior"
+when = "periods in use fall on both sides of a spin gate (missions.toml [rules.conflict])"
+row = "measured"
+decides = false
+text = "Sources disagree: {conflict} Of 100 like it, {n_fast} turn faster than once in 2.2 hours."
+
+[[rung.workable.suffix]]
+id = "sources_disagree"
+when = "a period decides and the spin row carries a conflict"
+text = "Sources disagree on the period."
+
+[rung.anything_in_it]
+question = "Is there anything in it?"
+inputs = "the surface row, the size row's state, and the returned sample if there is one"
+text_rule = "what the answer rests on. The chance of nothing and the ranges are in the price tag below the ladder, once"
+
+[[rung.anything_in_it.state]]
+id = "sampled"
+status = "measured"
+when = "the asteroid is the target of a sample_return fact"
+text = "{measured_in_sample}"
+text_no_analysis = "Sampled."
+slots = "from the fact: measured_in_sample"
+facts = ["hayabusa", "hayabusa2", "osiris_rex"]
+
+[[rung.anything_in_it.state]]
+id = "from_class"
+status = "prior"
+when = "the surface row is measured or a limit"
+text = "Estimated from its class or reflectivity, and its brightness."
+
+[[rung.anything_in_it.state]]
+id = "from_size"
+status = "prior"
+when = "the size row is measured or a limit and the surface row is a prior"
+text = "Estimated from its size. Nothing on file says what it is made of."
+
+[[rung.anything_in_it.state]]
+id = "from_size_not_checked"
+status = "prior"
+when = "the size row is measured or a limit and the surface row is not checked"
+text = "Estimated from its size. Surface not checked ({sources})."
+
+[[rung.anything_in_it.state]]
+id = "from_brightness"
+status = "prior"
+when = "neither row is measured and the surface row is a prior"
+text = "Estimated from brightness alone."
+
+[[rung.anything_in_it.state]]
+id = "from_brightness_not_checked"
+status = "prior"
+when = "neither row is measured and the surface row is not checked"
+text = "Estimated from brightness alone. Surface not checked ({sources})."
+
+[[rung.anything_in_it.state]]
+id = "gone"
+status = "measured"
+when = "ledger.toml lists the body as gone"
+text = "It no longer exists."
+
+[rung.brought_back]
+question = "Could today's technology bring any of it back?"
+inputs = "summary.size_m (q05, q95: the draws, which follow a measured size and its stated error), the spin row, and the record above"
+text_rule = "one grams sentence: a special state if the asteroid is a fact's target, else the one state whose size and spin lists hold its classes. Then any suffix that applies, more_than_grams last"
+status_rule = "measured if the size row is measured and the spin class is not not_measured; otherwise prior"
+
+[rung.brought_back.words]
+done = "done three times, by space agencies"
+not_yet_attempted = "not yet attempted"
+proposed = "proposed"
+
+[[rung.brought_back.state]]
+id = "sampled_here"
+word = "done"
+when = "the asteroid is the target of a sample_return fact"
+special = "sample_return_target"
+text = "Grams: done. {returned} returned from this asteroid ({mission}, {return_year}) for {cost} in the money of the day."
+slots = "from the fact: returned, mission, return_year, cost"
+facts = ["hayabusa", "hayabusa2", "osiris_rex"]
+
+[[rung.brought_back.state]]
+id = "in_position_here"
+word = "not_yet_attempted"
+when = "the asteroid is the target of an in_position fact"
+special = "in_position_target"
+text = "Grams: not yet attempted. Tianwen-2 reached this asteroid in July 2026 and had reported no sampling attempt by 21 November 2026."
+facts = ["tianwen_2"]
+
+[[rung.brought_back.state]]
+id = "sampled_kind"
+word = "done"
+when = "size sampled, spin slow"
+size = ["sampled"]
+spin = ["slow"]
+text = "Grams: done three times, by space agencies, on asteroids of this size and spin, at ¥20 billion to $1.2 billion a mission in the money of the day."
+facts = ["hayabusa", "hayabusa2", "osiris_rex"]
+
+[[rung.brought_back.state]]
+id = "sampled_size_spin_unknown"
+word = "done"
+when = "size sampled, spin not measured"
+size = ["sampled"]
+spin = ["not_measured"]
+text = "Grams: done three times, by space agencies, on asteroids of this size that turn once in 4.3 to 12.1 hours. Its own spin is not measured."
+# Used in place of the last sentence when a source for the spin row was not checked: "not checked" is never worded as "not measured".
+not_measured_sentence = "Its own spin is not measured."
+not_checked_sentence = "Its own spin is not checked ({sources})."
+facts = ["hayabusa", "hayabusa2", "osiris_rex"]
+
+[[rung.brought_back.state]]
+id = "sampled_size_faster"
+word = "not_yet_attempted"
+when = "size sampled, spin faster than any sampled"
+size = ["sampled"]
+spin = ["faster", "very_fast"]
+text = "Grams: not yet attempted on an asteroid that turns this fast. The three sampled turn once in 4.3 to 12.1 hours."
+facts = ["hayabusa", "hayabusa2", "osiris_rex"]
+
+[[rung.brought_back.state]]
+id = "may_be_sampled_size"
+word = "done"
+when = "the size range straddles the smallest sampled"
+size = ["may_be_sampled"]
+spin = ["slow", "faster", "very_fast", "not_measured"]
+text = "Grams: done three times, by space agencies, on asteroids 330 to 900 m across, and not yet attempted on a smaller one. Its size range spans that line."
+facts = ["hayabusa", "hayabusa2", "osiris_rex"]
+
+[[rung.brought_back.state]]
+id = "below_sampled_size"
+word = "not_yet_attempted"
+when = "smaller than any sampled, not smaller than the smallest touched"
+size = ["below_sampled"]
+spin = ["slow", "faster", "very_fast", "not_measured"]
+text = "Grams: not yet attempted at this size. The three asteroids sampled are 330 to 900 m across; the smallest any spacecraft has touched is 160 m, struck at about 6 km/s in 2022 (DART)."
+facts = ["hayabusa", "hayabusa2", "osiris_rex", "dart"]
+
+[[rung.brought_back.state]]
+id = "very_fast"
+word = "not_yet_attempted"
+when = "smaller than any touched, turning in under ten minutes"
+size = ["untouched"]
+spin = ["very_fast"]
+text = "Grams: not yet attempted. As of 21 November 2026 we found no spacecraft that has approached an asteroid turning this fast; the fastest reached turns once in 27.9 minutes (Kamoʻoalewa, JWST)."
+facts = ["tianwen_2"]
+
+[[rung.brought_back.state]]
+id = "untouched_size"
+word = "not_yet_attempted"
+when = "smaller than any touched, otherwise"
+size = ["untouched"]
+spin = ["slow", "faster", "not_measured"]
+text = "Grams: not yet attempted. As of 21 November 2026 we found no spacecraft that has touched an asteroid this small."
+facts = ["tianwen_2", "dart"]
+
+[[rung.brought_back.state]]
+id = "gone"
+word = "done"
+when = "ledger.toml lists the body as gone"
+special = "gone"
+text = "It no longer exists."
+
+[[rung.brought_back.suffix]]
+id = "spin_decides"
+when = "the state is one of these and the spin class is not_measured"
+after = ["untouched_size", "below_sampled_size", "may_be_sampled_size"]
+spin = ["not_measured"]
+text = "Its spin is not measured, and the answer depends on it."
+# When the sources disagree across a spin gate (missions.toml [rules.conflict]).
+text_conflict = "Sources disagree on its spin, and the answer depends on it."
+# When a source for the spin row was not checked.
+text_not_checked = "Its spin is not checked ({sources}), and the answer depends on it."
+
+[[rung.brought_back.suffix]]
+id = "more_than_grams"
+word = "proposed"
+when = "always, last"
+text = "Kilograms or tonnes: proposed since the 1990s, first costed in 2012 at $2.6 billion (2012 dollars) for about 500 tonnes to lunar orbit, never built."
+facts = ["sonter_1998", "keck_2012", "arm"]
+
+# ---------------------------------------------------------------------------
+# For method.html: the record in full. Sentences in order.
+# ---------------------------------------------------------------------------
+
+[[sitewide]]
+text = "As of 21 November 2026, three spacecraft have brought asteroid material to Earth: 121.6 grams from Bennu, 5.4 grams from Ryugu and under a milligram from Itokawa."
+facts = ["osiris_rex", "hayabusa2", "hayabusa"]
+
+[[sitewide]]
+text = "The missions cost about $1.0 to 1.2 billion, ¥29 billion and ¥20 billion in the money of their day, and each took six to seven years from launch."
+facts = ["osiris_rex", "hayabusa2", "hayabusa"]
+
+[[sitewide]]
+text = "For the largest sample that is about ten million dollars a gram, counting the whole mission, which was built for science and not for mass."
+facts = ["osiris_rex"]
+
+[[sitewide]]
+text = "Had that sample been pure platinum, it would have sold for under $5,000 at any yearly average price of 2021 to 2025."
+facts = ["osiris_rex"]
+basis = "121.6 g at $961 to $1,200 a troy ounce: $3,756 to $4,691. tools/value_inputs.py section 6"
+
+[[sitewide]]
+text = "All three asteroids are 300 to 900 m across and turn once in 4 to 12 hours."
+facts = ["osiris_rex", "hayabusa2", "hayabusa"]
+
+[[sitewide]]
+text = "We found no spacecraft that has touched an asteroid under 160 m. One reached Kamoʻoalewa (18 ± 2 m, JWST) in July 2026 and had reported no sampling attempt."
+facts = ["dart", "tianwen_2"]
+
+[[sitewide]]
+text = "We found no company that has reached an asteroid."
+facts = ["companies"]
+
+[[sitewide]]
+text = "Returning tonnes has been proposed since the 1990s. Two designs were costed: a 2012 study at $2.6 billion (2012 dollars) for about 500 tonnes to lunar orbit, and NASA's Asteroid Redirect Mission, capped in 2016 at $1.4 billion without launch or operations, for a boulder of up to 13.5 tonnes. The first was never started and the second was cancelled in 2017."
+facts = ["sonter_1998", "keck_2012", "arm"]
+
+[[sitewide]]
+text = "One tonne is 8,000 times the largest sample. The two costed designs are 110,000 and 4 million times it."
+facts = ["gap"]

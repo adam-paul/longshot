@@ -1,0 +1,77 @@
+MEASURED PERIODS, RELIABLE GRADES ONLY (U of 2 or 3)
+lightcurve database: near-Earth asteroids with a period 2176, reliable 1992
+Pravec's table: rows 2530, near-Earth asteroids with a period 852, reliable 809
+lightcurve database periods flagged as limits ('>' or '<'): 76, reliable 32; a limit is counted only at a threshold it decides
+in both with reliable grades 614; of those on different sides of a threshold 0; union 2187
+
+list members: 7231 objects, 6 with no H, 305 with a reliable period, 7 with a reliable limit
+H band    objects  with period  <2.2h     share  95%        <1h       share  95%        <10min    share  95%
+under_20  44       36           0 of 36   0.000  0.00-0.10  0 of 36   0.000  0.00-0.10  0 of 36   0.000  0.00-0.10
+20_22     158      53           9 of 53   0.170  0.09-0.29  5 of 54   0.093  0.04-0.20  3 of 54   0.056  0.02-0.15
+22_24     644      63           31 of 63  0.492  0.37-0.61  27 of 63  0.429  0.31-0.55  14 of 63  0.222  0.14-0.34
+24_26     2444     88           75 of 89  0.843  0.75-0.90  65 of 90  0.722  0.62-0.80  35 of 90  0.389  0.29-0.49
+26_28     2829     45           44 of 45  0.978  0.88-1.00  43 of 46  0.935  0.82-0.98  32 of 47  0.681  0.54-0.80
+28_up     1106     20           20 of 20  1.000  0.84-1.00  20 of 20  1.000  0.84-1.00  19 of 20  0.950  0.76-0.99
+each count is 'under the threshold' of 'objects that decide it': measured periods, and limits on the far side
+
+all near-Earth asteroids: 43170 objects, 9 with no H, 2159 with a reliable period, 28 with a reliable limit
+H band    objects  with period  <2.2h       share  95%        <1h         share  95%        <10min      share  95%
+under_20  4811     1140         12 of 1143  0.010  0.01-0.02  6 of 1143   0.005  0.00-0.01  1 of 1143   0.001  0.00-0.00
+20_22     6861     427          60 of 432   0.139  0.11-0.17  41 of 432   0.095  0.07-0.13  14 of 431   0.032  0.02-0.05
+22_24     9201     220          132 of 223  0.592  0.53-0.65  109 of 224  0.487  0.42-0.55  55 of 223   0.247  0.19-0.31
+24_26     12240    223          191 of 225  0.849  0.80-0.89  173 of 228  0.759  0.70-0.81  113 of 228  0.496  0.43-0.56
+26_28     7786     114          110 of 116  0.948  0.89-0.98  105 of 117  0.897  0.83-0.94  83 of 118   0.703  0.62-0.78
+28_up     2262     35           35 of 35    1.000  0.90-1.00  35 of 35    1.000  0.90-1.00  34 of 35    0.971  0.85-0.99
+each count is 'under the threshold' of 'objects that decide it': measured periods, and limits on the far side
+
+list members under 5 km/s with a reliable period
+  15 objects; under 2.2 h 14; under 10 min 12; 2.2 h or slower: 2023 RA4 (2.35 h, U 2, pravec)
+  list members whose only reliable period here is Pravec's: 36
+
+ALL-TARGET DENOMINATOR: MANOS (Thirouin et al. 2016, 2018)
+distinct targets 228: full period 149, lower limit 33, flat 46; H taken from JPL for 227, from the paper for 1
+H band    targets  full  limit  flat  <2.2h  of all  upper  <1h  of all  upper  <10min  of all  upper
+under_20  8        1     4      3     0      0.000   0.750  0    0.000   0.375  0       0.000   0.375
+20_22     25       6     7      12    3      0.120   0.800  1    0.040   0.520  1       0.040   0.520
+22_24     53       35    9      9     34     0.642   0.962  26   0.491   0.679  14      0.264   0.434
+24_26     83       60    7      16    58     0.699   0.964  54   0.651   0.904  35      0.422   0.614
+26_28     51       40    6      5     39     0.765   0.980  39   0.765   0.882  32      0.627   0.725
+28_up     8        7     0      1     7      0.875   1.000  7    0.875   1.000  7       0.875   1.000
+'of all' = measured fast rotators over every target (a lower bound); 'upper' adds every target that could still be fast
+check against docs/research/verify-coverage.md section 2.3, which bins by the papers' own H:
+  H < 22: 4 of 35 under 2.2 h (0.114); 1 under 10 min (0.029)
+  22-24: 33 of 51 under 2.2 h (0.647); 14 under 10 min (0.275)
+  24-26: 59 of 84 under 2.2 h (0.702); 36 under 10 min (0.429)
+  H >= 26: 45 of 58 under 2.2 h (0.776); 38 under 10 min (0.655)
+
+ALL-TARGET DENOMINATOR: Alarcon et al. 2026 (quoted), share under 2.2 h, low to high
+  22_24: 0.606 to 0.803 (66 targets)
+  24_26: 0.773 to 0.894 (132 targets)
+  above 26: 0.941 to 0.961 (51 targets)
+
+PROPOSED [spin] TABLE
+estimates per band: MANOS measured-fast over all targets; Alarcon low and high (2.2 h only); the measured-only
+share among list members; the measured-only share among all near-Earth asteroids.
+low = the smallest estimate, high = the largest, central = their midpoint. The bounds are the spread between
+denominators, not a confidence interval. Band under_20 is nearly all measured (see the first table): central
+is the measured share for all near-Earth asteroids, low is 0, high the 95% upper limit for list members.
+H band    threshold    low   central  high  low from                                       high from
+under_20  under_2_2h   0.00  0.01     0.10  floor                                          list members measured, 95% upper limit (0 of 36)
+under_20  under_1h     0.00  0.01     0.10  floor                                          list members measured, 95% upper limit (0 of 36)
+under_20  under_10min  0.00  0.0009   0.10  floor                                          list members measured, 95% upper limit (0 of 36)
+20_22     under_2_2h   0.12  0.15     0.17  MANOS all targets (3 of 25)                    list members measured (9 of 53)
+20_22     under_1h     0.04  0.07     0.09  MANOS all targets (1 of 25)                    all near-Earth asteroids measured (41 of 432)
+20_22     under_10min  0.03  0.05     0.06  all near-Earth asteroids measured (14 of 431)  list members measured (3 of 54)
+22_24     under_2_2h   0.49  0.65     0.80  list members measured (31 of 63)               Alarcon all targets, high (66 targets)
+22_24     under_1h     0.43  0.46     0.49  list members measured (27 of 63)               MANOS all targets (26 of 53)
+22_24     under_10min  0.22  0.24     0.26  list members measured (14 of 63)               MANOS all targets (14 of 53)
+24_26     under_2_2h   0.70  0.80     0.89  MANOS all targets (58 of 83)                   Alarcon all targets, high (132 targets)
+24_26     under_1h     0.65  0.71     0.76  MANOS all targets (54 of 83)                   all near-Earth asteroids measured (173 of 228)
+24_26     under_10min  0.39  0.45     0.50  list members measured (35 of 90)               all near-Earth asteroids measured (113 of 228)
+26_28     under_2_2h   0.76  0.87     0.98  MANOS all targets (39 of 51)                   list members measured (44 of 45)
+26_28     under_1h     0.76  0.85     0.93  MANOS all targets (39 of 51)                   list members measured (43 of 46)
+26_28     under_10min  0.63  0.67     0.70  MANOS all targets (32 of 51)                   all near-Earth asteroids measured (83 of 118)
+28_up     under_2_2h   0.88  0.94     1.00  MANOS all targets (7 of 8)                     list members measured (20 of 20)
+28_up     under_1h     0.88  0.94     1.00  MANOS all targets (7 of 8)                     list members measured (20 of 20)
+28_up     under_10min  0.88  0.93     0.97  MANOS all targets (7 of 8)                     all near-Earth asteroids measured (34 of 35)
+ordered within each band (10 min <= 1 h <= 2.2 h) for low, central and high: True

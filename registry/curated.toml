@@ -1,0 +1,59 @@
+# Hand-entered measurements that no database on disk holds. Source id "curated", licence class "single":
+# each value is shown on the asteroid's own page with its citation, and never in a bulk file.
+#
+# Enter only a value that a file under docs/research records as checked at its primary source. Each claim
+# carries the citation, and the research file and passage where it was verified. verified_passage is quoted
+# word for word from verified_in, and a test checks that it is there. longshot/ingest/curated.py
+# reads this file and stops the build on anything it does not understand.
+#
+# prop: diameter_m (unit m or km), period_h (unit h, min or s), albedo (no unit), taxonomy (a class label).
+# value and error are in `unit`, as the paper prints them. error is one sigma; leave it out when none is stated.
+# quality: how it was measured, in a few words. For a class, start with "Spec" (a spectrum) or "Phot" (colours).
+
+schema = 1
+edition = "2026-11-25"          # the day this file was last changed
+
+[[claim]]
+designation = "2022 OB5"
+prop = "period_h"
+value = 1.542
+error = 0.001
+unit = "min"
+quality = "lightcurve, 10.4 m GTC, five bands"
+citation = "Alarcon et al. 2026, Icarus 117153, arXiv:2605.04784"
+verified_in = "docs/research/verify-facts-missions.md"
+verified_passage = "Measured: rotation period 1.542 +/- 0.001 min from five-band HiPERCAM photometry on the 10.4-m GTC, confirmed at 1.544 +/- 0.007 min with the Two-meter Twin Telescope on 2026-01-14."
+also_in = "docs/research/verify-nongrav.md, table row 4a: '1.542 min, X-complex', Confirmed"
+
+[[claim]]
+designation = "2022 OB5"
+prop = "taxonomy"
+value = "X"
+quality = "Phot five bands, X-complex, best match Xc"
+citation = "Alarcon et al. 2026, Icarus 117153, arXiv:2605.04784"
+verified_in = "docs/research/verify-facts-missions.md"
+verified_passage = "Class: featureless, moderately red, X-complex; best match Xc, next Xk."
+also_in = "docs/research/verify-nongrav.md, table row 4a: '1.542 min, X-complex', Confirmed"
+
+[[claim]]
+designation = "2016 HO3"
+prop = "diameter_m"
+value = 18.0
+error = 2.0
+unit = "m"
+quality = "JWST thermal model"
+citation = "Sharkey et al. 2026, arXiv:2606.24017"
+verified_in = "docs/research/verify-facts-missions.md"
+verified_passage = "The JWST diameter (18 +/- 2 m) is below NHATS's printed range (24 to 107 m)."
+also_in = "docs/research/verify-capability.md row 18: 'mean diameter of D=18±2 m', Confirmed, primary source"
+
+[[claim]]
+designation = "2016 HO3"
+prop = "period_h"
+value = 27.9
+unit = "min"
+quality = "JWST lightcurve"
+citation = "Sharkey et al. 2026, arXiv:2606.24017"
+verified_in = "docs/research/verify-capability.md"
+verified_passage = '"rotation period of 27.9 minutes" (JWST, February 2026)'
+also_in = "the same row, 18, marked Confirmed at the primary source"

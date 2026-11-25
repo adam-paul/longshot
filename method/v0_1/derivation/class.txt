@@ -1,0 +1,196 @@
+CLASS SHARES BY BRIGHTNESS BAND
+labelled near-Earth asteroids 2713; with a < 2 au and an H 1680; list members with a class on a card 290
+an on-disk sample under 30 objects is listed but sets no bound
+
+band under_20 (on-disk estimates pooled over under_20)
+kind      N    S      C      X      other  estimate
+measured  879  0.637  0.146  0.086  0.131  all labels, a < 2 au, band under_20
+measured  489  0.703  0.094  0.086  0.117  spectra only, a < 2 au
+measured  390  0.554  0.210  0.087  0.149  colours and compilations, a < 2 au
+measured  35   0.629  0.143  0.114  0.114  list members, class on a literature card
+quoted    -    0.600  0.200  -      -      Binzel et al. 2019: 60% S, 20% C, constant from 10 km to 100 m [source-prior.md section 4]
+  central (all labels, a < 2 au): S 0.637 [0.60-0.67], C 0.146 [0.12-0.17], X 0.086 [0.07-0.11], other 0.131 [0.11-0.15]; N 879
+  low:  S 0.554, C 0.094, X 0.086, other 0.114
+  high: S 0.703, C 0.210, X 0.114, other 0.149
+    S low from: colours and compilations, a < 2 au
+    S high from: spectra only, a < 2 au
+    C low from: spectra only, a < 2 au
+    C high from: colours and compilations, a < 2 au
+    X low from: spectra only, a < 2 au
+    X high from: list members, class on a literature card
+    other low from: list members, class on a literature card
+    other high from: colours and compilations, a < 2 au
+
+band 20_22 (on-disk estimates pooled over 20_22)
+kind      N    S      C      X      other  estimate
+measured  468  0.596  0.201  0.081  0.122  all labels, a < 2 au, band 20_22
+measured  211  0.682  0.081  0.095  0.142  spectra only, a < 2 au
+measured  257  0.525  0.300  0.070  0.105  colours and compilations, a < 2 au
+measured  82   0.598  0.159  0.085  0.159  list members, class on a literature card
+quoted    -    0.600  0.200  -      -      Binzel et al. 2019: 60% S, 20% C, constant from 10 km to 100 m [source-prior.md section 4]
+quoted    -    0.500  0.150  -      -      Moskovitz et al. 2026: S+Q about 50% at H 22; C near 15% [source-prior.md section 4]
+  central (all labels, a < 2 au): S 0.596 [0.55-0.64], C 0.201 [0.17-0.24], X 0.081 [0.06-0.11], other 0.122 [0.10-0.15]; N 468
+  low:  S 0.500, C 0.081, X 0.070, other 0.105
+  high: S 0.682, C 0.300, X 0.095, other 0.159
+    S low from: Moskovitz et al. 2026: S+Q about 50% at H 22; C near 15% [source-prior.md section 4]
+    S high from: spectra only, a < 2 au
+    C low from: spectra only, a < 2 au
+    C high from: colours and compilations, a < 2 au
+    X low from: colours and compilations, a < 2 au
+    X high from: spectra only, a < 2 au
+    other low from: colours and compilations, a < 2 au
+    other high from: list members, class on a literature card
+
+band 22_24 (on-disk estimates pooled over 22_24)
+kind      N    S      C      X      other  estimate
+measured  142  0.655  0.169  0.099  0.077  all labels, a < 2 au, band 22_24
+measured  82   0.707  0.073  0.146  0.073  spectra only, a < 2 au
+measured  60   0.583  0.300  0.033  0.083  colours and compilations, a < 2 au
+measured  55   0.564  0.127  0.182  0.127  list members, class on a literature card
+quoted    -    0.500  0.150  -      -      Moskovitz et al. 2026: S+Q about 50% at H 22; C near 15% [source-prior.md section 4]
+quoted    -    0.404  -      -      -      Lopez-Oquendo et al. 2026, observed (5-150 m): S 40.4% [source-prior.md section 4; verify-prior-null.md section 5]
+quoted    -    0.660  -      -      -      Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]
+  central (all labels, a < 2 au): S 0.655 [0.57-0.73], C 0.169 [0.12-0.24], X 0.099 [0.06-0.16], other 0.077 [0.04-0.13]; N 142
+  low:  S 0.404, C 0.073, X 0.033, other 0.073
+  high: S 0.707, C 0.300, X 0.182, other 0.127
+    S low from: Lopez-Oquendo et al. 2026, observed (5-150 m): S 40.4% [source-prior.md section 4; verify-prior-null.md section 5]
+    S high from: spectra only, a < 2 au
+    C low from: spectra only, a < 2 au
+    C high from: colours and compilations, a < 2 au
+    X low from: colours and compilations, a < 2 au
+    X high from: list members, class on a literature card
+    other low from: spectra only, a < 2 au
+    other high from: list members, class on a literature card
+
+band 24_26 (on-disk estimates pooled over 24_26)
+kind      N    S      C      X      other  estimate
+measured  111  0.477  0.153  0.252  0.117  all labels, a < 2 au, band 24_26
+measured  101  0.495  0.129  0.267  0.109  spectra only, a < 2 au
+measured  10   0.300  0.400  0.100  0.200  colours and compilations, a < 2 au
+measured  64   0.438  0.125  0.344  0.094  list members, class on a literature card
+quoted    -    0.438  0.109  0.238  -      Devogele et al. 2019 (MANOS spectra, mean H 25): S+Q 43.8%, X 23.8%, C 10.9% [source-prior.md section 4]
+quoted    -    0.404  -      -      -      Lopez-Oquendo et al. 2026, observed (5-150 m): S 40.4% [source-prior.md section 4; verify-prior-null.md section 5]
+quoted    -    0.660  -      -      -      Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]
+quoted    -    0.500  0.140  0.250  0.110  list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]
+quoted    -    0.350  0.110  0.200  -      pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]
+quoted    -    0.450  0.150  0.250  -      pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+  central (all labels, a < 2 au): S 0.477 [0.39-0.57], C 0.153 [0.10-0.23], X 0.252 [0.18-0.34], other 0.117 [0.07-0.19]; N 111
+  low:  S 0.350, C 0.109, X 0.200, other 0.094
+  high: S 0.660, C 0.153, X 0.344, other 0.117
+    S low from: pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]
+    S high from: Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]
+    C low from: Devogele et al. 2019 (MANOS spectra, mean H 25): S+Q 43.8%, X 23.8%, C 10.9% [source-prior.md section 4]
+    C high from: all labels, a < 2 au, band 24_26
+    X low from: pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]
+    X high from: list members, class on a literature card
+    other low from: list members, class on a literature card
+    other high from: all labels, a < 2 au, band 24_26
+
+band 26_28 (on-disk estimates pooled over 26_28+28_up)
+kind      N   S      C      X      other  estimate
+measured  80  0.575  0.138  0.175  0.113  all labels, a < 2 au, bands 26_28+28_up
+measured  67  0.612  0.060  0.194  0.134  spectra only, a < 2 au
+measured  13  0.385  0.538  0.077  0.000  colours and compilations, a < 2 au
+measured  54  0.574  0.037  0.222  0.167  list members, class on a literature card
+quoted    -   0.350  0.150  -      -      Moskovitz et al. 2026: S+Q about 35% at H 28; C near 15% [source-prior.md section 4]
+quoted    -   0.404  -      -      -      Lopez-Oquendo et al. 2026, observed (5-150 m): S 40.4% [source-prior.md section 4; verify-prior-null.md section 5]
+quoted    -   0.660  -      -      -      Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]
+quoted    -   0.500  0.140  0.250  0.110  list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]
+quoted    -   0.350  0.110  0.200  -      pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]
+quoted    -   0.450  0.150  0.250  -      pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+  central (all labels, a < 2 au): S 0.575 [0.47-0.68], C 0.138 [0.08-0.23], X 0.175 [0.11-0.27], other 0.113 [0.06-0.20]; N 80
+  low:  S 0.350, C 0.037, X 0.175, other 0.110
+  high: S 0.660, C 0.150, X 0.250, other 0.167
+    S low from: Moskovitz et al. 2026: S+Q about 35% at H 28; C near 15% [source-prior.md section 4]
+    S high from: Sanchez et al. 2024 (under 300 m): S-complex 66% [source-prior.md sections 4 and 7]
+    C low from: list members, class on a literature card
+    C high from: pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+    X low from: all labels, a < 2 au, bands 26_28+28_up
+    X high from: pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+    other low from: list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]
+    other high from: list members, class on a literature card
+
+band 28_up (on-disk estimates pooled over 26_28+28_up)
+kind      N   S      C      X      other  estimate
+measured  80  0.575  0.138  0.175  0.113  all labels, a < 2 au, bands 26_28+28_up
+measured  67  0.612  0.060  0.194  0.134  spectra only, a < 2 au
+measured  13  0.385  0.538  0.077  0.000  colours and compilations, a < 2 au
+measured  54  0.574  0.037  0.222  0.167  list members, class on a literature card
+quoted    -   0.350  0.150  -      -      Moskovitz et al. 2026: S+Q about 35% at H 28; C near 15% [source-prior.md section 4]
+quoted    -   0.500  0.140  0.250  0.110  list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]
+quoted    -   0.350  0.110  0.200  -      pooled surveys at H 24-29, low end: S+Q 35%, X 20%, C 11% [source-prior.md section 8.1]
+quoted    -   0.450  0.150  0.250  -      pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+  central (all labels, a < 2 au): S 0.575 [0.47-0.68], C 0.138 [0.08-0.23], X 0.175 [0.11-0.27], other 0.113 [0.06-0.20]; N 80
+  low:  S 0.350, C 0.037, X 0.175, other 0.110
+  high: S 0.612, C 0.150, X 0.250, other 0.167
+    S low from: Moskovitz et al. 2026: S+Q about 35% at H 28; C near 15% [source-prior.md section 4]
+    S high from: spectra only, a < 2 au
+    C low from: list members, class on a literature card
+    C high from: pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+    X low from: all labels, a < 2 au, bands 26_28+28_up
+    X high from: pooled surveys at H 24-29, high end: S+Q 45%, X 25%, C 15% [source-prior.md section 8.1]
+    other low from: list members at H 24 and fainter, 105 objects: S/Q 50%, C 14%, X 25%, other 11% [verify-prior-null.md section 5]
+    other high from: list members, class on a literature card
+
+LINK BETWEEN CLASS AND REFLECTIVITY
+Spitzer objects (a < 2 au) with a class from a spectrum, by reflectivity bin
+class  < 0.10  0.10-0.20  0.20-0.30  0.30-0.45  >= 0.45  all
+S      5       55         103        96         27       286
+C      21      2          3          3          6        35
+X      14      8          3          5          8        38
+other  3       11         8          15         15       52
+P(bin | class):
+class  < 0.10  0.10-0.20  0.20-0.30  0.30-0.45  >= 0.45
+S      0.017   0.192      0.360      0.336      0.094
+C      0.600   0.057      0.086      0.086      0.171
+X      0.368   0.211      0.079      0.132      0.211
+other  0.058   0.212      0.154      0.288      0.288
+share of all Spitzer objects (a < 2 au) in each bin: 0.101, 0.195, 0.280, 0.272, 0.152
+X objects by Tholen's split: P (< 0.10) 14, M (0.10-0.30) 11, E (>= 0.30) 13 of 38
+
+JOINT DRAW: reflectivity from the Spitzer quantiles, then class with weight w[band][class] * P(bin | class)
+'unraked' is the class mix that comes out if the central shares are used as weights; 'weights' are the
+values that return the central shares on these bin shares; 'check' is the mix they return. A draw through the
+21 reflectivity quantiles puts up to 0.002 more or less in a bin, and returns the central shares to within 0.001.
+band under_20
+         S       C       X       other
+central  0.6371  0.1456  0.0865  0.1308
+unraked  0.6583  0.1254  0.0814  0.1350
+weights  0.5985  0.1815  0.0947  0.1252
+check    0.6371  0.1456  0.0865  0.1308
+  X draws by reflectivity: P 0.25, M 0.36, E 0.39
+band 20_22
+         S       C       X       other
+central  0.5962  0.2009  0.0812  0.1218
+unraked  0.6391  0.1589  0.0739  0.1281
+weights  0.5202  0.2767  0.0913  0.1117
+check    0.5962  0.2009  0.0812  0.1218
+  X draws by reflectivity: P 0.19, M 0.40, E 0.41
+band 22_24
+         S       C       X       other
+central  0.6549  0.1690  0.0986  0.0775
+unraked  0.6862  0.1401  0.0920  0.0817
+weights  0.5983  0.2208  0.1089  0.0720
+check    0.6549  0.1690  0.0986  0.0775
+  X draws by reflectivity: P 0.22, M 0.37, E 0.41
+band 24_26
+         S       C       X       other
+central  0.4775  0.1532  0.2523  0.1171
+unraked  0.5451  0.1125  0.2186  0.1238
+weights  0.3808  0.2210  0.2931  0.1050
+check    0.4775  0.1532  0.2523  0.1171
+  X draws by reflectivity: P 0.17, M 0.41, E 0.42
+band 26_28
+         S       C       X       other
+central  0.5750  0.1375  0.1750  0.1125
+unraked  0.6163  0.1094  0.1575  0.1168
+weights  0.5081  0.1865  0.1998  0.1057
+check    0.5750  0.1375  0.1750  0.1125
+  X draws by reflectivity: P 0.21, M 0.38, E 0.41
+band 28_up
+         S       C       X       other
+central  0.5750  0.1375  0.1750  0.1125
+unraked  0.6163  0.1094  0.1575  0.1168
+weights  0.5081  0.1865  0.1998  0.1057
+check    0.5750  0.1375  0.1750  0.1125
+  X draws by reflectivity: P 0.21, M 0.38, E 0.41
