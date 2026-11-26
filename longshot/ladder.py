@@ -12,7 +12,9 @@ tag, are in NO_INPUT below.
 A rung says what the rows do not (DESIGN.md section 5): what the spin means for
 loose material, what the answer rests on, what has flown. It does not print
 again the orbit code's window, the trip, the size and mass, the period, or the
-price tag's sentences.
+price tag's sentences. A source that was not checked is named once, in its row;
+a rung that rests on that row says the value is estimated (docs/design.md
+section 3), never "not measured", and does not name the source again.
 """
 from __future__ import annotations
 
@@ -21,16 +23,16 @@ import math
 from longshot import draws as draws_mod
 from longshot import method as method_mod
 from longshot import observe as observe_mod
-from longshot.draws import Inputs, spoken_list
+from longshot.draws import Inputs
 from longshot.method import Method
 from longshot.missions import figures
 from longshot.types import LADDER, ObjectRecord
 
 # ladder.toml has no sentence for these cases; they are the smallest that say what is missing.
 NO_INPUT = {
-    "spin": "No size or spin share: JPL lists no brightness for it.",
-    "value": "No estimate: JPL lists no brightness for it.",
-    "grams": "Grams: no size on file to set against what has flown.",
+    "spin": "JPL lists no brightness for it, so we cannot estimate its diameter or spin.",
+    "value": "JPL lists no brightness for it, so we cannot estimate what it holds.",
+    "grams": "Grams: no diameter to compare with the asteroids sampled so far.",
 }
 
 
@@ -44,8 +46,14 @@ def ratio_words(x: float) -> str:
 
 
 def count_words(p: float) -> str:
-    """A whole number of 100, halves rounded up."""
-    return str(math.floor(100 * p + 0.5))
+    """A share as a percent of a whole number, halves rounded up; '<1%' and '>99%' at the ends (docs/design.md
+    section 6, ladder.toml [format].count)."""
+    n = math.floor(100 * p + 0.5)
+    if n < 1:
+        return "<1%"
+    if n > 99:
+        return ">99%"
+    return f"{n}%"
 
 
 def _names(record: ObjectRecord) -> set[str]:
@@ -174,24 +182,21 @@ def workable(record, inp: Inputs, m: Method) -> dict:
         spin_measured = True
     else:
         spin_measured = False
-        slots = {}
         if inp.period_split is not None:
             state = _by_id(rung["state"], "spin_conflict")
-            slots = {"conflict": inp.period_split}
         elif inp.period_unreliable is not None:
             state = _by_id(rung["state"], "period_unreliable")
         elif inp.period_bound is not None:
             state = _by_id(rung["state"], "spin_limit_only")
         elif spin_row.unchecked or spin_row.state == "unchecked":
             state = _by_id(rung["state"], "spin_not_checked")
-            slots = {"sources": spoken_list(spin_row.unchecked) or "a source"}
         else:
             state = _by_id(rung["state"], "spin_not_measured")
         if draws_mod.is_num(n_fast):
-            text = state["text"].format(n_fast=count_words(n_fast), **slots)
+            text = state["text"].format(n_fast=count_words(n_fast))
         else:
-            # no brightness, so no share: only what comes before "Of 100 like it", or the plain statement
-            text = state["text"].split("Of 100 like it")[0].strip().format(**slots) or NO_INPUT["spin"]
+            # no brightness, so no share: the plain statement
+            text = NO_INPUT["spin"]
 
     if size_row.state == "measured" and inp.size is not None and spin_measured:
         status = "measured"
@@ -223,8 +228,7 @@ def anything_in_it(record, inp: Inputs, m: Method) -> dict:
         state = _by_id(rung["state"], basis + "_not_checked")
     else:
         state = _by_id(rung["state"], basis)
-    return {"rung": "anything_in_it", "status": state["status"],
-            "text": state["text"].format(sources=spoken_list(surface.unchecked))}
+    return {"rung": "anything_in_it", "status": state["status"], "text": state["text"]}
 
 
 def brought_back(record, inp: Inputs, m: Method) -> dict:
@@ -237,9 +241,6 @@ def brought_back(record, inp: Inputs, m: Method) -> dict:
     rng = size_range(record, inp)
     spin = spin_class(inp, m)
     measured = record.rows["size"].state == "measured" and inp.size is not None and spin != "not_measured"
-    spin_row = record.rows["spin"]
-    # the sources not checked for spin, when nothing on file gives a period at all
-    unchecked = spoken_list(spin_row.unchecked) if spin == "not_measured" and spin_row.unchecked else ""
 
     sample = fact_for(record, m, "sample_return")
     position = fact_for(record, m, "in_position")
@@ -260,17 +261,10 @@ def brought_back(record, inp: Inputs, m: Method) -> dict:
         state = next((s for s in states if size in s.get("size", ()) and spin in s.get("spin", ())), None)
         if state is None:
             raise method_mod.MethodError(f"ladder.toml: no brought_back state for size {size}, spin {spin}")
-        text = state["text"]
-        if unchecked and "not_checked_sentence" in state:
-            # a source for the spin row was not checked: the sentence may not say "not measured"
-            if state["not_measured_sentence"] not in text:
-                raise method_mod.MethodError(f"ladder.toml: state {state['id']} lacks its own not_measured_sentence")
-            text = text.replace(state["not_measured_sentence"], state["not_checked_sentence"].format(sources=unchecked))
-        parts.append(text)
+        parts.append(state["text"])
     decides = _by_id(rung["suffix"], "spin_decides")
     if state["id"] in decides["after"] and spin in decides["spin"]:
-        parts.append(decides["text_conflict"] if inp.period_split is not None
-                     else decides["text_not_checked"].format(sources=unchecked) if unchecked else decides["text"])
+        parts.append(decides["text_conflict"] if inp.period_split is not None else decides["text"])
     return {"rung": "brought_back", "status": "measured" if measured else "prior", "text": " ".join(parts + [more]),
             "parts": _amounts(parts, state.get("word"), more, more_word)}
 

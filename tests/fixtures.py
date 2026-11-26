@@ -164,7 +164,7 @@ FIXTURES = {
             ]},
             # STATUS line 1: "2026 QQ8  404": SsODNet did not know the object, so no card exists.
             # Found in 2026, after the lightcurve database (2023-10-01) and the Spitzer table (2019-11-30) were
-            # made: both are "older than this object". Pravec's table (2026-10-15) is not: first observed 2026-08-19.
+            # made: both are "older than this asteroid". Pravec's table (2026-10-15) is not: first observed 2026-08-19.
             "size": {"state": "unchecked", "unchecked": ["ssodnet"], "facts": [
                 f("H", 31.37, "jpl-sbdb", "SBDB data[42247].H"),
             ]},

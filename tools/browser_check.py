@@ -6,13 +6,18 @@
 Serves the directory on a free local port, drives the browser over its debugging pipe,
 and reports: console errors, the WebGL2 renderer, rocks drawn and in how many draw calls,
 frame times with every rock on screen, bytes fetched for the first screen, and whether
-the marks (the glow on measured rocks only, dots that become outlines zoomed in, the
-ring for not checked), the tip, zoom and pan by wheel, drag, buttons, keys and pinch,
-the axes, the legend's counts, the mission filter and the delta-v ceiling, the readout
-and its Close, search, the table view (pages, sorting, filters), the keyboard, history,
-touch at phone width, a change of pixel ratio, a lost context, a keys file that does
-not load and a browser without WebGL2 behave. A check whose case the site does not hold (no numbered asteroid,
-say) is printed as "skip". Screenshots go to build/screens/. Exit status 1 if a check fails.
+the marks follow docs/design.md section 4 (the glow on measured rocks only; estimated
+rocks at half brightness, dots that become outlines zoomed in; a size not checked drawn
+as an estimate; no brightness that follows a mission's chance; fits with a heavier line,
+ruled out faint), the tip, zoom and pan by wheel, drag, buttons, keys and pinch, the
+axes, the legend line's counts against the field file read here, the mission filter and
+Max Δv, the readout and its Close, search, the table view (pages, sorting, filters),
+the keyboard, history, touch at phone width, a change of pixel ratio, a lost context, a
+keys file that does not load and a browser without WebGL2 behave. It also reads the
+computed style of every visible text on the front page and the other pages: two inks
+only (docs/design.md section 4), and the surface words only on the front page (section 3).
+A check whose case the site does not hold (no numbered asteroid, say) is printed as "skip".
+Screenshots go to build/screens/. Exit status 1 if a check fails.
 """
 from __future__ import annotations
 
@@ -34,6 +39,8 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from make_synthetic_field import read_field  # noqa: E402  the field file's reader, beside this tool
 
 
 def chrome():
@@ -220,7 +227,7 @@ FACTS = """(() => {
     buffer: [gl.drawingBufferWidth, gl.drawingBufferHeight], dpr: devicePixelRatio,
     n: f.n, shown: f.mask.reduce((a, b) => a + b, 0), turning: f.rot.length,
     total: longshot.manifest.counts.objects, unplaced: (longshot.manifest.unplaced || []).length,
-    count: ((l, o) => (l ? l.textContent + ' ' : '') + o.value)(document.getElementById('count-label'), document.querySelector('#controls [name=count]')),
+    shown: +(document.querySelector('#legend li[data-k=shown] .n')?.textContent || 'NaN').replace(/,/g, ''),
     has_field: document.documentElement.classList.contains('has-field'),
   };
 })()"""
@@ -266,18 +273,23 @@ DRAWS = """(() => { const f = longshot.field, gl = f.gl, real = gl.drawArraysIns
   gl.drawArraysInstanced = function (...a) { calls.push(a[3]); return real.apply(this, a); };
   f.hover(-1); f.draw(); delete gl.drawArraysInstanced; return calls; })()"""
 
-# The first rock of each kind the marks must tell apart; -1 where the field has none.
+# The first rock of each kind the marks must tell apart; -1 where the field has none. low and high: two estimated
+# rocks a mission leaves unclear, one under 1% and one over 40% (surface work), for the check that no chance is drawn.
 KINDS = """(() => { const f = longshot.field, c = f.cols;
   const find = t => { for (let i = 0; i < f.n; i++) if (t(c.state[i] & 3, i)) return i; return -1; };
-  return { measured: find(s => s === 3), limit: find(s => s === 2), prior: find(s => s === 1), unchecked: find(s => s === 0),
+  // measured and bound: plotted at the value the field file carries (size_open); withheld: a measured value it may
+  // not carry, which the front page shows as the estimate it holds (docs/design.md section 6)
+  return { measured: find((s, i) => s === 3 && c.size_open[i]), bound: find((s, i) => s === 2 && c.size_open[i]),
+           prior: find(s => s === 1), unchecked: find(s => s === 0),
            withheld: find((s, i) => s >= 2 && !c.size_open[i]), held: find((s, i) => s === 3 && c.size_open[i]),
            pass: find((s, i) => c.status_surface[i] === 2), fail: find((s, i) => c.status_surface[i] === 0),
-           low: find((s, i) => c.status_surface[i] === 1 && c.p_surface[i] < 3),
-           high: find((s, i) => c.status_surface[i] === 1 && c.p_surface[i] >= 160) }; })()"""
+           low: find((s, i) => s < 2 && c.status_surface[i] === 1 && c.pct_surface[i] === 0),
+           high: find((s, i) => s < 2 && c.status_surface[i] === 1 && c.pct_surface[i] >= 40) }; })()"""
 
-# Rock i drawn alone at zoom z (with a mission, or dimmed out of the filters): its brightest pixel, how many
-# pixels are lit, how many of those are at a glow's brightness, and the pixel at its centre. 0 to 255.
-SOLO = """((i, z, mission, dim) => { const f = longshot.field, gl = f.gl, keep = { ...f.V }, was = f.mission;
+# Rock i drawn alone at zoom z (with a mission, or made faint): its brightest pixel, how many pixels are lit, how
+# many of those are at a glow's brightness, how many are line (over 150), and the pixel at its centre. 0 to 255.
+# Its mask is the app's unless dim is asked for.
+SOLO = """((i, z, mission, dim) => { const f = longshot.field, gl = f.gl, keep = { ...f.V }, was = f.mission, held = f.mask[i];
   f.setMission(mission); if (dim) { f.mask[i] = 0; f.masked(); }
   const B = f.B, w = (B.x1 - B.x0) / z, h = (B.y1 - B.y0) / z;
   f.V = { x0: f.cols.dv[i] - w / 2, x1: f.cols.dv[i] + w / 2, y0: f.ly[i] - h / 2, y1: f.ly[i] + h / 2 }; f.clampView(); f.stale = true;
@@ -286,23 +298,52 @@ SOLO = """((i, z, mission, dim) => { const f = longshot.field, gl = f.gl, keep =
   const W = 2 * R + 1, px = new Uint8Array(W * W * 4), c = new Uint8Array(4);
   gl.readPixels(x - R, y - R, W, W, gl.RGBA, gl.UNSIGNED_BYTE, px);
   gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, c);
-  let top = 0, lit = 0, halo = 0;
-  for (let k = 0; k < px.length; k += 4) { const v = px[k]; if (v > top) top = v; if (v > 20) lit++; if (v > 20 && v < 90) halo++; }
-  if (dim) { f.mask[i] = 1; f.masked(); }
+  let top = 0, lit = 0, halo = 0, core = 0;
+  for (let k = 0; k < px.length; k += 4) { const v = px[k]; if (v > top) top = v; if (v > 20) lit++; if (v > 20 && v < 90) halo++; if (v > 150) core++; }
+  if (dim) { f.mask[i] = held; f.masked(); }
   f.V = keep; f.setMission(was); f.changed(); f.draw();
-  return { top, lit, halo, centre: c[0] }; })(%d, %s, %s, %s)"""
+  return { top, lit, halo, core, centre: c[0] }; })(%d, %s, %s, %s)"""
 
 # The tip for rock i, as the pointer would show it.
 TIP = """(i => { const f = longshot.field, t = document.querySelector('#tip'); f.hover(i);
   const text = t.hidden ? '' : t.textContent; f.hover(-1); return text; })(%d)"""
 VIEW = "(() => { const V = longshot.field.V; return [+V.x0.toFixed(4), +V.y0.toFixed(4), +longshot.field.z.toFixed(4)]; })()"
-COUNT = "((l, o) => (l ? l.textContent + ' ' : '') + o.value)(document.getElementById('count-label'), document.querySelector('#controls [name=count]'))"
+SHOWN = "+(document.querySelector('#legend li[data-k=shown] .n')?.textContent || 'NaN').replace(/,/g, '')"
 SUBMIT = "document.querySelector('#controls').requestSubmit()"
 SELECTED = "!!document.querySelector('#readout #summary')"
 OPEN = "!!document.querySelector('#readout .selected')"          # a selection, whether or not its entry has loaded
 DEFAULT = "!!document.querySelector('#readout .named') && !document.querySelector('#readout #summary')"
-LEGEND = """(() => { const l = document.querySelector('#legend'); return { text: l.textContent, priorz: !!l.querySelector('.g-priorz'),
-  counts: [...l.querySelectorAll('li:not(.of)')].map(li => ({ word: li.textContent.replace(/[\\d,]+$/, '').trim(), n: +(li.querySelector('.n')?.textContent || '0').replace(/,/g, '') })) }; })()"""
+# The legend line: its text, whether the estimated mark is the zoomed outline, and each item's count by its key
+# (shown, measured, estimated, fits, ruled, loose).
+LEGEND = """(() => { const l = document.querySelector('#legend'); return { text: l.textContent.replace(/\\s+/g, ' ').trim(),
+  zoomed: !!l.querySelector('.g-priorz'), glyphs: [...l.querySelectorAll('.g')].map(g => g.className),
+  k: Object.fromEntries([...l.querySelectorAll('li[data-k]')].map(li => [li.dataset.k, +(li.querySelector('.n')?.textContent || 'NaN').replace(/,/g, '')])) }; })()"""
+# Every visible text on the page and its computed colour. Two inks are allowed (docs/design.md section 4): white
+# for content and #a8a8a8 for apparatus. Also let through: white turned over (black on a white ground, as a selected
+# segment) and the edge grey on a control that is off (section 9). Each other colour is returned with where it is.
+INKS = """(() => {
+  const ok = new Set(['rgb(255, 255, 255)', 'rgb(168, 168, 168)']), seen = {}, bad = {};
+  const ground = el => { for (let e = el; e; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor;
+    if (c && c !== 'transparent' && !/rgba\\(.*, 0\\)$/.test(c)) return c; } return 'rgb(0, 0, 0)'; };
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let t; (t = walk.nextNode());) {
+    const text = t.textContent.trim(), el = t.parentElement;
+    if (!text || !el || el.closest('script, style, noscript, .vh, [hidden], datalist, option') || !el.getClientRects().length) continue;
+    const s = getComputedStyle(el);
+    if (s.visibility !== 'visible' || +s.opacity === 0) continue;
+    seen[s.color] = (seen[s.color] || 0) + 1;
+    if (ok.has(s.color) || (s.color === 'rgb(0, 0, 0)' && ground(el) === 'rgb(255, 255, 255)')
+        || (s.color === 'rgb(94, 94, 94)' && el.closest(':disabled'))) continue;
+    const where = el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/).join('.') : '');
+    (bad[s.color + ' ' + where] ||= []).push(text.slice(0, 40));
+  }
+  return { seen, bad: Object.entries(bad).map(([k, v]) => [k, v.length, v.slice(0, 3)]) }; })()"""
+# The words a visitor reads on the front page: its visible text, the tip and the readout included.
+WORDS = "document.body.innerText"
+# docs/design.md section 3: words the surface does not use, and section 6: chances as <1% and >99%; nothing says now.
+RETIRED = [r"\bnot measured\b", r"\bnot checked\b", r"\bno size\b", r"\blimit only\b", r"\buntested\b", r"\bpass(es|ed)?\b",
+           r"\bfail(s|ed)?\b", r"\bsettle", r"\btypical\b", r"\bsize\b", r"\bunder 1%", r"\bover 99%", r"\bnow\b",
+           r"\bplotted \d", r"\blisted \d", r"delta-v(?! \(Δv\))"]
 TABLE = """(() => { const t = document.querySelector('#table table'), body = t.tBodies[0];
   return { visible: !document.querySelector('#table').hidden && !!t.getClientRects().length, plot: !document.querySelector('#plot').hidden,
     heads: [...t.tHead.querySelectorAll('th')].map(th => th.textContent), sort: [...t.tHead.querySelectorAll('th')].map(th => th.getAttribute('aria-sort')),
@@ -381,7 +422,7 @@ def run(args):
     checks["every rock in the draw"] = facts["shown"] == n > 0
     report["draw_calls"] = browser.js(DRAWS)
     checks["every rock in one draw call"] = report["draw_calls"] == [n]
-    checks["the count says what is plotted of every asteroid"] = facts["count"].endswith(f"{n:,} of {total:,}") and "Plotted" in facts["count"]
+    checks["the legend line says every rock is shown"] = facts["shown"] == n
 
     # frame times
     idle = browser.js(IDLE)
@@ -401,51 +442,96 @@ def run(args):
         checks["the frame holds 60 a second with every rock on"] = report["frames"]["draw_ms_p95"] < 8 and report["frames"]["interval_ms_median"] < 18
     shot("home")
 
-    manifest = json.loads((site / "data" / "field.json").read_text())
-    keys = json.loads((site / "data" / manifest["keys_file"]).read_text())
+    manifest, columns, keys = read_field(site / "data" / "field.json")
     loose = manifest.get("unplaced") or []
     entries = [i for i, k in enumerate(keys) if (site / "a" / f"{k[0]}.html").exists()][:2]
 
+    def expect(m="", dv=0.0, table=False):
+        """The legend line's counts from the field file itself, as docs/design.md section 8 defines them."""
+        ok = lambda v: not dv or v <= dv + 1e-6
+        out = {"shown": 0, "measured": 0, "estimated": 0}
+        if m:
+            out.update(fits=0, ruled=0)
+        rest = 0
+        for i in range(n):
+            if not ok(columns["dv"][i]):
+                continue
+            status = columns[f"status_{m}"][i] if m else 1
+            if status == 0:
+                out["ruled"] += 1
+                continue
+            out["shown"] += 1
+            out["measured" if columns["state"][i] & 3 >= 2 and columns["size_open"][i] else "estimated"] += 1
+            if status == 2:
+                out["fits"] += 1
+        for row in loose:
+            if ok(row[4]):
+                if m:
+                    out["ruled"] += 1       # no rock: ruled out of both missions (docs/mvp.md section 5)
+                else:
+                    rest += 1
+        if rest:
+            out["loose"] = rest
+            if table:
+                out["shown"] += rest
+        return out
+
+    def legend_matches(m="", dv=0.0, table=False):
+        got = browser.js(LEGEND)
+        want = expect(m, dv, table)
+        report.setdefault("legends", []).append({"m": m, "dv": dv, "table": table, "text": got["text"], "want": want})
+        return got["k"] == want, got
+
     # ---- the marks: one set, the size row alone sets them; the glow is on measured outlines only
     kinds = report["kinds"] = browser.js(KINDS)
+    inks, said = {}, {}                                              # front-page states: computed inks, visible words
+    report["inks"] = inks
+    inks["home"], said["home"] = browser.js(INKS), browser.js(WORDS)
     solo = lambda i, z=1, mission="", dim=False: browser.js(SOLO % (i, z, q(mission), q(dim)))
     marks = report["marks"] = {}
     if kinds["measured"] >= 0:
         marks["measured"] = solo(kinds["measured"])
         marks["measured_dimmed"] = solo(kinds["measured"], dim=True)
         checks["a measured size is a bright outline with a glow"] = marks["measured"]["top"] > 235 and marks["measured"]["halo"] >= 40
-        checks["a rock out of the filters is dimmed, without its glow"] = marks["measured_dimmed"]["top"] < 60 and marks["measured_dimmed"]["lit"] < marks["measured"]["lit"] / 2
-    if kinds["limit"] >= 0:
-        marks["limit"] = solo(kinds["limit"])
-        checks["a limit is a white outline with no glow"] = marks["limit"]["top"] > 200 and marks["limit"]["halo"] < marks.get("measured", {"halo": 80})["halo"] / 2
+        checks["a rock out of the filter is faint, without its glow"] = marks["measured_dimmed"]["top"] < 60 and marks["measured_dimmed"]["lit"] < marks["measured"]["lit"] / 2
+    if kinds["bound"] >= 0:
+        marks["bound"] = solo(kinds["bound"])
+        checks["a bound is a white outline with no glow"] = marks["bound"]["top"] > 200 and marks["bound"]["halo"] < marks.get("measured", {"halo": 80})["halo"] / 2
     else:
-        skipped.append("a limit's outline: no rock has only a limit on its size")
+        skipped.append("a bound's outline: no rock has only a bound on its size")
     if kinds["prior"] >= 0:
         marks["prior"], marks["prior_zoomed"] = solo(kinds["prior"]), solo(kinds["prior"], 8)
         p1, p8 = marks["prior"], marks["prior_zoomed"]
-        checks["not measured is a grey dot at home and a dim outline zoomed in, neither glowing"] = (
-            100 < p1["top"] < 175 and p1["lit"] <= 16 and 70 < p8["top"] < 140 and p8["lit"] > 2 * p1["lit"] and p8["centre"] < 30
+        checks["estimated is a half-bright dot at home and a half-bright outline zoomed in, neither glowing"] = (
+            130 < p1["top"] <= 172 and p1["lit"] <= 16 and 120 < p8["top"] <= 172 and p8["lit"] > 2 * p1["lit"] and p8["centre"] < 30
             and ("measured" not in marks or marks["measured"]["lit"] > 1.5 * p8["lit"]))
+        marks["prior_dimmed"] = solo(kinds["prior"], dim=True)
+        checks["a faint estimate is a sixth of an estimate"] = marks["prior_dimmed"]["top"] < 0.25 * p1["top"]
     if kinds["unchecked"] >= 0:
-        marks["unchecked"] = u = solo(kinds["unchecked"])
-        checks["not checked is a ring at home, empty in the middle, apart from the dot"] = (
-            130 < u["top"] < 205 and u["lit"] >= 8 and u["centre"] < 40 and ("prior" not in marks or u["lit"] > marks["prior"]["lit"]))
-    if kinds["pass"] >= 0 and kinds["fail"] >= 0:
-        marks["pass"], marks["fail"] = solo(kinds["pass"], 1, "surface"), solo(kinds["fail"], 1, "surface")
-        checks["with a mission, pass is a glowing outline and fail a faint dot"] = (
-            marks["pass"]["top"] > 235 and marks["pass"]["halo"] >= 40 and marks["fail"]["top"] < 90 and marks["fail"]["lit"] <= 12)
-    if kinds["low"] >= 0 and kinds["high"] >= 0:
-        marks["untested_low"], marks["untested_high"] = solo(kinds["low"], 1, "surface"), solo(kinds["high"], 1, "surface")
-        checks["untested is brighter as the chance rises"] = marks["untested_low"]["top"] + 60 < marks["untested_high"]["top"]
-    else:
-        skipped.append("untested brightness: no untested rock both under 1% and over 60%")
+        marks["unchecked"], marks["unchecked_zoomed"] = solo(kinds["unchecked"]), solo(kinds["unchecked"], 8)
+        u1, u8 = marks["unchecked"], marks["unchecked_zoomed"]
+        # a source not checked is an estimate on the surface: the same mark, never a third state
+        checks["a size not checked is drawn as an estimate"] = (
+            130 < u1["top"] <= 172 and u1["lit"] <= 16 and 120 < u8["top"] <= 172 and u8["centre"] < 30
+            and ("prior" not in marks or (abs(u1["top"] - marks["prior"]["top"]) <= 12 and abs(u8["top"] - marks["prior_zoomed"]["top"]) <= 12)))
 
-    # ---- the tip says what the field file may say
-    tips = report["tips"] = {k: browser.js(TIP % i) for k, i in kinds.items() if i >= 0 and k in ("measured", "withheld", "held", "prior")}
+    # ---- the tip says what the field file may say, in the surface's words
+    tips = report["tips"] = {k: browser.js(TIP % i) for k, i in kinds.items() if i >= 0 and k in ("measured", "withheld", "held", "prior", "unchecked")}
     if "withheld" in tips:
-        checks["no range beside a measured size the field file does not hold"] = "see entry" in tips["withheld"] and "–" not in tips["withheld"].split("km/s")[-1]
+        # the front page shows what the field file holds: a measured value it may not carry is its estimate, drawn,
+        # tipped and counted as one; the readout and the entry give the measurement
+        marks["withheld"] = solo(kinds["withheld"])
+        checks["a measured size the field file does not hold is shown as the estimate it holds"] = (
+            bool(re.search(r"Diameter [\d.,]+–[\d.,]+ m 90% range, estimated", tips["withheld"])) and "measured" not in tips["withheld"]
+            and 130 < marks["withheld"]["top"] <= 172 and marks["withheld"]["lit"] <= 16)
     if "held" in tips:
-        checks["a measured size the field file holds is printed"] = bool(re.search(r"km/s, size measured, [\d.,]+ k?m to [\d.,]+ k?m", tips["held"]))
+        # a measurement is its value alone, never a 90% range beside the measured word (its ±1σ is on the entry)
+        checks["a measured size the field file holds is printed as its value, with no range"] = (
+            bool(re.search(r"Diameter [\d.,]+ m measured", tips["held"])) and "90% range" not in tips["held"])
+    for kind in ("prior", "unchecked"):
+        if kind in tips:
+            checks[f"the tip calls an estimate ({kind}) estimated, never measured"] = (
+                bool(re.search(r"Diameter [\d.,]+–[\d.,]+ m 90% range, estimated", tips[kind])) and "measured" not in tips[kind])
     i0 = kinds["prior"] if kinds["prior"] >= 0 else 0
     x, y = (round(v) for v in browser.js(ROCK % i0))
     browser.mouse("mouseMoved", x, y)
@@ -455,17 +541,21 @@ def run(args):
     checks["hover shows a tip for the rock under the pointer"] = hot >= 0 and (keys[hot][2] or keys[hot][1]) in tip and "km/s" in tip
 
     # ---- zoom: wheel, drag, buttons, keys; the axes follow and the dots turn into outlines
-    legend = browser.js(LEGEND)
-    checks["the legend counts the marks and they add up to what is plotted"] = (
-        not legend["priorz"] and sum(c["n"] for c in legend["counts"] if c["word"] != "No size") == n)
+    same, legend = legend_matches()
+    report["legend_home"] = legend["text"]
+    checks["the legend line counts what the field file holds: shown, its two marks, and those with no brightness"] = (
+        same and not legend["zoomed"] and legend["k"]["measured"] + legend["k"]["estimated"] == legend["k"]["shown"] == n
+        and legend["k"].get("loose", 0) == len(loose) and (not loose or "No brightness on file" in legend["text"])
+        and legend["text"].startswith(f"{n:,} of {total:,} reachable asteroids" if loose else f"{n:,} reachable asteroids"))
+    checks["the legend names the two marks, and the plotted estimate is its median"] = (
+        "Measured" in legend["text"] and "Estimated (median)" in legend["text"] and legend["glyphs"] == ["g g-measured", "g g-prior"])
+    checks["no zoom factor is shown"] = browser.js("![...document.querySelectorAll('.zoom, .zoom *')].some(e => /\\d\\s*[×x]$/.test(e.textContent.trim()))")
     before = browser.js("document.querySelector('#axes').textContent")
     x1, y1 = browser.js(ROCK % i0)
     browser.mouse("mouseWheel", x, y, deltaX=0, deltaY=-600)
     settle()
     z = browser.js("longshot.field.z")
-    zoom_out = browser.js("document.querySelector('output[name=zoom]').value")
-    checks["wheel zooms, the factor is shown and the axes follow"] = (
-        z > 1 and zoom_out == f"{z:.1f}×" and browser.js("document.querySelector('#axes').textContent") != before)
+    checks["wheel zooms and the axes follow"] = z > 1 and browser.js("document.querySelector('#axes').textContent") != before
     x2, y2 = browser.js(ROCK % i0)
     checks["zoom holds the point under the pointer"] = abs((x2 - x) - (x1 - x) * z) < 0.5 and abs((y2 - y) - (y1 - y) * z) < 0.5
     checks["zoomed in, a one-finger drag pans instead of scrolling the page"] = browser.js("longshot.field.canvas.style.touchAction") == "none"
@@ -484,9 +574,9 @@ def run(args):
     for name in ("zoom-in", "zoom-in"):
         browser.click(*browser.js(CENTRE % q(f"[name={name}]")))
     settle()
-    four = browser.js("[longshot.field.z, document.querySelector('output[name=zoom]').value]")
+    four = browser.js("longshot.field.z")
     legend = browser.js(LEGEND)
-    checks["+ doubles the zoom, and from 4x the legend's dots are outlines"] = abs(four[0] - 4) < 1e-6 and four[1] == "4.0×" and legend["priorz"]
+    checks["+ doubles the zoom, and from 4x the legend's estimated mark is an outline"] = abs(four - 4) < 1e-6 and legend["zoomed"]
     shot("zoom4")
     browser.click(*browser.js(CENTRE % q("[name=zoom-out]")))
     settle()
@@ -532,25 +622,42 @@ def run(args):
     # ---- filters, the legend and the URL
     browser.js(SET % (q("m"), q("surface")))
     settle()
-    legend = report["legend_with_mission"] = browser.js(LEGEND)
-    words = [c["word"] for c in legend["counts"]]
-    checks["mission filter is in the URL, and the legend counts its pass, untested and fail"] = (
-        "m=surface" in browser.js("location.search") and words[:1] == ["Pass"] and words[-1:] == ["Fail"]
-        and sum(c["n"] for c in legend["counts"]) == n and browser.js("longshot.field.mission") == "surface")
+    same, legend = legend_matches("surface")
+    report["legend_with_mission"] = legend["text"]
+    checks["mission filter is in the URL, and the legend line counts what is shown, what fits and what is ruled out"] = (
+        "m=surface" in browser.js("location.search") and same and browser.js("longshot.field.mission") == "surface"
+        and legend["k"]["shown"] + legend["k"]["ruled"] == total and "Fits" in legend["text"] and "Ruled out" in legend["text"]
+        and f"of {total:,} reachable asteroids" in legend["text"])
+    # docs/design.md section 4: a mission changes which asteroids are in the filter, not how certainty is drawn
+    if kinds["pass"] >= 0 and kinds["fail"] >= 0:
+        masks = browser.js(f"[longshot.field.mask[{kinds['pass']}], longshot.field.mask[{kinds['fail']}]]")
+        marks["fits"], marks["fits_without"] = solo(kinds["pass"], 1, "surface"), solo(kinds["pass"], 1, "")
+        marks["ruled_out"] = solo(kinds["fail"], 1, "surface")
+        checks["with a mission, one that fits keeps its mark with a heavier line, and one ruled out is faint"] = (
+            masks == [1, 0] and marks["fits"]["top"] > 235 and (marks["fits"]["halo"] >= 25) == (columns["state"][kinds["pass"]] & 3 == 3)
+            and marks["fits"]["core"] > 1.3 * marks["fits_without"]["core"] and marks["ruled_out"]["top"] < 60)
+    if kinds["low"] >= 0 and kinds["high"] >= 0:
+        marks["unclear_low"], marks["unclear_high"] = solo(kinds["low"], 1, "surface"), solo(kinds["high"], 1, "surface")
+        checks["no brightness follows a mission's chance: an unclear estimate under 1% and one over 40% look alike"] = (
+            abs(marks["unclear_low"]["top"] - marks["unclear_high"]["top"]) <= 12 and abs(marks["unclear_low"]["lit"] - marks["unclear_high"]["lit"]) <= 6)
+    else:
+        skipped.append("no chance in the brightness: no two estimated unclear rocks under 1% and over 40%")
+    inks["mission"] = browser.js(INKS)
+    said["mission"] = browser.js(WORDS)
     shot("mission")
     browser.js(SET % (q("dv"), q("6")))
     settle()
     shown = browser.js("longshot.field.mask.reduce((a, b) => a + b, 0)")
-    expect = browser.js("longshot.field.cols.dv.reduce((a, v) => a + (v <= 6.000001), 0)")
-    legend = browser.js(LEGEND)
-    checks["the ceiling greys the rocks above it, still drawn, and is in the URL"] = (
-        shown == expect < n and "dv=6" in browser.js("location.search") and browser.js(DRAWS) == [n]
-        and browser.js(COUNT).startswith(f"Plotted {expect:,} of") and sum(c["n"] for c in legend["counts"]) == expect
-        and "Ceiling 6.0 km/s" in browser.js("document.querySelector('#axes').textContent")
-        and browser.js("document.querySelector('#controls [name=dv-value]').value") == "6.0 km/s")
+    want = expect("surface", 6.0)
+    same, legend = legend_matches("surface", 6.0)
+    checks["Max Δv makes the rocks over it faint, still drawn, and is in the URL"] = (
+        shown == want["shown"] < n and "dv=6" in browser.js("location.search") and browser.js(DRAWS) == [n] and same
+        and "Max Δv 6.0 km/s" in browser.js("document.querySelector('#axes').textContent")
+        and browser.js("document.querySelector('#controls [name=dv-value]').value") == "6.0")
     shot("ceiling")
     browser.js("history.back()")
-    checks["back restores the ceiling"] = browser.until("!location.search.includes('dv=') && longshot.field.mask.every(v => v)", 5)
+    checks["back restores Max Δv"] = browser.until(
+        "!location.search.includes('dv=') && longshot.field.mask.every((v, i) => v === (longshot.cols.status_surface[i] ? 1 : 0))", 5)
     browser.js("history.back()")
     checks["back restores the mission"] = browser.until("!location.search && document.querySelector('#controls').elements.m.value === ''", 5)
     report["after_back"] = browser.js("[location.search, document.querySelector('#controls').elements.m.value, history.length]")
@@ -584,10 +691,14 @@ def run(args):
         checks["a click on a rock puts its entry's summary in the readout"] = opened and keys[i][1] in browser.js("document.querySelector('#readout').textContent")
         settle()
         tags = browser.js("[...document.querySelectorAll('#axes .ax-tag')].map(e => e.textContent)")
-        checks["the selected rock gets a crosshair with a tag on each axis, over no tick label"] = (
-            browser.js("longshot.field.sel") == i and len(tags) == 2 and any("km/s" in t for t in tags) and not browser.js(OVERLAPS))
+        # the tags are on the axes, in the axes' units; the diameter's only where it is the one the readout gives
+        carried = columns["state"][i] & 3 < 2 or bool(columns["size_open"][i])
+        checks["the selected rock gets a crosshair and its tags on the axes, over no tick label"] = (
+            browser.js("longshot.field.sel") == i and len(tags) == (2 if carried else 1) and f"{columns['dv'][i]:.3f}" in tags
+            and not any("km/s" in t or " m" in t for t in tags) and not browser.js(OVERLAPS))
         report["tags"] = tags
         report["overlaps"] = browser.js(OVERLAPS)
+        inks["selected"], said["selected"] = browser.js(INKS), browser.js(WORDS)
         shot("selected")
         browser.click(*browser.js(CENTRE % q("#readout [data-close]")))
         checks["Close restores the named list and gives the focus back"] = browser.until(
@@ -617,7 +728,7 @@ def run(args):
         # search: a designation narrows the rocks drawn at full strength; Enter opens the exact match first
         def search(text):
             browser.js(SET % (q("q"), q(text)))
-            shown, line = browser.js("longshot.field.mask.reduce((a, b) => a + b, 0)"), browser.js(COUNT)
+            shown, line = browser.js("longshot.field.mask.reduce((a, b) => a + b, 0)"), browser.js(SHOWN)
             browser.js("document.querySelector('#controls').elements.q.focus()")
             browser.js(SUBMIT)
             settle(0.3)
@@ -652,7 +763,7 @@ def run(args):
         if loose:
             got = report["search_unplaced"] = search(loose[0][1])
             checks["an asteroid with no rock is found by search and opens in the readout"] = (
-                got["opened"] == loose[0][0] and "Not plotted" in got["msg"] and got["shown"] == 0 and got["readout"])
+                got["opened"] == loose[0][0] and "no brightness on file" in got["msg"] and got["shown"] == 0 and got["readout"])
         # a shared link opens on its summary, mission and ceiling
         browser.send("Page.navigate", {"url": f"{base}index.html?a={keys[i][0]}&m=capture&dv=9"})
         checks["a shared link restores the summary, mission and ceiling"] = browser.until(
@@ -666,12 +777,17 @@ def run(args):
     browser.js(SET % (q("view"), q("table")))
     settle()
     t = report["table"] = browser.js(TABLE)
-    legend = browser.js(LEGEND)
+    same, legend = legend_matches(table=True)
     checks["Table lists every asteroid in pages of 50, in place of the chart"] = (
         t["visible"] and not t["plot"] and t["rows"] == min(50, total) and "view=table" in browser.js("location.search")
-        and browser.js(COUNT) == f"Listed {total:,} of {total:,}" and t["pager"] == f"Rows 1–{min(50, total)} of {total:,}")
-    checks["each size in the table carries its mark, and the legend counts the rows"] = (
-        t["glyphs"] == t["rows"] and sum(c["n"] for c in legend["counts"]) == total)
+        and legend["k"]["shown"] == total and t["pager"] == f"Rows 1–{min(50, total)} of {total:,}")
+    checks["each diameter in the table carries its mark, and the legend line counts the rows"] = t["glyphs"] == t["rows"] and same
+    # docs/design.md section 6: "Quantity (unit)" in the header, the unit never in the cells
+    checks["the table's headings are the surface's, with each unit once"] = (
+        t["heads"] == ["Asteroid", "Δv (km/s)", "Diameter (m)", "Surface work", "Whole-body capture"]
+        and "Estimated (90% range)" in legend["text"]
+        and not re.search(r"km/s|\d m\b|—", browser.js("document.querySelector('#table tbody').textContent")))
+    inks["table"], said["table"] = browser.js(INKS), browser.js(WORDS)
     first = browser.js(COLUMN % q("dv"))
     checks["the table starts by delta-v, lowest first"] = first == sorted(first) and t["sort"][1] == "ascending"
     ms = browser.js(SORT % q("dv"))
@@ -692,11 +808,16 @@ def run(args):
     settle()
     t4 = browser.js(TABLE)
     want = manifest["counts"]["missions"]["capture"]["pass"] + manifest["counts"]["missions"]["capture"]["untested"] if "missions" in manifest["counts"] else None
-    listed = int(re.search(r"Listed ([\d,]+)", browser.js(COUNT)).group(1).replace(",", ""))
+    same, legend = legend_matches("capture", table=True)
+    listed = legend["k"].get("shown")
+    verdicts = browser.js("[...document.querySelectorAll('#table td.mis .vd')].map(e => e.textContent)")
     report.setdefault("debug", {}).update(listed=listed, want=want, heads=t4["heads"], sort=t4["sort"])
-    checks["with a mission the table lists its pass and untested, one mission column, likeliest first"] = (
-        (want is None or listed == want) and "Whole-body capture" in t4["heads"] and "Surface work" not in t4["heads"]
-        and t4["sort"][3] == "descending" and "m=capture" in browser.js("location.search"))
+    checks["with a mission the table lists what fits and what is unclear, one mission column, likeliest first"] = (
+        (want is None or listed == want) and same and "Whole-body capture" in t4["heads"] and "Surface work" not in t4["heads"]
+        and t4["sort"][3] == "descending" and "m=capture" in browser.js("location.search")
+        and verdicts and set(verdicts) <= {"fits", "unclear"})
+    chances = browser.js("[...document.querySelectorAll('#table td.mis .ch')].map(e => e.textContent).filter(Boolean)")   # fits keeps an empty slot
+    checks["chances read as 16%, <1% or >99%, and say they are chances"] = bool(chances) and all(re.fullmatch(r"(<1%|>99%|[1-9]\d?%) chance", c) for c in chances)
     shot("table-capture")
     if entries:
         browser.js(SET % (q("q"), q(keys[entries[0]][1])))
@@ -706,7 +827,7 @@ def run(args):
         browser.click(*link)
         checks["search narrows the table, and an asteroid's link opens its summary with its row marked"] = (
             browser.until(f"{SELECTED} && location.search.includes('a={keys[entries[0]][0]}')", 10) and browser.js(TABLE)["sel"] == 1
-            and browser.js(COUNT).startswith("Listed ") and browser.js(TABLE)["rows"] < 50)
+            and 1 <= browser.js(SHOWN) < 50 and browser.js(TABLE)["rows"] < 50)
         shot("table-selected")
         browser.js("document.activeElement?.blur()")
         browser.key("Escape", vk=27)
@@ -857,6 +978,28 @@ def run(args):
                                               whole=0 if field_page else args.shot_height))
     browser.send("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": args.dpr, "mobile": False})
 
+    # ---- the rules a browser can read off the page: two text inks everywhere, the surface's words on the front page
+    browser.send("Page.navigate", {"url": base + "index.html"})
+    browser.until("!!window.longshot && !!longshot.keys", 20)
+    settle(0.3)
+    home_text = browser.js(WORDS)
+    checks["the front page shows its data date"] = manifest["data_date"] in home_text
+    others = [p for p in ([f"a/{keys[entries[0]][0]}.html"] if entries else []) + [f"a/{loose[0][0]}.html"] * bool(loose)
+              + ["list/observe.html", "record.html", "method.html"] if (site / p).exists()]
+    for page in others:
+        browser.send("Page.navigate", {"url": base + page})
+        browser.until("document.readyState === 'complete'", 20)
+        settle(0.2)
+        inks[page] = browser.js(INKS)
+        checks[f"{page} shows its data date"] = manifest["data_date"] in browser.js(WORDS)
+    report["inks"] = {state: got for state, got in inks.items()}
+    checks["visible text uses two inks only: white for content, #a8a8a8 for apparatus"] = all(not got["bad"] for got in inks.values())
+    retired = {state: sorted({m.group(0) for r in RETIRED for m in re.finditer(r, text, re.I)}) for state, text in said.items()}
+    report["retired_words"] = {state: words for state, words in retired.items() if words}
+    checks["the front page speaks the surface's words only (measured, estimated, fits, ruled out, unclear, diameter, Δv)"] = not report["retired_words"]
+    browser.send("Page.navigate", {"url": base + "index.html"})
+    browser.until("!!window.longshot && !!longshot.keys", 20)
+
     # every page opened so far. Tool noise: the bench reads pixels back; a site with entry pages for only some rocks (the synthetic one) 404s on the rest
     partial = len(list((site / "a").glob("*.html"))) < len(keys)
     report["console"] = [p for p in browser.problems()
@@ -931,6 +1074,13 @@ def main(argv=None):
     for kind, text in report.get("tips", {}).items():
         print(f"  {kind:<13} {text}")
     print(f"marks           {report.get('marks')}")
+    print(f"legend          {report.get('legend_home')}")
+    print(f"                {report.get('legend_with_mission')}")
+    for state, got in report.get("inks", {}).items():
+        for where, count, examples in got["bad"]:
+            print(f"third ink       {state}: {where} x{count} {examples}")
+    for state, words in report.get("retired_words", {}).items():
+        print(f"retired words   {state}: {', '.join(words)}")
     print(f"table sort      {report.get('table_sort_ms')} ms for every row")
     print(f"no WebGL2       {report.get('no_webgl2_line')}")
     print(f"console         {'; '.join(report['console']) or 'clean'}")

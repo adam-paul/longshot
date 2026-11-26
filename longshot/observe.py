@@ -1,4 +1,4 @@
-"""Which single observation would settle the most, per method/v0_1/observe.toml.
+"""The best next observation: the one that would settle the most, per method/v0_1/observe.toml.
 
     records = observe.apply(records)      # stage 4: fills record.observe (needs record.missions)
 
@@ -12,7 +12,8 @@ record.missions, which counted them from the same draws.
                       label, mission_label, gate_label, gate_p} or None
     window = {start, end, peak_mag, pointable, as_of} or None
     tier = "pointable" | "survey_only" | "none": what kind of window JPL lists; it leads the ranking
-    unchecked = the sources not checked for the row the observation would settle; text names them
+    unchecked = the sources not checked for the row the observation would settle. The entry lists them once,
+      beside the observation; text does not repeat them
     label, mission_label, gate_label = the observation's, the mission's and the gate's names (observe.toml,
     missions.toml); gate_p = the gate's chance now, as record.missions holds it
 
@@ -106,12 +107,11 @@ def best(record: ObjectRecord, m: Method) -> dict | None:
     g, obs, mission, gate = top
     w = window(record)
     label = m.missions[mission]["label"]
-    text = f"{obs['label']}. It settles \"{gate['label']}\" for {label[:1].lower() + label[1:]}."
+    text = f"{obs['label']}, to settle \"{gate['label']}\" for {label[:1].lower() + label[1:]}."
     # The row behind the gate may have a source nobody looked at: the measurement may already exist there.
+    # observe.unchecked carries them; the row and the entry name them, so the text does not.
     row = record.rows.get(ROW_OF_GATE.get(gate["id"], ""))
     unchecked = list(row.unchecked) if row is not None else []
-    if unchecked:
-        text += f" Not checked: {draws_mod.spoken_list(unchecked)}."
     return {
         "best": obs["id"], "mission": mission, "gate": gate["id"], "gain": round(g, 3),
         "text": text, "needs": needs(m, obs["id"], w), "window": w, "tier": tier(w), "unchecked": unchecked,
@@ -126,7 +126,7 @@ def apply_one(record: ObjectRecord, d, m: Method) -> ObjectRecord:
 
 
 def apply(records: list[ObjectRecord], m: Method | None = None) -> list[ObjectRecord]:
-    """Stage 4: the observation that would settle the most for each untested object."""
+    """Stage 4: the best next observation for each untested object."""
     m = m or method_mod.load()
     for r in records:
         apply_one(r, None, m)

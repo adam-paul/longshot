@@ -819,7 +819,7 @@ def check_agreement(c, m):
     f_s = next(g for g in mis["surface"]["gates"] if g["id"] == "findable")
     f_c = next(g for g in mis["capture"]["gates"] if g["id"] == "findable")
     c.ok((f_s["preset"], f_s["op"]) == (f_c["preset"], f_c["op"]), "the orbit gate is the same for both mission types (the ladder reads one)")
-    c.ok(f"{f_s['preset']} or better" in L["rung"]["found_again"]["state"][0]["text"] and f"worse than {f_s['preset']}" in L["rung"]["found_again"]["state"][1]["text"],
+    c.ok(all(f"{'≤' if f_s['op'] == '<=' else '≥'} {f_s['preset']}." in L["rung"]["found_again"]["state"][i]["text"] for i in (0, 1)),
          "the ladder's first rung names the orbit gate's preset")
     kinds = sorted(x["window"] for x in L["rung"]["found_again"]["suffix"])
     c.ok(kinds == ["none", "pointable", "survey_only"] and all(k in obs["window"] for k in ("pointable", "survey_only", "none")),

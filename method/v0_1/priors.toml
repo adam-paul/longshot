@@ -458,6 +458,7 @@ source = "tools/method_class.py, method/v0_1/derivation/class.txt, from data/res
 unit = "kg/m3"
 shape = "uniform"
 kind = "quoted"
+cite = "Carry 2012, Planet. Space Sci. 73, 98, and the densities measured by spacecraft"
 source = "docs/research/value-inputs.md section 4 ('flat within the range'). The ranges are that report's judgement from Carry 2012 and the direct densities in docs/research/ground-truth.md section 7.1; none of those bodies is under about 150 m"
 spin_does_not_change_density = true
 spin_does_not_change_density_kind = "quoted"
@@ -490,28 +491,28 @@ kind = "quoted"
 source = "split: docs/research/value-inputs.md section 1.4 (E above 0.3, M 0.1-0.3, P below 0.1). 0.38: Shepard et al. 2015, 11 of 29 main-belt M-class asteroids metal-dominated by radar, same section. Range 0.10-0.60: docs/research/verify-value-inputs.md section 1 item 3, which calls 0.38 a placeholder"
 
 [density.X.dark]
-when = "pv < 0.10 (Tholen P)"
+when = "reflectivity under 10%, Tholen class P"
 lo = 900
 hi = 2300
 kind = "quoted"
 source = "docs/research/value-inputs.md section 1.4 ('P is dark primitive material like C-types') and section 4, row Dark"
 
 [density.X.mid_silicate]
-when = "0.10 <= pv < 0.30 (Tholen M), not metal-rich"
+when = "reflectivity 10–30%, Tholen class M, not metal-rich"
 lo = 2000
 hi = 3500
 kind = "quoted"
 source = "docs/research/value-inputs.md section 4, row M, silicate-dominated"
 
 [density.X.mid_metal]
-when = "0.10 <= pv < 0.30 (Tholen M), metal-rich"
+when = "reflectivity 10–30%, Tholen class M, metal-rich"
 lo = 3000
 hi = 7500
 kind = "quoted"
 source = "docs/research/value-inputs.md section 4, row M, metal-rich: porous mix (1986 DA surface 3.79) to solid iron"
 
 [density.X.bright]
-when = "pv >= 0.30 (Tholen E)"
+when = "reflectivity 30% or more, Tholen class E"
 lo = 2000
 hi = 3300
 kind = "quoted"

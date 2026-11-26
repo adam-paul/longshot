@@ -370,6 +370,27 @@ def fmt_count(p_lo: float, p_hi: float) -> str:
     return f"{lo} to {hi}"
 
 
+def cell_count(p_lo: float, p_hi: float) -> str:
+    """fmt_count as a table cell prints it (docs/design.md section 6): an en dash for a band, symbols at the ends.
+    The same rounding: '37–43', '40', '≤4', '≥99', '<1', '>99'."""
+    said = fmt_count(p_lo, p_hi)
+    for words, sign in (("fewer than ", "<"), ("more than ", ">"), ("about ", ""), ("up to ", "≤")):
+        if said.startswith(words):
+            return sign + said.removeprefix(words)
+    if said.endswith(" or more"):
+        return "≥" + said.removesuffix(" or more")
+    return said.replace(" to ", "–")
+
+
+def cell_range(lo: str, hi: str) -> str:
+    """fmt_range as a table cell prints it: '160–110,000 t' when both ends share a unit, else 'A to B'."""
+    said = fmt_range(lo, hi)
+    a = lo.rsplit(" ", 1)
+    if said == f"{a[0]} to {hi}" and len(a) == 2:
+        return f"{a[0]}–{hi}"
+    return said
+
+
 def statement_pairs(m, ex: dict, size_measured: bool, class_label: str | None = None) -> list[tuple[str, str]]:
     """(id, sentence) for each statement of value.toml section 8 that applies, in order."""
     v = m.value if isinstance(m, Method) else m
@@ -463,8 +484,14 @@ def per100(ex: dict) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
     return metal_cells, water_cells
 
 
-def _row(rid: str, label: str, of100=None, kg=None, usd=None) -> dict:
-    return {"id": rid, "label": label, "of100": of100, "kg": kg, "usd": usd}
+def _row(rid: str, label: str, of100=None, kg=None, usd=None, kg_n=None) -> dict:
+    """One row of the metal table. kg and usd are the figures as the statements print them; kg_n is the same
+    amount as numbers, [low, high] in kg, rounded the same way, so the page can print a column in one unit."""
+    return {"id": rid, "label": label, "of100": of100, "kg": kg, "usd": usd, "kg_n": kg_n}
+
+
+# How many of 100 hold under (or over) a row's figure: the quantile it is (value.toml [table.metal]).
+_OF100 = {"over_q05": "95", "over_q25": "75", "under_q75": "75", "under_q95": "95"}
 
 
 def table(m, ex: dict, pairs: list[tuple[str, str]], size_measured: bool) -> dict:
@@ -476,18 +503,20 @@ def table(m, ex: dict, pairs: list[tuple[str, str]], size_measured: bool) -> dic
     said = dict(pairs)
     metal, iron, water = ex["metal"], ex["iron_rich"], ex["water"]
     kg, usd = metal["kg"], metal["usd"]
-    rows = [_row("none", words["metal"]["none"], of100=fmt_count(metal["p_nothing_lo"], metal["p_nothing_hi"]))]
+    rows = [_row("none", words["metal"]["none"], of100=cell_count(metal["p_nothing_lo"], metal["p_nothing_hi"]))]
     for q, rid, up in (("q05", "over_q05", False), ("q25", "over_q25", False),
                        ("q75", "under_q75", True), ("q95", "under_q95", True)):
         if usd[q] > 0:
-            rows.append(_row(rid, words["metal"][rid], kg=fmt_kg(kg[q], up, short=True), usd=fmt_usd(usd[q], up)))
-    iron_row = _row("iron_rich", words["metal"]["iron_rich"], of100=fmt_count(iron["p_lo"], iron["p_hi"]))
+            rows.append(_row(rid, words["metal"][rid], of100=_OF100[rid], kg=fmt_kg(kg[q], up, short=True),
+                             usd=fmt_usd(usd[q], up), kg_n=[round_figure(kg[q], up)] * 2))
+    iron_row = _row("iron_rich", words["metal"]["iron_rich"], of100=cell_count(iron["p_lo"], iron["p_hi"]))
     if "iron_rich" in said:                                  # the same test as the statement's
-        iron_row["kg"] = fmt_range(fmt_kg(iron["kg"]["q05"], False, short=True), fmt_kg(iron["kg"]["q95"], True, short=True))
+        iron_row["kg"] = cell_range(fmt_kg(iron["kg"]["q05"], False, short=True), fmt_kg(iron["kg"]["q95"], True, short=True))
+        iron_row["kg_n"] = [round_figure(iron["kg"]["q05"], False), round_figure(iron["kg"]["q95"], True)]
         iron_row["usd"] = fmt_usd_range(iron["usd"]["q05"], iron["usd"]["q95"])
     rows.append(iron_row)
 
-    notes = []
+    notes = [words["notes"]["of100"]]
     if "metal_none_measured" in said:
         notes.append(said["metal_none_measured"])
     if iron_row["kg"]:
@@ -501,10 +530,11 @@ def table(m, ex: dict, pairs: list[tuple[str, str]], size_measured: bool) -> dic
 
     all_dry = min(water["p_nothing_lo"], water["p_nothing_hi"]) >= 1.0
     water_rows = [{"id": "none", "label": words["water"]["none"], "tonnes": None,
-                   "of100": words["water"]["all"] if all_dry else fmt_count(water["p_nothing_lo"], water["p_nothing_hi"])}]
+                   "of100": words["water"]["all"] if all_dry else cell_count(water["p_nothing_lo"], water["p_nothing_hi"])}]
     if "water_some" in said:
-        water_rows.append({"id": "some", "label": words["water"]["some"], "of100": None, "tonnes": fmt_range(
-            fmt_tonnes(water["tonnes"]["q05"], False, short=True), fmt_tonnes(water["tonnes"]["q95"], True, short=True))})
+        water_rows.append({"id": "some", "label": words["water"]["some"], "of100": None, "tonnes": cell_range(
+            fmt_tonnes(water["tonnes"]["q05"], False, short=True), fmt_tonnes(water["tonnes"]["q95"], True, short=True)),
+            "tonnes_n": [round_figure(water["tonnes"]["q05"], False), round_figure(water["tonnes"]["q95"], True)]})
     if "water_none" in said and not said["water_none"].startswith("Of 100"):
         notes.append(said["water_none"])                     # 'counted as holding no water': a reason, not a count
     notes.append(said["water_market"])
@@ -540,12 +570,12 @@ def sample_statements(m: Method, sample: dict, d) -> tuple[list[tuple[str, str]]
         w = sample["water_wt_pct"]
         lo, hi = m_lo * w["lo"] / 100.0, m_hi * w["hi"] / 100.0
         info["water_t"] = {"q05": sig(lo, 6), "q95": sig(hi, 6)}
-        text = st["sample_water"]["template"].format(t_range=fmt_range(fmt_tonnes(lo, False), fmt_tonnes(hi, True)))
+        text = st["sample_water"]["template"].format(t_range=fmt_range(fmt_tonnes(lo, False, short=True), fmt_tonnes(hi, True, short=True)))
         return [("sample_water", text), ("water_market", st["water_market"]["template"])], info
     if "water_wt_pct_at_most" in sample:
         top = m_hi * sample["water_wt_pct_at_most"] / 100.0
         info["water_t_at_most"] = sig(top, 6)
-        text = st["sample_water_at_most"]["template"].format(t_max=fmt_tonnes(top, True))
+        text = st["sample_water_at_most"]["template"].format(t_max=fmt_tonnes(top, True, short=True))
         return [("sample_water_at_most", text), ("water_market", st["water_market"]["template"])], info
     return [("sample_no_analysis", st["sample_no_analysis"]["template"])], info
 

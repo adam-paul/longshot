@@ -82,11 +82,11 @@ def source() -> Source:
     edition = _parsed()[0]
     return Source(
         id=SOURCE_ID,
-        name="Hand-entered from the literature",
+        name="Published papers",
         edition=edition,
         retrieved=edition,
         licence="single",
-        citation="single published values, each with its own reference; registry/curated.toml",
+        citation="single values from published papers, each cited where it is shown",
         url="",
     )
 

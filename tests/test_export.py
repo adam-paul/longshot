@@ -423,24 +423,10 @@ class TableAndReadout(unittest.TestCase):
         self.assertEqual([x["key"] for x in got], ["n2", "n3", "n1"])
         self.assertEqual(got[0], {"key": "n2", "designation": "2099 N2", "name": "Sooner", "number": None, "dv": 4.0})
 
-    def test_typical_unmeasured_follows_its_rule(self):
-        mag = M.observe["needs"]["lightcurve"]["tiers"][0]["max_mag"]
-        bright = ("2027-02-12", "2027-07-15", mag - 0.5, "pointable")
-        recs = model.run([
-            make("t1", h=24.2, dv=4.6, window=bright),                                          # the one
-            make("t2", h=24.2, dv=4.0, window=("2027-02-12", "2027-07-15", mag + 0.5, "pointable")),  # too faint
-            make("t3", h=24.2, dv=3.9, window=(bright[0], bright[1], bright[2], "survey only")),  # not pointable
-            make("t4", h=24.2, dv=3.8, window=None),                                            # no window
-            make("t5", h=24.2, dv=3.7, window=bright, spin=[period(5.0)]),                      # spin measured
-            make("t6", h=24.2, dv=4.7, window=bright, unchecked={"spin": ["lcdb"]}),            # not checked counts
-            make("t7", h=None, dv=3.6, window=bright),                                          # no size
-        ], M)
-        got = export.typical_unmeasured(recs, M)
-        self.assertEqual(got["key"], "t1")
-        self.assertIn(f"V {mag:g} or brighter", got["rule"])
-        self.assertEqual(export.typical_unmeasured(recs[1:5], M), None)
-        self.assertEqual(export.typical_unmeasured([r for r in recs if r.key != "t1"], M)["key"], "t6")
-        self.assertEqual(export.readout(recs, M)["typical"], got)
+    def test_readout_holds_only_the_named_asteroids(self):
+        # docs/design.md section 8: the readout lists the named asteroids; the "Typical, nothing measured" link is gone
+        recs = model.run([make("n1", h=20.0, dv=7.0, name="Later"), make("t1", h=24.2, dv=4.6)], M)
+        self.assertEqual(export.readout(recs, M), {"named": export.named(recs)})
 
     def test_the_period_an_entry_shows(self):
         # JPL agrees with the lightcurve database the row rests on: JPL's is shown, the row rests on the database

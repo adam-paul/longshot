@@ -4,18 +4,18 @@
 //
 // The canvas fills the figure; rocks draw inside the plot box (the figure less its margins,
 // where the app writes the axes as HTML). Marks are glyphs of a fixed size, not to scale:
-// their place on the size axis gives the size. One set of marks, as in the legend:
-//   measured size       white rock outline with a faint glow
-//   limit only          white dashed rock outline
-//   not measured        grey dot; from ZOUT zoom, a dim rock outline
-//   not checked         dashed grey ring, six dashes
-//   with a mission:     pass a heavy outline with the glow; untested a dot (an outline from
-//                       ZOUT) brighter as the chance rises; fail a faint dot
-// A rock the filters leave out (above the delta-v ceiling, not matching the search) is drawn
-// at a sixth of its brightness and without glow, and cannot be picked.
+// their place on the size axis gives the size. One meaning per variable (docs/design.md
+// section 4), from the size row alone:
+//   measured            white rock outline with a faint glow; a bound, dashed and without glow
+//   estimated           a dot at half brightness; from ZOUT zoom, an outline at half brightness
+//   with a mission:     an asteroid that fits keeps its mark with a heavier line (an estimated one
+//                       as an outline); the app takes the ruled-out ones out of the filter
+// A rock the filter leaves out (over Max Δv, not matching the search, ruled out by the mission)
+// is faint: drawn at 0.16 of its brightness and without glow, and it cannot be picked.
+// No chance is drawn: brightness is the state of the size row, or faint.
 
 const K = 12, SHAPES = 8, TAU = 2 * Math.PI;
-export const ZMAX = 32, ZOUT = 4;                      // zoom range; unmeasured dots become outlines from ZOUT
+export const ZMAX = 32, ZOUT = 4;                      // zoom range; estimated dots become outlines from ZOUT
 const PICK = 10;                                       // CSS px
 const SLOW = /swiftshader|llvmpipe|software/i;         // renderers where a frame is too dear to spend on turning
 const GRID = 128;                                      // picking cells per axis
@@ -35,19 +35,17 @@ const RADII = [
 const SQUASH = [1, 0.82, 0.9, 0.74, 0.95, 0.7, 0.86, 0.78];   // each shape's width across its length
 
 // The marks, CSS px: outline radius, line width; brightness 0 to 1 (white on black, never hue).
+// Three brightness levels: 1 measured, HALF estimated, and DIM times either for a rock outside the filter.
 export const MARK = {
-  rock: 4.6, line: 1.25,            // measured and limit
-  pass: 5.4, passLine: 2.2,
-  out: 3.8, outLine: 1, outB: 0x6b / 255,   // not measured, zoomed in
-  dot: 1.25, dotB: 0x8a / 255,              // not measured, overview
-  ring: 3.2, ringB: 0xa8 / 255,             // not checked
-  udot: 1.5, fail: 1.1, failOut: 1.4, failB: 0x44 / 255,
-  sel: 8, selLine: 2, hover: 7,
+  rock: 4.6, line: 1.25,            // measured, or a bound
+  fitsLine: 2.2,                    // with a mission: an asteroid that fits
+  out: 3.8, outLine: 1,             // estimated, zoomed in
+  dot: 1.25,                        // estimated, overview
+  half: 0xa8 / 255,                 // estimated: the apparatus grey, #a8a8a8
+  sel: 8, hover: 7,
   glow: 2.25,                       // half width of the glow band
-  dim: 0.16,                        // a rock the filters leave out
+  dim: 0.16,                        // a rock outside the filter
 };
-// Untested, by chance of passing: five greys, brighter as the chance rises.
-export const UNTESTED = [[0.6, 1], [0.3, 0xd0 / 255], [0.1, 0x9a / 255], [0.01, 0x76 / 255], [0, 0x5a / 255]];
 
 // What the shader reads for each point of each shape: where it is, and the step
 // to either side of it that gives the line an even width through the corner.
@@ -82,11 +80,11 @@ const float TAU = 6.2831853;
 uniform vec4 u_t[${K * SHAPES}];  // outline table: point xy, step across the line zw
 uniform vec4 u_map;   // view's left km/s, bottom log10 m, device px per km/s, device px per decade
 uniform vec4 u_box;   // plot box left and bottom, canvas width and height, device px from the bottom left
-uniform vec4 u_k;     // device px per CSS px, seconds, mission on, zoomed past ZOUT
+uniform vec4 u_k;     // device px per CSS px, seconds, a mission chosen, zoomed past ZOUT
 uniform int u_o;      // 0 every rock, 1 the hover ring, 2 the selected rock's fill, 3 its outline
 uniform int u_sel;    // the selected rock, drawn by its own calls; -1 if none
 in float a_dv, a_ly, a_period;
-in uint a_state, a_status, a_p, a_seed, a_mask;
+in uint a_state, a_status, a_seed, a_mask;
 out float v_t, v_d;
 flat out vec4 v_s;    // brightness (-1: opaque black fill), share of each dash drawn, half line width, half glow width; px
 
@@ -94,29 +92,23 @@ void main() {
   gl_Position = vec4(2., 2., 2., 1.);
   if (u_o == 0 && gl_InstanceID == u_sel) return;
 
-  // form: 0 dot, 1 rock outline, 2 ring
+  // form: 0 dot, 1 rock outline, 2 ring (the hover ring only)
   int form = 1;
   float R = ${f(MARK.rock)}, lw = ${f(MARK.line)}, b = 1., duty = 1., dashes = 1.;
-  bool glow = false, zoomed = u_k.w > 0.;
   uint size = a_state & 3u;                              // line style from the size row alone
-  if (u_k.z == 0.) {
-    if (size == 3u) glow = true;
-    else if (size == 2u) { duty = .55; dashes = max(3., floor(TAU * R / 4.5)); }
-    else if (size == 1u) {
-      if (zoomed) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; b = ${f(MARK.outB)}; }
-      else { form = 0; R = ${f(MARK.dot)}; b = ${f(MARK.dotB)}; }
-    } else { form = 2; R = ${f(MARK.ring)}; lw = 1.; b = ${f(MARK.ringB)}; duty = .5; dashes = 6.; }
-  } else if (a_status == 2u) { R = ${f(MARK.pass)}; lw = ${f(MARK.passLine)}; glow = true; }
-  else if (a_status == 1u) {
-    float p = float(a_p) / 255.;
-    b = ${UNTESTED.slice(0, -1).map(([at, g]) => `p >= ${f(at)} ? ${f(g)} : `).join('')}${f(UNTESTED.at(-1)[1])};
-    if (zoomed) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; }
-    else { form = 0; R = ${f(MARK.udot)}; }
-  } else { form = 0; R = zoomed ? ${f(MARK.failOut)} : ${f(MARK.fail)}; b = ${f(MARK.failB)}; }
+  bool zoomed = u_k.w > 0., fits = u_k.z > 0. && a_status == 2u, glow = false;
+  if (size == 3u) glow = true;                           // measured: the glow, and nothing else has it
+  else if (size < 2u) {                                  // estimated: half brightness, a dot until zoomed in
+    b = ${f(MARK.half)};
+    if (zoomed || fits || u_o >= 2) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; }
+    else { form = 0; R = ${f(MARK.dot)}; }
+  }
+  if (fits) lw = ${f(MARK.fitsLine)};
   if (u_o == 0 && a_mask == 0u) { b *= ${f(MARK.dim)}; glow = false; }
-  if (u_o == 1) { form = 2; R = ${f(MARK.hover)}; lw = 1.; b = 1.; duty = 1.; glow = false; }
-  if (u_o >= 2) { form = 1; R = ${f(MARK.sel)}; lw = ${f(MARK.selLine)}; b = 1.; duty = 1.; dashes = 1.; glow = size == 3u; }
+  if (u_o == 1) { form = 2; R = ${f(MARK.hover)}; lw = 1.; b = 1.; glow = false; }
+  if (u_o >= 2) { form = 1; R = ${f(MARK.sel)}; lw = fits ? ${f(MARK.fitsLine)} : ${f(MARK.line)}; }
   if (u_o == 2) { form = 0; b = -1.; }
+  if (size == 2u && (u_o == 0 || u_o == 3)) { duty = .55; dashes = max(3., floor(TAU * R / 4.5)); }   // a bound: dashed
 
   int i = gl_VertexID >> 1;
   float side = float(gl_VertexID & 1) * 2. - 1., px = u_k.x;
@@ -171,7 +163,7 @@ void main() {
 
 const attrs = m => ({
   a_dv: 'dv', a_ly: 'ly', a_period: 'period_s', a_state: 'state', a_seed: 'seed',
-  a_status: 'status_' + m, a_p: 'p_' + m, a_mask: 'mask',
+  a_status: 'status_' + m, a_mask: 'mask',
 });
 
 export const glContext = canvas =>
@@ -239,15 +231,10 @@ export class Field {
   sy(i) { return this.py(this.ly[i]); }
   inBox(x, y, pad = 0) { const M = this.M; return x >= M.l - pad && x <= this.w - M.r + pad && y >= M.t - pad && y <= this.h - M.b + pad; }
 
-  // Rock i's mark as the vertex shader draws it: [form (0 dot, 1 outline, 2 ring), radius px].
+  // Rock i's mark as the vertex shader draws it: [form (0 dot, 1 outline), radius px].
   mark(i) {
-    const c = this.cols, zoomed = this.zoomed;
-    if (!this.mission) {
-      const s = c.state[i] & 3;
-      return s >= 2 ? [1, MARK.rock] : s === 1 ? (zoomed ? [1, MARK.out] : [0, MARK.dot]) : [2, MARK.ring];
-    }
-    const s = c['status_' + this.mission][i];
-    return s === 2 ? [1, MARK.pass] : s === 1 ? (zoomed ? [1, MARK.out] : [0, MARK.udot]) : [0, zoomed ? MARK.failOut : MARK.fail];
+    const c = this.cols, fits = !!this.mission && c['status_' + this.mission][i] === 2;
+    return (c.state[i] & 3) >= 2 ? [1, MARK.rock] : this.zoomed || fits ? [1, MARK.out] : [0, MARK.dot];
   }
 
   // Nearest rock in the filters to a point, within tol px of it; -1 if none. Reads only nearby cells.

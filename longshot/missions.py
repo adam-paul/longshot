@@ -11,7 +11,11 @@ the share of draws that pass every undecided gate at once; nothing is
 multiplied across gates.
 
 A gate's text says only what its row does not: why a measurement did not
-decide, or which source was not checked. It is empty when the row says it all.
+decide. It is empty when the row says it all. A source that was not checked is
+named once, in its row on the entry; the gate rests on the estimate and does not
+name the source again. Nothing here says "not measured" of a row a source was not
+checked for. The words a visitor reads for the statuses are fits, ruled out and
+unclear (docs/design.md section 3); the record keeps pass, fail and untested.
 
     record.missions[mission] = {status, p, gates: [{id, label, status, p, basis, text}]}
 
@@ -24,9 +28,8 @@ from __future__ import annotations
 
 from longshot import draws as draws_mod
 from longshot import method as method_mod
-from longshot import observe as observe_mod
 from longshot import priors
-from longshot.draws import Draws, Inputs, Measured, cap, spoken_list
+from longshot.draws import Draws, Inputs, Measured
 from longshot.method import Method
 from longshot.types import ObjectRecord
 
@@ -56,18 +59,15 @@ def tonnes_words(t: float) -> str:
 
 
 def period_words(hours: float) -> str:
-    """ladder.toml [format].period: hours from 2 hours, minutes from 2 minutes, else seconds; three figures."""
+    """ladder.toml [format].period: h from 2 hours, min from 2 minutes, else s; three figures."""
     if hours >= 2.0:
-        return f"{figures(hours, 3)} hours"
+        return f"{figures(hours, 3)} h"
     if hours * 60.0 >= 2.0:
-        return f"{figures(hours * 60.0, 3)} minutes"
-    return f"{figures(hours * 3600.0, 3)} seconds"
+        return f"{figures(hours * 60.0, 3)} min"
+    return f"{figures(hours * 3600.0, 3)} s"
 
 
-def _not_checked(record: ObjectRecord, row: str, what: str) -> str:
-    """'Size not checked (SsODNet).' when a source for the row was not checked; else nothing: the row says the rest."""
-    r = record.rows[row]
-    return f"{cap(what)} not checked ({spoken_list(r.unchecked)})." if r.unchecked else ""
+NO_CHANCE = "JPL lists no brightness for it, so we cannot give a chance."
 
 
 # --------------------------------------------------------------------------
@@ -93,18 +93,17 @@ def bounded(p: float, n: int) -> float:
 def _within(x: Measured, k: float, line: str) -> str:
     """Why a measured value did not decide."""
     if x.ranged:
-        return f"Within {k:g} sigma of {line}."
-    return f"No error stated; within a factor of {x.factor:g} of {line}."
+        return f"The measurement is within {k:g}σ of {line}, so it does not decide."
+    return f"The source gives no error, and the value is within a factor of {x.factor:g} of {line}."
 
 
 def _findable(g, record, inp: Inputs, d, m):
     if inp.occ is None:
-        return _gate(g, "untested", None, "prior", "No orbit code on file."), None
+        return _gate(g, "untested", None, "prior", "JPL lists no orbit condition code for it."), None
     ok = _compare(g["op"], inp.occ, g["preset"])
-    # The code and JPL's own pointing test are two tests (missions.toml, the gate's label_note).
-    w = observe_mod.window(record)
-    text = "JPL finds its position too uncertain to point at." if ok and w is not None and not w["pointable"] else ""
-    return _gate(g, "pass" if ok else "fail", None, "measured", text), None
+    # The code and JPL's own pointing test are two tests (missions.toml, the gate's label_note). The tracking row
+    # shows the window's pointing and the ladder's first rung says what it means, so the gate does not repeat it.
+    return _gate(g, "pass" if ok else "fail", None, "measured", ""), None
 
 
 def _size(g, record, inp: Inputs, d: Draws | None, m):
@@ -127,20 +126,19 @@ def _size(g, record, inp: Inputs, d: Draws | None, m):
 
     parts = []
     if inp.size_rejected is not None:
-        parts.append(draws_mod.rejected_size_sentence(inp, m))
+        # the size row's conflict gives the figures; the gate says only what follows for it
+        parts.append("We do not use the diameter on file, because it does not fit the asteroid's brightness.")
     elif inp.size_bound is not None:
         b = inp.size_bound
         if b.kind == ("lower" if op == ">=" else "upper") and _compare(op, b.value, preset):
             return _gate(g, "pass", None, "measured", ""), None
         if b.kind == ("upper" if op == ">=" else "lower") and not _compare(op, b.value, preset):
             return _gate(g, "fail", None, "measured", ""), None
-        parts.append("The limit on file does not decide.")
+        parts.append("The bound on file does not decide it.")
         if inp.size_bound_ignored:
-            parts.append("It does not fit its brightness and is not applied.")
-    else:
-        parts.append(_not_checked(record, "size", "size"))
+            parts.append("We do not use it, because it does not fit the asteroid's brightness.")
     if d is None:
-        parts.append("No brightness on file, so no chance can be given.")
+        parts.append(NO_CHANCE)
         return _gate(g, "untested", None, "prior", " ".join(x for x in parts if x)), None
     ok = [_compare(op, v, preset) for v in d.d]
     return _gate(g, "untested", sum(ok) / d.n, "prior", " ".join(x for x in parts if x)), ok
@@ -159,18 +157,18 @@ def _mass(g, record, inp: Inputs, d: Draws | None, m):
         if top <= preset:
             return _gate(g, "pass", None, "measured",
                          f"At most {tonnes_words(top)} t: {figures(hi, 3)} m at {rho_max:,.0f} kg/m³, "
-                         "the densest material allowed for."), None
+                         "the highest density we allow."), None
         if bottom > preset:
             return _gate(g, "fail", None, "measured",
                          f"At least {tonnes_words(bottom)} t: {figures(lo, 3)} m at {rho_min:,.0f} kg/m³, "
-                         "the lightest material allowed for."), None
-    # The mass gate rests on the size row: when a source for it was not checked, the text says so.
-    lead = _not_checked(record, "size", "size") if inp.size is None else ""
+                         "the lowest density we allow."), None
     if d is None:
-        return _gate(g, "untested", None, "prior",
-                     f"{lead} No brightness on file, so no chance can be given."), None
+        return _gate(g, "untested", None, "prior", NO_CHANCE), None
     ok = [v <= preset for v in d.mass]
-    return _gate(g, "untested", sum(ok) / d.n, "measured" if inp.size is not None else "prior", lead), ok
+    # Undecided, the chance rests on the mass, which is measured only when the diameter and the density are both
+    # measured (docs/design.md section 3); otherwise on an estimate.
+    measured = inp.size is not None and inp.density is not None
+    return _gate(g, "untested", sum(ok) / d.n, "measured" if measured else "prior", ""), ok
 
 
 def _spin(g, record, inp: Inputs, d: Draws | None, m):
@@ -194,22 +192,19 @@ def _spin(g, record, inp: Inputs, d: Draws | None, m):
     parts = []
     if inp.period_split is not None:
         # missions.toml [rules.conflict]
-        parts.append(f"Sources disagree across {period_words(preset)}, so no period decides.")
+        parts.append(f"The sources' periods fall on both sides of {period_words(preset)}, so none decides.")
     elif inp.period_bound is not None:
         b = inp.period_bound
         if b.kind == ("lower" if op == ">=" else "upper") and _compare(op, b.value, preset):
             return _gate(g, "pass", None, "measured", ""), None
         if b.kind == ("upper" if op == ">=" else "lower") and not _compare(op, b.value, preset):
             return _gate(g, "fail", None, "measured", ""), None
-        parts.append("The limit on file does not decide.")
+        parts.append("The bound on file does not decide it.")
     elif inp.period_unreliable is not None:
-        parts.append("The period on file is graded unreliable, so it does not decide.")
-        parts.append(_not_checked(record, "spin", "period"))
-    else:
-        parts.append(_not_checked(record, "spin", "period"))
+        parts.append("The only period on file is graded unreliable, so it does not decide.")
     text = " ".join(x for x in parts if x)
     if d is None:
-        return _gate(g, "untested", None, "prior", f"{text} No brightness on file, so no chance can be given."), None
+        return _gate(g, "untested", None, "prior", f"{text} {NO_CHANCE}"), None
     # The spin prior is a category, not a period: the gate must sit on a category edge.
     edge = sum(1 for th in m.priors["spin"]["thresholds_h"] if preset >= th)
     if preset not in m.priors["spin"]["thresholds_h"]:

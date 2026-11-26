@@ -17,21 +17,22 @@ status = "proposal"
 min_grade = "2-"
 min_grade_kind = "quoted"
 min_grade_source = "the lightcurve database's own rule, readme.pdf section 4.1.6: 'only those objects with a U code of 2- or greater'"
+min_grade_cite = "the Asteroid Lightcurve Database's own rule (readme, section 4.1.6)"
 # Two periods differ when the larger is more than this fraction above the smaller.
 tolerance = 0.20
 tolerance_kind = "judgement"
 tolerance_source = "no source gives a figure. Sources that copy one measurement agree to rounding; the 16 disagreements on file differ by a factor of 1.4 or more (build/records.jsonl, 2026-11-25), so any line from 0.05 to 0.35 picks the same rows"
 # A period with no grade.
 ungraded = "counts"
-ungraded_rule = "A published period with no grade on file counts, whichever source holds it, unless a graded source gives the same period with a grade under U 2-. The lightcurve database's own ungraded entry and JPL's copy of it are treated alike."
+ungraded_rule = "A published period with no grade counts, whatever its source. It does not count when a graded source gives the same period with a grade under 2-. The site treats the lightcurve database's ungraded entry and JPL's copy of it alike."
 ungraded_kind = "judgement"
 ungraded_source = "method/v0_1/missions.toml [rules.period] (27 list members have a period only on a literature card, with no grade). The lightcurve database's readme, section 4.1.6: a missing U usually means the period came from a source with no lightcurve to grade, such as radar"
 # A number another source gives only as a limit.
-copy_of_a_limit = "An ungraded period equal, as printed, to a period another source flags '>' or '<' is a copy of that limit without its sign. It is kept on file and not used; the limit decides."
+copy_of_a_limit = "An ungraded period equal, as printed, to one another source gives as a limit is a copy of that limit without its sign. The site keeps it on file and does not use it. The limit decides."
 copy_of_a_limit_kind = "measured"
 copy_of_a_limit_source = "12 list members on 2026-11-25: JPL's rot_per equals the lightcurve database's PERIOD where column 144 holds '>' or '<' (readme.pdf section 4.1.4.11: '<' a maximum, '>' a minimum)"
 # When a newer measurement and a fixed table disagree.
-superseded = "A graded period from a fixed table does not rule out an ungraded one that two other sources hold, one of them citing a reference dated after the table's edition. Both stay in use and in conflict, and the newer one is listed first."
+superseded = "Two other sources may hold an ungraded period, one of them citing a reference newer than a fixed table. That period does not give way to the table's graded one. Both stay in use, in conflict, and the newer is listed first."
 superseded_kind = "judgement"
 superseded_source = "1998 KY26: the lightcurve database of 2023-10-01 holds 0.1784 h (U 3); JPL and the literature card hold 0.0892 h from Santana-Ros et al. 2025, which docs/research/verify-capability.md row 24 confirms ('11 m, five minutes')"
 
@@ -58,8 +59,8 @@ source = "a geometric albedo above 1 needs a surface brighter than a perfect dif
 
 [fixed_tables]
 # A table that is not updated says nothing about an asteroid found after it was made.
-rule = "A fixed table counts as checked for an asteroid only if the asteroid's first observation is not later than the table's edition date. Otherwise that source is not checked for it."
-reason = "older than this object"
+rule = "A fixed table counts as checked for an asteroid only if the asteroid was first observed by the table's edition date. Otherwise the site counts that source as not checked for it."
+reason = "older than this asteroid"
 sources = ["pravec", "lcdb", "spitzer"]
 kind = "judgement"
 source = "AGENTS.md, traps: a source not knowing an object is 'not checked'. Decided at the review of 2026-11-25"
@@ -80,7 +81,7 @@ source = "The Spitzer Space Telescope was switched off on 30 January 2020; recal
 designation = "2010 NU71"
 prop = "diameter_m"
 value = 1126.0
-why = "The 1,126 m on file comes from a main-belt table (Masiero+2011) and does not fit this brightness."
+why = "The 1,126 m on file comes from a main-belt table (Masiero et al. 2011) and does not fit this asteroid's brightness."
 kind = "quoted"
 source = "docs/research/verify-coverage.md, section on sizes and its summary table: '2010 NU71 mis-association: 1.126 km at H 22.7 in SBDB and SsODNet'"
 
@@ -88,7 +89,7 @@ source = "docs/research/verify-coverage.md, section on sizes and its summary tab
 designation = "2010 NU71"
 prop = "albedo"
 value = 0.042
-why = "The 0.042 reflectivity on file is from the same mis-matched fit."
+why = "The 0.042 reflectivity on file comes from the same mismatched fit."
 kind = "quoted"
 source = "same fit as the diameter above (SsODNet gives Masiero+2011 for both): docs/research/verify-coverage.md"
 
@@ -98,6 +99,7 @@ source = "same fit as the diameter above (SsODNet gives Masiero+2011 for both): 
 [[gone]]
 designation = "2008 TC3"
 date = "2008-10-07"
-text = "Entered Earth's atmosphere on 7 October 2008, a day after it was found. About 10.5 kg was recovered as the Almahata Sitta meteorites."
+text = "Entered Earth's atmosphere on 2008-10-07, a day after its discovery. Searchers recovered about 10.5 kg of it as the Almahata Sitta meteorites."
 kind = "quoted"
+cite = "Jenniskens et al. 2009, Nature 458, 485"
 source = "docs/research/ground-truth.md, table of asteroids seen before impact, row 1: impact 2008-10-07 02:45:40; 'Almahata Sitta: 47 stones / 3.95 kg in the first search, about 600 stones / 10.5 kg in all'; 'In NHATS'. Jenniskens et al. 2009, doi:10.1038/nature07920"

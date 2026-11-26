@@ -24,8 +24,8 @@ CLASSES = ("S", "C", "X", "other")
 SPIN_KEYS = ("p_fast_2_2h", "p_under_1h", "p_under_10min")     # record.summary names, in priors.toml [spin].ids order
 QUANTILES = (("q05", 0.05), ("q25", 0.25), ("q50", 0.50), ("q75", 0.75), ("q95", 0.95))
 
-BAND_WORDS = {"under_20": "under 20", "20_22": "20 to 22", "22_24": "22 to 24", "24_26": "24 to 26",
-              "26_28": "26 to 28", "28_up": "28 and fainter"}
+BAND_WORDS = {"under_20": "under 20", "20_22": "20–22", "22_24": "22–24", "24_26": "24–26",
+              "26_28": "26–28", "28_up": "28 and fainter"}
 
 
 # --------------------------------------------------------------------------
@@ -215,7 +215,7 @@ def surface_basis(m: Method, inp) -> str:
     text = (f"class labels on {n:,} near-Earth asteroids of H {words}, "
             "tied to reflectivity through Spitzer's measurements")
     if inp.size is not None:
-        text += "; reflectivity from its measured size and H"
+        text += "; reflectivity from its measured diameter and H"
     return text
 
 

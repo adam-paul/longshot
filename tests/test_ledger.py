@@ -109,7 +109,7 @@ class StateRulesCase(unittest.TestCase):
                 r = record([claim("period_h", "lcdb", 10.0, quality=grade, unit="h")])
                 self.assertEqual(r.rows["spin"].state, "prior")
                 self.assertEqual([(f.value, f.quality) for f in r.rows["spin"].facts], [(10.0, grade)])
-                self.assertIn("graded below U 2-", r.rows["spin"].note)
+                self.assertIn("graded below 2-", r.rows["spin"].note)
 
     def test_the_lowest_usable_grade_is_two_minus(self):
         for grade in ("2-", "2", "2+", "3-", "3"):
@@ -217,17 +217,19 @@ class StateRulesCase(unittest.TestCase):
         card = claim("period_h", "ssodnet", 0.089193, unit="h", ref="Santana-Ros+2025b (2025NatCo..16.8763S)")
         jpl = claim("period_h", "jpl-sbdb", 0.089193, unit="h")
         row = ledger.spin_row([old, card, jpl], coverage(), {"lcdb": "2023-10-01"})
-        self.assertEqual(row.conflicts, ["0.08919 h (SsODNet, Santana-Ros+2025b; JPL's database) against a different "
+        # a period in the unit the pages print it in: minutes under 2 h
+        self.assertEqual(row.conflicts, ["5.352 min (SsODNet, Santana-Ros+2025b; JPL's database) against a different "
                                          "period on file in the lightcurve database, not shown here."])
         self.assertNotIn("0.1784", row.conflicts[0])
         self.assertNotIn("U 3", row.conflicts[0])
+        self.assertNotIn("grade 3", row.conflicts[0])
         # where another source states the lightcurve database's value, the value prints and its grade does not
         row = record([claim("period_h", "pravec", 250.0, quality="3", unit="h"),
                       claim("period_h", "lcdb", 250.0, quality="2", unit="h"),
                       claim("period_h", "ssodnet", 2.02, quality="2", unit="h", ref="Thirouin+2016b (2016AJ)"),
                       claim("period_h", "jpl-sbdb", 250.0, unit="h")]).rows["spin"]
-        self.assertEqual(row.conflicts, ["250 h (Pravec's table, U 3; the lightcurve database; JPL's database) "
-                                         "against 2.02 h (SsODNet, Thirouin+2016b, U 2)."])      # one line, not three
+        self.assertEqual(row.conflicts, ["250 h (Pravec's table, grade 3; the lightcurve database; JPL's database) "
+                                         "against 2.02 h (SsODNet, Thirouin+2016b, grade 2)."])      # one line, not three
 
     def test_two_usable_periods_more_than_twenty_percent_apart_conflict(self):
         for other, expect in ((12.0, 0), (12.01, 1), (8.34, 0), (8.3, 1), (1000.0, 1)):
@@ -239,7 +241,7 @@ class StateRulesCase(unittest.TestCase):
         r = record([claim("period_h", "pravec", 250.0, quality="3", unit="h"),
                     claim("period_h", "ssodnet", 2.02, quality="2", unit="h", ref="Thirouin+2016b (2016AJ)")])
         self.assertEqual(r.rows["spin"].conflicts,
-                         ["250 h (Pravec's table, U 3) against 2.02 h (SsODNet, Thirouin+2016b, U 2)."])
+                         ["250 h (Pravec's table, grade 3) against 2.02 h (SsODNet, Thirouin+2016b, grade 2)."])
 
     def test_an_unreliable_period_takes_no_part_in_a_conflict(self):
         r = record([claim("period_h", "pravec", 10.0, quality="3", unit="h"),
@@ -348,7 +350,7 @@ class StateRulesCase(unittest.TestCase):
         weak = push(2.9e-13, 1.0e-13)
         self.assertEqual(weak.state, "prior")
         self.assertEqual(len(weak.facts), 1)
-        self.assertIn("3 sigma", weak.note)
+        self.assertIn("3σ", weak.note)
         self.assertIn("rounded to two figures", weak.note)
         no_range = record([claim("A2", "jpl-sbdb", -1.5e-13, unit="au/d^2")]).rows["push"]
         self.assertEqual(no_range.state, "prior")
@@ -371,7 +373,8 @@ class StateRulesCase(unittest.TestCase):
         near = claim("A2", "ssodnet", -2.3e-13, lo=-2.6e-13, hi=-2.0e-13, unit="au/d^2")
         row = record([jpl, far]).rows["push"]
         self.assertEqual(len(row.conflicts), 1)
-        self.assertIn("-4.97e-13", row.conflicts[0])
+        self.assertIn("−4.97 × 10⁻¹³ au/d² (±1σ: −6.09 to −3.85)", row.conflicts[0])     # a true minus, no e-notation
+        self.assertNotRegex(row.conflicts[0], r"\de-|\^2")
         self.assertEqual(record([jpl, near]).rows["push"].conflicts, [])
         # a different quantity is not a disagreement
         drift = claim("drift_au_per_myr", "ssodnet", -0.05, lo=-0.06, hi=-0.04, unit="au/Myr")
@@ -605,7 +608,7 @@ class BuiltLedgerCase(unittest.TestCase):
             if day and day > "2023-10-01" and not any(f.source == "lcdb" for f in r.rows["spin"].facts):
                 self.assertIn("lcdb", r.rows["spin"].unchecked, r.designation)
                 self.assertNotEqual(r.rows["spin"].state, "prior", r.designation)
-                self.assertIn("The lightcurve database is older than this object.", r.rows["spin"].note)
+                self.assertIn("The lightcurve database is older than this asteroid.", r.rows["spin"].note)
 
     def test_weak_spitzer_fits_are_on_file_and_not_used(self):
         """ledger.toml [spitzer] and [reflectivity]: no used fact from a fit under the bar, none above 1."""

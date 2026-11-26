@@ -271,8 +271,9 @@ class SyntheticSite(unittest.TestCase):
         dv = named[("input", "dv")][0]
         self.assertEqual((dv["type"], dv["min"], dv["max"], dv["step"]), ("range", "3.3", "12", "0.1"))
         self.assertEqual(named[("input", "q")][0]["type"], "search")
-        for out in ("count", "dv-value", "zoom"):
-            self.assertIn(("output", out), named)
+        self.assertIn(("output", "dv-value"), named)
+        for out in ("count", "zoom"):                                   # docs/design.md section 8: the count joins the legend line; no zoom factor
+            self.assertNotIn(("output", out), named)
         zoom = [a for tag, a in page.seen if tag == "button" and a.get("name", "").startswith("zoom-")]
         self.assertEqual(len(zoom), 3)
         self.assertEqual(named[("meta", "field-manifest")][0]["content"], "data/field.json")
@@ -314,23 +315,54 @@ class Scripts(unittest.TestCase):
         self.assertEqual(names - asked, set())                           # and the file carries no column nothing reads
 
     def test_marks_come_from_the_size_row_alone(self):
-        """A rock with a measured spin and a guessed size is not drawn, or described, as measured."""
+        """A rock with a measured spin and an estimated size is not drawn, or described, as measured."""
         app, field = (STATIC / "app.js").read_text(), (STATIC / "field.js").read_text()
         self.assertIn("uint size = a_state & 3u;                              // line style from the size row alone", field)
         self.assertNotRegex(field, r"max\(size, spin\)|\(a_state >> 2\)")
-        self.assertNotRegex(app, r"Math\.max\(bits & 3, bits >> 2 & 3\)")
-        # the tip prints a range beside the size's state only where the columns hold that size
-        self.assertIn("size < 2 || cols.size_open[i] ? `size ${STATE[size]}, ${metres(cols.size_q05[i])} to ${metres(cols.size_q95[i])}` : `size ${STATE[size]}: see entry`", app)
+        self.assertNotRegex(app, r"Math\.max\(bits & 3, bits >> 2 & 3\)|cols\.state\[\w+\] >> 2")
+        self.assertIn("const sizeState = r => cols.state[r] & 3;", app)
+        # measured on the front page only where the field file carries the measured value (size_open): a value it may not
+        # carry is shown as the estimate the file holds, and the field draws that rock with the estimated mark
+        self.assertIn("const measured = r => sizeState(r) >= 2 && !!cols.size_open[r];", app)
+        self.assertIn("if ((drawn[r] & 3) >= 2 && !cols.size_open[r]) drawn[r] = (drawn[r] & ~3) | 1;", app)
+        # the tip: a measured diameter is its value; a range is only ever an estimate's 90% range, and says so
+        self.assertIn("const size = measured(i) ? `${metres(cols.size_q50[i])} m ${k(sizeState(i) === 2 ? 'measured, a bound' : 'measured')}`", app)
+        self.assertIn(": `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} m ${k('90% range, estimated')}`;", app)
+        self.assertNotIn("90% range, measured", app)
+
+    def test_two_states_on_the_surface(self):
+        """docs/design.md section 3: the front page says measured or estimated, and a mission's verdict is fits,
+        ruled out or unclear. A size not checked is an estimate there; it is never called "not measured"."""
+        app = (STATIC / "app.js").read_text()
+        words = re.findall(r"'([^'\n]*)'|`([^`]*)`", app)
+        text = " ".join(a or b for a, b in words)
+        for gone in ("Not measured", "not measured", "Not checked", "Limit only", "No size", "Untested", "Pass", "Fail",
+                     "under 1%", "over 99%", "Delta-v", "Plotted", "Listed", "Size, ", "brighter if likelier"):
+            self.assertNotIn(gone, text, gone)
+        self.assertIn("const VERDICT = ['ruled out', 'unclear', 'fits'];", app)
+        self.assertIn("const X_TITLE = 'Δv, cheapest round trip (km/s)', Y_TITLE = 'Diameter (m)';", app)
+        self.assertNotIn("E.zoom", app)                                          # no zoom factor
+        self.assertNotIn("E.count", app)                                         # the count is in the legend line
 
     def test_the_glow_is_in_the_shader_on_measured_outlines_only(self):
         """The owner: "keep the glow". A wider band of the same ribbon in the same draw; no blur, no framebuffer."""
         field = (STATIC / "field.js").read_text()
-        self.assertIn("if (size == 3u) glow = true;", field)                                   # measured size
-        self.assertIn("else if (a_status == 2u) { R = ${f(MARK.pass)}; lw = ${f(MARK.passLine)}; glow = true; }", field)   # a mission's pass
-        self.assertIn("if (u_o == 0 && a_mask == 0u) { b *= ${f(MARK.dim)}; glow = false; }", field)  # out of the filters: none
-        self.assertEqual(len(re.findall(r"glow = true", field)), 2)
+        self.assertIn("if (size == 3u) glow = true;", field)                                   # measured size, nothing else
+        self.assertIn("if (u_o == 0 && a_mask == 0u) { b *= ${f(MARK.dim)}; glow = false; }", field)  # out of the filter: none
+        self.assertEqual(len(re.findall(r"glow = true", field)), 1)
         self.assertNotRegex(field, r"createFramebuffer|createRenderbuffer|shadowBlur|blur\(")
         self.assertIn("gl.blendEquation(gl.MAX);", field)
+
+    def test_brightness_has_one_meaning(self):
+        """Three levels: full measured, half estimated, faint outside the filter. No chance in the shader."""
+        field = (STATIC / "field.js").read_text()
+        shader = field[field.index("const VS = `"):field.index("const FS = `")]
+        self.assertNotRegex(shader, r"a_p\b|p_surface|p_capture")
+        self.assertNotIn("a_p:", field)
+        self.assertIn("half: 0xa8 / 255,", field)
+        self.assertIn("dim: 0.16,", field)
+        self.assertEqual(sorted(set(re.findall(r"\bb = ([^;,]+)[;,]", shader))), ["${f(MARK.half)}", "-1.", "1."])
+        self.assertIn("if (fits) lw = ${f(MARK.fitsLine)};", shader)
 
     def test_every_rock_in_one_instanced_draw(self):
         field = (STATIC / "field.js").read_text()
@@ -340,8 +372,8 @@ class Scripts(unittest.TestCase):
     def test_picking_uses_the_shader_s_marks(self):
         """Field.mark() restates which mark the vertex shader draws; the two must change together."""
         field = (STATIC / "field.js").read_text()
-        self.assertIn("return s >= 2 ? [1, MARK.rock] : s === 1 ? (zoomed ? [1, MARK.out] : [0, MARK.dot]) : [2, MARK.ring];", field)
-        self.assertIn("if (zoomed) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; b = ${f(MARK.outB)}; }", field)
+        self.assertIn("return (c.state[i] & 3) >= 2 ? [1, MARK.rock] : this.zoomed || fits ? [1, MARK.out] : [0, MARK.dot];", field)
+        self.assertIn("if (zoomed || fits || u_o >= 2) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; }", field)
         self.assertIn("export const ZMAX = 32, ZOUT = 4;", field)                                # docs/design.md
         self.assertNotIn("class=\"scale\"", (STATIC / "app.js").read_text())     # glyphs are not to scale: no scale bar
 
@@ -360,7 +392,7 @@ class Scripts(unittest.TestCase):
         """Chances are printed from the file's bytes: no arithmetic on p_* beyond reading it."""
         app = (STATIC / "app.js").read_text()
         self.assertEqual(re.findall(r"cols\['p_' \+ m\]\[r\][^;]*", app), ["cols['p_' + m][r] / 255 : NaN"])   # for sorting only
-        self.assertIn("const p = cols['pct_' + m][r]; return p <= 0 ? 'under 1%' : p >= 100 ? 'over 99%' : p + '%';", app)
+        self.assertIn("const p = cols['pct_' + m][r]; return p <= 0 ? '<1%' : p >= 100 ? '>99%' : p + '%';", app)
 
 
 if __name__ == "__main__":

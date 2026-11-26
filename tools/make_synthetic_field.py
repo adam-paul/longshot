@@ -6,7 +6,7 @@ dated 2101 to 2140 so they cannot be mistaken for it.
 
 It makes the cases the app must get right: a designation that is the start of
 another's, numbered asteroids, a measured size the file may not carry, and two
-asteroids with no size and so no rock.
+asteroids with no brightness on file and so no rock.
 
     uv run python tools/make_synthetic_field.py                    # 7,231 objects
     uv run python tools/make_synthetic_field.py --n 43000 --out build/synthetic-site-43000
@@ -288,44 +288,44 @@ INDEX = """<!doctype html>
 <meta name="field-manifest" content="data/field.json">
 <title>longshot (synthetic field)</title>
 <style>
-  :root {{ --ink: #fff; --ink-2: #a8a8a8; --ink-3: #8a8a8a; --edge: #5e5e5e; --grid: #202020; --ground: #000; color-scheme: dark; }}
+  :root {{ --ink: #fff; --ink-2: #a8a8a8; --edge: #5e5e5e; --grid: #202020; --ground: #000; color-scheme: dark; }}
   * {{ box-sizing: border-box; }}
   [hidden] {{ display: none !important; }}
   html, body {{ margin: 0; background: #000; color: #fff; font: 14px/20px system-ui, sans-serif; font-variant-numeric: tabular-nums; }}
   ul {{ margin: 0; padding: 0; list-style: none; }} h1, h2, p {{ margin: 0; font-weight: 400; }} a {{ color: inherit; }}
   .vh {{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }}
   header {{ display: flex; gap: 24px; align-items: center; height: 48px; padding: 0 32px; border-bottom: 1px solid var(--edge); }}
-  header .date {{ margin-left: auto; color: var(--ink-3); font-size: 12px; }}
+  header .date {{ margin-left: auto; color: var(--ink-2); font-size: 12px; }}
   main {{ display: grid; grid-template-columns: minmax(0, 1fr) 424px; grid-template-rows: auto minmax(0, 1fr); height: calc(100vh - 48px); min-height: 560px; }}
   #controls {{ grid-column: 1 / -1; display: flex; align-items: flex-end; gap: 32px; padding: 12px 32px; border-bottom: 1px solid var(--edge); }}
   .ctl {{ display: flex; flex-direction: column; gap: 6px; border: 0; margin: 0; padding: 0; }} .ctl > .lab, .ctl legend {{ color: var(--ink-2); padding: 0; }}
   .seg {{ display: flex; }} .seg label {{ position: relative; }} .seg input {{ position: absolute; opacity: 0; inset: 0; margin: 0; }}
   .seg span {{ display: block; padding: 5px 12px; border: 1px solid var(--edge); color: var(--ink-2); white-space: nowrap; }}
   .seg input:checked + span {{ background: #fff; color: #000; }}
-  .ctl.count {{ margin-left: auto; text-align: right; }} .ctl.count output {{ font-size: 16px; line-height: 32px; white-space: nowrap; }}
   input[type=search] {{ background: #000; color: #fff; border: 1px solid var(--edge); height: 32px; width: 240px; }}
   .fig {{ display: flex; flex-direction: column; min-height: 0; padding: 12px 24px 12px 32px; }}
-  .fig-head {{ display: flex; align-items: center; gap: 24px; margin-bottom: 12px; min-height: 32px; }}
-  #legend {{ flex: 1; }} .legend {{ display: flex; gap: 24px; flex-wrap: wrap; color: var(--ink-2); }} .legend li {{ display: flex; align-items: center; white-space: nowrap; }} .legend .n {{ color: #fff; margin-left: 6px; }}
-  .zoom {{ display: flex; align-items: center; }} .zoom output {{ min-width: 5ch; text-align: center; }}
+  .fig-head {{ display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-bottom: 12px; min-height: 32px; }}
+  #legend {{ flex: 1; }} .legend {{ display: flex; gap: 24px; flex-wrap: wrap; color: var(--ink-2); }} .legend li {{ display: flex; align-items: center; white-space: nowrap; }} .legend .n {{ margin-left: 6px; }} .legend li > .n:first-child {{ margin: 0 6px 0 0; }} .legend .g {{ margin-right: 6px; }} .legend .n {{ color: #fff; }}
+  .zoom {{ display: flex; align-items: center; gap: 0; }}
   .btn {{ font: inherit; color: #fff; background: #000; border: 1px solid var(--edge); padding: 5px 12px; cursor: pointer; text-decoration: none; }} .btn:disabled {{ color: var(--edge); }}
   #plot {{ position: relative; flex: 1; min-height: 0; margin: 0; touch-action: pan-y; }}
   #plot > canvas, #plot > .grid, #axes {{ position: absolute; left: 0; top: 0; width: 100%; height: 100%; }}
   #axes {{ pointer-events: none; overflow: hidden; }} #axes svg {{ position: absolute; left: 0; top: 0; }}
-  #axes span {{ position: absolute; white-space: nowrap; font-size: 12px; color: var(--ink-3); }} #axes .ax-title {{ color: var(--ink-2); }}
+  #axes span {{ position: absolute; white-space: nowrap; font-size: 12px; color: var(--ink-2); }}
   #axes .ax-tag {{ background: #fff; color: #000; padding: 1px 5px; }} #axes .ax-note {{ background: #000; color: #fff; padding: 0 2px; }}
-  #tip {{ position: absolute; pointer-events: none; background: #000; border: 1px solid #fff; padding: 4px 8px; font-size: 12px; white-space: nowrap; }} #tip b {{ display: block; font-weight: 400; }}
-  #table {{ flex: 1; min-height: 0; display: flex; flex-direction: column; }}
-  .tscroll {{ flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--edge); }}
+  #tip {{ position: absolute; pointer-events: none; background: #000; border: 1px solid #fff; padding: 4px 8px; font-size: 12px; white-space: nowrap; }} #tip .k {{ color: var(--ink-2); }}
+  #table {{ flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }}
+  .tscroll {{ position: relative; flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--edge); }}
   .ftbl {{ width: 100%; border-collapse: collapse; }} .ftbl th, .ftbl td {{ padding: 6px 12px; text-align: left; white-space: nowrap; border-top: 1px solid var(--grid); font-weight: 400; }}
   .ftbl thead th {{ position: sticky; top: 0; background: #000; color: var(--ink-2); font-size: 12px; }} .ftbl button {{ font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }}
-  .ftbl .num {{ text-align: right; }} .ftbl .nm {{ color: var(--ink-2); margin-left: 8px; }} .ftbl tr.sel > * {{ background: #161616; }} .ftbl .mc {{ display: flex; justify-content: space-between; gap: 12px; }} .ftbl .ph {{ display: none; }}
+  .ftbl .num {{ text-align: right; }} .ftbl .nm {{ color: var(--ink-2); margin-left: 8px; }} .ftbl tr.sel > * {{ background: #161616; }} .ftbl .mc {{ display: flex; justify-content: space-between; gap: 12px; }}
   .pager {{ display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding-top: 12px; }} .pager output {{ margin-right: auto; color: var(--ink-2); }}
 {GLYPH_CSS}
-  .dim {{ color: var(--ink-3); }} .find-msg {{ font-size: 12px; color: var(--ink-3); }}
+  .find-msg {{ font-size: 12px; color: var(--ink-2); }}
   #readout {{ border-left: 1px solid var(--edge); padding: 8px 24px 24px; overflow: auto; min-height: 0; }}
   #readout h2 {{ color: var(--ink-2); margin: 24px 0 4px; }} .named li {{ display: flex; justify-content: space-between; padding: 4px 0; border-top: 1px solid var(--grid); }}
   .sel-head {{ display: flex; justify-content: space-between; margin-top: 16px; }} .sel-head h2 {{ font-size: 32px; line-height: 36px; color: #fff !important; margin: 0 !important; }} .sel-go {{ margin-top: 24px; }}
+  .sumlist th {{ color: var(--ink-2); font-weight: 400; text-align: left; }} .sumlist .d {{ color: var(--ink-2); }}
   @media (max-width: 899px) {{ main {{ display: block; height: auto; }} #controls {{ flex-wrap: wrap; padding: 12px 16px; }} .fig {{ padding: 12px 16px; }} #plot {{ flex: none; height: 460px; }} #readout {{ border: 0; border-top: 1px solid var(--edge); padding: 8px 16px; }} input[type=search] {{ width: 100%; }} }}
 </style>
 <header><a href="index.html">longshot</a><span>prototype</span><nav><a href="index.html" aria-current="page">Field</a></nav><p class="date">Data {data_date}</p></header>
@@ -333,15 +333,14 @@ INDEX = """<!doctype html>
   <form id="controls" action="index.html" method="get">
     <fieldset class="ctl"><legend>View</legend><div class="seg"><label><input type="radio" name="view" value="chart" checked><span>Chart</span></label><label><input type="radio" name="view" value="table"><span>Table</span></label></div></fieldset>
     <fieldset class="ctl"><legend>Mission</legend><div class="seg"><label><input type="radio" name="m" value="" checked><span>Any</span></label><label><input type="radio" name="m" value="surface"><span>Surface work</span></label><label><input type="radio" name="m" value="capture"><span>Whole-body capture</span></label></div></fieldset>
-    <div class="ctl"><label class="lab" for="dv">Delta-v ceiling</label><div><input id="dv" name="dv" type="range" min="3.3" max="12" step="0.1" value="12"> <output name="dv-value" for="dv">12.0 km/s</output></div></div>
-    <div class="ctl"><label class="lab" for="q">Find asteroid</label><input id="q" name="q" type="search" placeholder="Designation, name or number" autocomplete="off"></div>
-    <p class="ctl count"><span class="lab" id="count-label">Plotted</span><output name="count">{n} of {total}</output></p>
+    <div class="ctl"><label class="lab" for="dv">Max Δv (km/s)</label><div><input id="dv" name="dv" type="range" min="3.3" max="12" step="0.1" value="12"> <output name="dv-value" for="dv">12.0</output></div></div>
+    <div class="ctl"><label class="lab" for="q">Find</label><input id="q" name="q" type="search" placeholder="Designation, name or number" autocomplete="off"></div>
   </form>
   <section class="fig" aria-labelledby="fig-title">
     <div class="fig-head">
-      <h1 id="fig-title" class="vh">Reachable asteroids</h1>
-      <div id="legend"><ul class="legend"><li>Size</li></ul></div>
-      <div class="zoom" role="group" aria-label="Zoom"><button type="button" class="btn" name="zoom-out" form="controls" aria-label="Zoom out">−</button><output name="zoom" form="controls">1.0×</output><button type="button" class="btn" name="zoom-in" form="controls" aria-label="Zoom in">+</button> <button type="button" class="btn" name="zoom-reset" form="controls">Reset</button></div>
+      <h1 id="fig-title" class="vh">Reachable asteroids by delta-v (Δv) and diameter</h1>
+      <div id="legend"><ul class="legend"></ul></div>
+      <div class="zoom" role="group" aria-label="Zoom"><button type="button" class="btn" name="zoom-out" form="controls" aria-label="Zoom out">−</button><button type="button" class="btn" name="zoom-in" form="controls" aria-label="Zoom in">+</button> <button type="button" class="btn" name="zoom-reset" form="controls">Reset</button></div>
     </div>
     <figure id="plot"><canvas id="field"></canvas><div id="axes"></div><div id="tip" hidden></div></figure>
     <section id="table" hidden></section>
@@ -349,8 +348,6 @@ INDEX = """<!doctype html>
   <aside id="readout" aria-live="polite">
     <h2>Named asteroids</h2>
     <ul class="named">{links}</ul>
-    <h2>On file</h2>
-    <p>Synthetic field, {n} made-up objects.</p>
   </aside>
 </main>
 <script type="module" src="static/app.js"></script>
@@ -363,16 +360,18 @@ ENTRY = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{des} (synthetic)</title>
 <body style="background:#000;color:#fff;font:16px/1.4 ui-serif,Georgia,serif">
+<style>a {{ color: inherit; }}</style>
+<header><a href="../index.html">longshot</a> <span>Data {data_date}</span></header>
 <main id="entry" class="entry" data-key="{key}">
   <div class="ehead"><h1>{des}</h1></div>
   <section id="summary">
     <table class="sumlist"><tbody>
-      <tr><th scope="row">Reach</th><td class="v">{dv:.3f} km/s</td><td class="d"></td><td class="s"></td></tr>
-      <tr><th scope="row">Size</th><td class="v">{lo:.3g}–{hi:.3g} m</td><td class="d"></td><td class="s"></td></tr>
-      <tr><th scope="row">Spin</th><td class="v">{spin}</td><td class="d"><a href="#on-file">On file</a></td><td class="s"></td></tr>
+      <tr><th scope="row">Diameter</th><td class="v">{size}</td><td class="d">{size_note}</td></tr>
+      <tr><th scope="row">Spin</th><td class="v">{spin}</td><td class="d"></td></tr>
+      <tr><th scope="row">Δv</th><td class="v">{dv}</td><td class="d"></td></tr>
     </tbody></table>
   </section>
-  <section id="on-file"><h2>On file</h2><p><a href="{other}.html">{other_des}</a> · <a href="../index.html">the field</a></p></section>
+  <section id="sources"><h2>Sources</h2><p><a href="{other}.html">{other_des}</a> · <a href="../index.html">the field</a></p></section>
 </main>
 </body>
 </html>
@@ -391,18 +390,20 @@ def write_site(out, n, seed="longshot-synthetic", entries=2, align=4):
     manifest = write_field(out / "data", columns, keys, "2026-11-24", "synthetic", counts, align, loose)
     cols = {name: values for name, _, values in columns}
     (out / "a").mkdir()
-    for key, des, _, _, _ in loose:
+    for key, des, _, _, dv in loose:
         (out / "a" / f"{key}.html").write_text(ENTRY.format(
-            key=key, des=html.escape(des), dv=0.0, lo=0.0, hi=0.0, spin="no size on file: not drawn",
-            other=keys[0][0], other_des=html.escape(keys[0][1])))
+            data_date=manifest["data_date"], key=key, des=html.escape(des), dv=f"{dv:.3f} km/s", size="no brightness on file", size_note="",
+            spin="no brightness on file", other=keys[0][0], other_des=html.escape(keys[0][1])))
     links = []
     for i in range(min(entries, n)):
         key, des = keys[i][:2]
         other = keys[(i + 1) % min(entries, n)]
         period = cols["period_s"][i]
+        est = cols["state"][i] & 3 < LIMIT
         (out / "a" / f"{key}.html").write_text(ENTRY.format(
-            key=key, des=html.escape(des), dv=cols["dv"][i], lo=cols["size_q05"][i], hi=cols["size_q95"][i],
-            spin=f"{period:.0f} s" if period else "not measured",
+            data_date=manifest["data_date"], key=key, des=html.escape(des), dv=f"{cols['dv'][i]:.3f} km/s",
+            size=f"{cols['size_q05'][i]:.2g}–{cols['size_q95'][i]:.2g} m", size_note="90% range, " + ("estimated" if est else "measured"),
+            spin=f"{period / 3600:.3g} h" if period else "estimated",
             other=other[0], other_des=html.escape(other[1])))
         links.append(f'<li><a href="a/{key}.html">{html.escape(des)}</a><span>{cols["dv"][i]:.3f} km/s</span></li>')
     (out / "index.html").write_text(INDEX.format(n=f"{n:,}", total=f"{n + len(loose):,}", data_date=manifest["data_date"],

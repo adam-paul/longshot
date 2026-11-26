@@ -155,7 +155,7 @@ class ValueShape(unittest.TestCase):
         self.assertTrue(water_templates)
         for t in water_templates:
             self.assertNotIn("$", t)
-        self.assertIn("As of 21 November 2026 we found nobody buying water in orbit.", water_templates)
+        self.assertIn("As of 2026-11-21, we found nobody buying water in orbit.", water_templates)
 
     def test_no_central_figure_is_defined_or_exported(self):
         banned_keys = {"mean", "median", "q50", "expected", "expected_value", "ev", "typical"}
@@ -192,10 +192,10 @@ class ValueCorrections(unittest.TestCase):
         self.assertEqual((nc["lo"], nc["hi"]), span(["CI", "CM"]))
 
     def test_dark_rock_metal_is_not_called_none_in_the_rock(self):
-        # The row is 'in metal grains'; the 2.9 to 4.0 ppm in dark rock is named as left out.
+        # The row is 'in metal grains'; the 2.9–4.0 g/t in dark rock is named as left out.
         self.assertEqual(VALUE["counted"]["metal_phrase"], "in metal grains")
         self.assertFalse(VALUE["material"]["carbonaceous"]["counted"])
-        self.assertIn("2.9 to 4.0 ppm", VALUE["counted"]["metal_not_counted"])
+        self.assertIn("2.9–4.0 g/t", VALUE["counted"]["metal_not_counted"])
         for s in VALUE["statement"]:
             if s["id"] == "metal_none":
                 self.assertIn("in metal grains", s["template"])
@@ -480,12 +480,12 @@ class ValueExamples(unittest.TestCase):
             self.assertTrue("hold no platinum-group metal in metal grains" in st[0]
                             or "carries platinum-group metal in metal grains" in st[0], st[0])
             self.assertFalse(st[0].startswith("Its class"))
-            self.assertEqual(st[-1], "As of 21 November 2026 we found nobody buying water in orbit.")
+            self.assertEqual(st[-1], "As of 2026-11-21, we found nobody buying water in orbit.")
             dollars = [s for s in st if "$" in s]
             self.assertTrue(dollars)
             for s in dollars:
                 # the price basis and its years in the same sentence, or the iron-rich caution
-                self.assertTrue("2021–2025" in s or "rest on an assumed mix of metals in irons" in s
+                self.assertTrue("2021–2025" in s or "an assumed mix of metals" in s
                                 or "class" in s.lower(), s)
             under = [s for s in st if "nineteen in twenty under" in s]
             self.assertEqual(len(under), 1)
@@ -606,21 +606,25 @@ class LadderShape(unittest.TestCase):
         self.assertEqual([s["id"] for s in undecided], ["period_unreliable", "spin_conflict"])
         for s in undecided:                                  # a period graded under 2, or one the sources split on
             self.assertEqual(s["status"], "prior")
-        self.assertIn("{conflict}", undecided[1]["text"])
-        # a rung says what the spin means, not what the spin row already shows: no period, grade or size is repeated
+        # the spin row prints the conflict; the rung says only that the sources disagree
+        self.assertNotIn("{conflict}", undecided[1]["text"])
+        self.assertIn("Sources disagree", undecided[1]["text"])
+        # a rung says what the spin means, not what the spin row already shows: no period, grade, size, conflict
+        # or unchecked source is repeated
         for s in states:
-            for slot in ("{period}", "{grade}", "{limit}", "{d_lo}", "{m_lo}"):
+            for slot in ("{period}", "{grade}", "{limit}", "{d_lo}", "{m_lo}", "{conflict}", "{sources}"):
                 self.assertNotIn(slot, s["text"], s["id"])
         self.assertEqual(spans[0][0], 0.0)
         for a, b in zip(spans, spans[1:]):
             self.assertEqual(a[1], b[0])
         self.assertGreater(spans[-1][1], 1e6)
         self.assertEqual({s["row"] for s in states}, set(types.STATES))
-        # "not checked" has its own sentence and never reads as "not measured"
+        # "not checked" is named once, in the spin row; the rung calls the spin estimated, never "not measured"
         by_row = {s["row"]: s for s in states if s["row"] != "measured"}
-        self.assertTrue(by_row["unchecked"]["text"].startswith("Spin not checked"))
-        self.assertNotIn("not measured", by_row["unchecked"]["text"])
-        self.assertTrue(by_row["prior"]["text"].startswith("Of 100 like it, {n_fast} turn faster"))
+        self.assertTrue(by_row["unchecked"]["text"].startswith("Its spin is estimated."))
+        self.assertNotIn("not measured", by_row["unchecked"]["text"].lower())
+        self.assertNotIn("not checked", by_row["unchecked"]["text"].lower())
+        self.assertTrue(by_row["prior"]["text"].startswith("Its spin is estimated. Of asteroids this bright, {n_fast} turn"))
 
 
 class LadderFacts(unittest.TestCase):
@@ -657,7 +661,7 @@ class LadderFacts(unittest.TestCase):
         self.assertEqual(f["kind"], "in_position")
         self.assertIn("no CNSA", f["return_due_note"].replace("No CNSA", "no CNSA"))
         here = next(s for s in LADDER["rung"]["brought_back"]["state"] if s["id"] == "in_position_here")
-        self.assertIn("by 21 November 2026", here["text"])
+        self.assertIn("by 2026-11-21", here["text"])
         self.assertLess(datetime.date.fromisoformat(f["recheck"]), datetime.date(2027, 1, 1))
 
     def test_no_universal_negative_without_we_found_and_a_date(self):
@@ -670,8 +674,8 @@ class LadderFacts(unittest.TestCase):
                         [s["text"] for s in LADDER["sitewide"]]]
         self.assertTrue(per_asteroid)
         for t in per_asteroid:
-            self.assertIn("As of 21 November 2026", t)
-        self.assertTrue(LADDER["sitewide"][0]["text"].startswith("As of 21 November 2026"))
+            self.assertIn("As of 2026-11-21", t)
+        self.assertTrue(LADDER["sitewide"][0]["text"].startswith("As of 2026-11-21"))
 
     def test_corrected_and_refuted_wording_is_absent(self):
         text = " ".join(strings(LADDER))

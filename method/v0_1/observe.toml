@@ -1,4 +1,4 @@
-# longshot method 0.1: which observation would settle the most.
+# longshot method 0.1: the best next observation, the one that would settle the most.
 #
 # A PROPOSAL until Adam freezes it. docs/method.md explains each section.
 #
@@ -18,8 +18,8 @@ status = "proposal"
 unit = "bits"
 formula = "gain = H2(p) - q * H2(p / q)"
 entropy = "H2(x) = -x * log2(x) - (1 - x) * log2(1 - x), and H2(0) = H2(1) = 0"
-p = "share of the object's joint draws that pass every gate of the mission; a gate decided by measurement is fixed"
-q = "share of the same draws that pass the gate the observation resolves"
+p = "the share of the asteroid's joint draws that meet every condition of the mission, with a condition a measurement decides held fixed"
+q = "the share of the same draws that meet the condition the observation decides"
 range = [0.0, 1.0]
 bounded = "an untested p or q is never 0 or 1 (missions.toml [rules].gate), so an untested mission always has a gain to rank"
 zero_when = [
@@ -35,16 +35,18 @@ not_counted = "What the observation teaches beyond its own gate. A size also nar
 [[observations]]
 id = "lightcurve"
 label = "Rotation lightcurve"
+plain = "Spin measurement"           # its name on the front page and in an entry's summary
 resolves = "spin"
-gives = "the rotation period, so the spin gate"
+gives = "the spin period, which decides the spin condition"
 kind = "quoted"
 source = "docs/research/verify-obs-window.md section 3, row Rotation lightcurve: 'Period and amplitude; tumbling. Decides whether a spacecraft can work at the surface'"
 
 [[observations]]
 id = "size"
-label = "Size or reflectivity measurement"
+label = "Diameter or reflectivity measurement"
+plain = "Diameter measurement"
 resolves = "size"
-gives = "the diameter (a reflectivity gives it through H), so the size gate"
+gives = "the diameter, directly or from a reflectivity and H, which decides the diameter condition"
 kind = "quoted"
 source = "docs/research/verify-obs-window.md section 3, rows Thermal infrared, Polarimetry and Radar: each gives a reflectivity or a size"
 
@@ -59,18 +61,19 @@ source = "tie order from docs/research/verify-obs-window.md section 3: 'The usef
 [rank]
 # Order of list/observe.html.
 order = ["window kind: pointable, then survey-recovery-only, then none", "year the window opens, earliest first", "gain, largest first", "window start, earliest first", "object key"]
-said = "pointable first, then the year the window opens, then what one observation settles"   # the order in words, for list/observe.html
+said = "windows a telescope can point at first, then by the year the window opens, then by how much one observation would change the verdicts"   # the order in words, for list/observe.html
 kind = "judgement"
 source = "docs/plan.md Appendix C, WP2: the ranking is 'joined to when the object can next be pointed at'. Review of 2026-11-25: by gain alone the list opened with a 2037 window and an asteroid only a survey could recover; of 1,956 ranked, 136 were survey-recovery-only and 522 had no window through 2045"
-unchecked = "When a source for the row the observation would settle was not checked, the record's observe.unchecked names it and its text says 'Not checked: ...': the measurement may already exist there"
+unchecked = "When a source for the row the observation would settle was not checked, the record's observe.unchecked names it, so the entry can say to look there first: the measurement may already exist. The text does not repeat it"
 gone = "A body ledger.toml lists as gone has no observation ranked"
 
 [window]
 # The next observing window, from JPL's reachable list. A dated fact as of the data date, never 'open now'.
 fields = { start = "obs_start", end = "obs_end", peak_mag = "obs_mag", flag = "obs_flag" }
-pointable = "a window is listed and obs_flag is not 'S'"
-survey_only = "obs_flag 'S': JPL finds the position too uncertain to point at; only a survey could recover it"
-none = "no window listed: none through 2045"
+pointable = "JPL lists a window and can point at the asteroid in it (obs_flag is not 'S')"
+survey_only = "JPL finds the position too uncertain to point at, so only a survey could recover it (obs_flag 'S')"
+none = "none listed through 2045"
+cite = "JPL NHATS: windows run to 2045, at a peak brightness of V 24.0 or brighter and a position uncertainty under 1.5°"
 magnitude = "peak visual magnitude V in the window, as JPL predicts it"
 kind = "quoted"
 source = "docs/research/verify-obs-window.md section 1: JPL's definition of the window (ephemeris to 2045; peak V 24.0 or brighter; plane-of-sky uncertainty under 1.5 degrees) and of the 'S' flag. docs/plan.md section 7: these peak magnitudes are JPL's; no detailed position forecast was run"
@@ -81,10 +84,10 @@ source = "docs/research/verify-obs-window.md section 1: JPL's definition of the 
 [needs.lightcurve]
 tiers = [
   { max_mag = 18.0, label = "small telescope" },
-  { max_mag = 20.0, label = "2-metre class" },
-  { max_mag = 22.0, label = "4-metre class" },
+  { max_mag = 20.0, label = "2 m class telescope" },
+  { max_mag = 22.0, label = "4 m class telescope" },
 ]
-fainter = "larger than 4-metre class"
+fainter = "telescope larger than 4 m"
 kind = "quoted"
 source = "docs/research/verify-obs-window.md section 3, row Rotation lightcurve: 'V < 17-18 with 0.4-0.8 m; V 18-20 with 2 m; V up to about 21-22 with 4 m'. docs/plan.md Terms, Magnitude: 'About 18 is the limit for a small telescope to time a rotation, about 20 for a 2-metre one, and 21-22 needs a 4-metre one'"
 edges_kind = "judgement"
@@ -94,7 +97,7 @@ caveat = "A fast rotator needs exposures of seconds, so aperture matters more th
 
 [needs.size]
 tiers = [
-  { max_mag = 17.0, label = "1-2 m polarimeter, or an infrared space telescope" },
+  { max_mag = 17.0, label = "1–2 m polarimeter or infrared space telescope" },
 ]
 fainter = "infrared space telescope"
 kind = "quoted"
@@ -103,6 +106,6 @@ caveat = "Not obtainable on request: 'Thermal and radar data are not obtainable 
 
 [needs.not_pointable]
 survey_only = "a survey must find it again first"
-no_window = "a window: JPL lists none through 2045"
+no_window = "an observing window, and JPL lists none through 2045"
 kind = "quoted"
 source = "docs/research/verify-obs-window.md section 1"

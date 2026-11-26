@@ -206,9 +206,9 @@ Surface work (on a larger body):
 <!-- table:gates_surface -->
 | Gate | Preset | Range in the sources | Kind |
 |---|---|---|---|
-| Orbit code 5 or better | at most 5 | 2–5 | judgement |
-| 30 m or wider | at least 30 m | 18–100 m | judgement |
-| Turns once in 2.2 h or slower | at least 2.2 h | 1–3 h | judgement |
+| Orbit condition code ≤ 5 | at most 5 | 2–5 | judgement |
+| Diameter ≥ 30 m | at least 30 m | 18–100 m | judgement |
+| Spin period ≥ 2.2 h | at least 2.2 h | 1–3 h | judgement |
 <!-- /table -->
 
 Whole-body capture (of a small body):
@@ -216,9 +216,9 @@ Whole-body capture (of a small body):
 <!-- table:gates_capture -->
 | Gate | Preset | Range in the sources | Kind |
 |---|---|---|---|
-| Orbit code 5 or better | at most 5 | 2–5 | judgement |
-| 10 m or smaller | at most 10 m | 7–10 m | judgement |
-| 1,300 t or lighter | at most 1,300 t | 100–1,300 t | judgement |
+| Orbit condition code ≤ 5 | at most 5 | 2–5 | judgement |
+| Diameter ≤ 10 m | at most 10 m | 7–10 m | judgement |
+| Mass ≤ 1,300 t | at most 1,300 t | 100–1,300 t | judgement |
 <!-- /table -->
 
 - Orbit: JPL's orbit condition code, 0 best to 9 worst. 2,180 of 7,231 list members have code 5 or better; 212 of 286 under 5 km/s. The gate is labelled for what it tests, the code. It is not JPL's own test of whether a telescope can be pointed: JPL flags the next window of 137 of the 2,180 survey-recovery-only (130 at code 5, 7 at code 4) and lists no window for 575. For those 137 the gate passes and its text says "JPL finds its position too uncertain to point at". Whether they should pass is Adam's call.
@@ -264,7 +264,7 @@ Do not conclude:
 - That a pass is a target. A pass means three screening lines are met by measurement.
 - That 2.2 h is a physical limit. Slight cohesion lets a small body turn faster and keep its surface.
 - That "untested, over 99%" is a pass. 2022 DC5 has no measured size.
-- That "Orbit code 5 or better: pass" means it can be found again. See the note on the orbit gate above.
+- That "Orbit condition code ≤ 5: pass" means it can be found again. See the note on the orbit gate above.
 
 ## 6. Observe next
 
@@ -296,15 +296,15 @@ What it takes, by the peak brightness JPL predicts for the next window:
 | Peak magnitude V | A lightcurve needs |
 |---|---|
 | up to 18 | small telescope |
-| 18 to 20 | 2-metre class |
-| 20 to 22 | 4-metre class |
-| fainter than 22 | larger than 4-metre class |
+| 18 to 20 | 2 m class telescope |
+| 20 to 22 | 4 m class telescope |
+| fainter than 22 | telescope larger than 4 m |
 <!-- /table -->
 
 <!-- table:needs_size -->
 | Peak magnitude V | A size or reflectivity needs |
 |---|---|
-| up to 17 | 1-2 m polarimeter, or an infrared space telescope |
+| up to 17 | 1–2 m polarimeter or infrared space telescope |
 | fainter than 17 | infrared space telescope |
 <!-- /table -->
 

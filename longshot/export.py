@@ -28,7 +28,7 @@ delta-v, and counted under counts.not_placed. Its record is still in
 records.jsonl, it has a page, and the lists link to it.
 
 readout(records) is the front page's readout before anything is selected: the
-named asteroids by delta-v, and one typical unmeasured asteroid by TYPICAL_RULE.
+named asteroids by delta-v.
 
 Same records in, same bytes out: no clock, sorted by key, hashes of the bytes.
 """
@@ -45,8 +45,6 @@ from pathlib import Path
 from longshot import config
 from longshot import draws as draws_mod
 from longshot import ledger as ledger_mod
-from longshot import method as method_mod
-from longshot import observe as observe_mod
 from longshot import priors, shape
 from longshot.method import Method
 from longshot.types import ROWS, Fact, ObjectRecord, Row
@@ -161,14 +159,7 @@ def open_period_s(record: ObjectRecord) -> float:
 
 
 # --------------------------------------------------------------------------
-# the front page's readout: the named asteroids and one typical unmeasured one
-
-ROCK_ROWS = ("size", "spin", "surface", "push")      # the rows that say what the rock is
-TYPICAL_RULE = ("Of the asteroids with nothing measured about the rock (size, spin, surface and sunlight push "
-                "each not measured or not checked), the one with the lowest delta-v whose next window a small "
-                "telescope can use: a telescope can be pointed at it, and it peaks at V {mag:g} or brighter "
-                "(method/v0_1/observe.toml [needs.lightcurve], first tier). Ties by key.")
-
+# the front page's readout: the named asteroids
 
 def _dv(record: ObjectRecord) -> float | None:
     f = next((f for f in record.rows["reach"].facts if (f.label or "").casefold() == "delta-v"
@@ -187,32 +178,9 @@ def named(records: list[ObjectRecord]) -> list[dict]:
     return [_entry(r) for r in sorted(have, key=lambda r: (_dv(r), r.key))]
 
 
-def typical_unmeasured(records: list[ObjectRecord], m: Method) -> dict | None:
-    """The readout's example of an asteroid nothing is measured about, by TYPICAL_RULE; None if none qualifies.
-
-    {key, designation, name, number, dv, rule}
-    """
-    mag = m.observe["needs"]["lightcurve"]["tiers"][0]["max_mag"]
-    have = []
-    for r in records:
-        if r.gone or not r.summary or _dv(r) is None:
-            continue
-        if any(r.rows[name].state not in ("prior", "unchecked") for name in ROCK_ROWS):
-            continue
-        w = observe_mod.window(r)
-        if w is None or not w["pointable"] or not draws_mod.is_num(w.get("peak_mag")) or w["peak_mag"] > mag:
-            continue
-        have.append(r)
-    if not have:
-        return None
-    pick = min(have, key=lambda r: (_dv(r), r.key))
-    return {**_entry(pick), "rule": TYPICAL_RULE.format(mag=mag)}
-
-
 def readout(records: list[ObjectRecord], m: Method | None = None) -> dict:
-    """{named: [...], typical: {...} | None}: the front page's readout before anything is selected."""
-    m = m or method_mod.load()
-    return {"named": named(records), "typical": typical_unmeasured(records, m)}
+    """{named: [...]}: the front page's readout before anything is selected (docs/design.md section 8)."""
+    return {"named": named(records)}
 
 
 def shape_seed(key: str) -> int:
@@ -281,9 +249,27 @@ def size_open(record: ObjectRecord) -> int:
     return int(open_view(record).rows["size"].state == state)
 
 
+def open_measured_m(record: ObjectRecord) -> float | None:
+    """The measured diameter (or bound) in metres that an open source gives and the size row rests on; None when
+    the row is not measured, or no open source says what it says. The field plots a measured rock at this value,
+    and the front page prints it alone: its stated error is on the entry (docs/design.md section 6)."""
+    state = record.rows["size"].state
+    if state not in ("measured", "limit") or not size_open(record):
+        return None
+    view = (open_view(record) if OPEN_SIZES_ONLY else None) or record
+    kinds = ("value",) if state == "measured" else ("upper", "lower")
+    f = next((f for f in view.rows["size"].facts if f.used and f.kind in kinds and (f.label or "").casefold() == "diameter"
+              and draws_mod.is_num(f.value) and f.value > 0 and f.unit in ("m", "km")), None)
+    return float(f.value) * (1000.0 if f.unit == "km" else 1.0) if f is not None else None
+
+
 def field_row(record: ObjectRecord) -> dict | None:
-    """One object's values for every column, or None when it has no size or no delta-v to place it by."""
+    """One object's values for every column, or None when it has no size or no delta-v to place it by. A measured
+    size an open source gives is plotted at its value (size_q50), not at the middle of its draws."""
     size = field_size(record)
+    measured = open_measured_m(record) if size is not None else None
+    if measured is not None:
+        size = {**size, "q50": measured}
     dv = next((f for f in record.rows["reach"].facts if (f.label or "").casefold().startswith("delta-v")
                and f.unit == "km/s" and f.kind == "value" and draws_mod.is_num(f.value)), None)
     if dv is None or size is None:

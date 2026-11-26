@@ -30,7 +30,7 @@ COMPUTED = "Computed"
 # Module attributes so a test can point them elsewhere.
 LIVE_CARDS = config.SSODNET_LIVE_CARDS
 JOURNAL = config.SSODNET_JOURNAL
-PLACEHOLDER = "error as given upstream is a placeholder"
+PLACEHOLDER = "no usable error given"
 
 A2_UNIT = 1e-15          # SsODNet gives A2 in 1e-15 au/d^2
 DADT_UNIT = 1e-4         # and the drift in 1e-4 au/Myr

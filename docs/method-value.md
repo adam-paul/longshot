@@ -141,7 +141,7 @@ Left out:
 
 ## 6. Market rule
 
-Each metal is priced only up to a tenth of one year's world mine supply (2025, IPA factsheets). Beyond that it counts as kilograms and no dollars, and the entry prints "Dollars count each metal only up to a tenth of a year's world mine supply."
+Each metal is priced only up to a tenth of one year's world mine supply (2025, IPA factsheets). Beyond that it counts as kilograms and no dollars, and the entry prints "Dollar figures count each metal only up to a tenth of a year's world mine supply."
 
 | Metal | Mine supply, t | Cap, kg |
 |---|---|---|
@@ -196,16 +196,16 @@ One denominator: 100 asteroids like this one. The chance of nothing comes first.
 |---|---|---|
 | 1 | Of 100 like it, {n} hold no platinum-group metal in metal grains. | always. A measured class leaves a chance of nothing, because a label can be wrong and that rate is in the draws (`docs/method.md` section 3) |
 | 2 | Counting those, three in four hold under {kg} ({$}) and nineteen in twenty under {kg} ({$}), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025. | the upper figure is above zero |
-| 3 | Three in four hold over {kg} ({$}) and nineteen in twenty over {kg} ({$}), in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025, if it is no more than 3 times smaller than its brightness suggests. | fewer than 25 in 100 hold nothing; the nineteen-in-twenty half only when fewer than 5 in 100 do, which no labelled class reaches |
+| 3 | Three in four hold over {kg} ({$}) and nineteen in twenty over {kg} ({$}), in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025 This assumes its diameter is at least a third of what its brightness suggests.. | fewer than 25 in 100 hold nothing; the nineteen-in-twenty half only when fewer than 5 in 100 do, which no labelled class reaches |
 | 4 | {n} of the 100 would be iron-rich and hold {kg} ({$}). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons. | at least 1 in 200 |
-| 5 | Dollars count each metal only up to a tenth of a year's world mine supply. | the cap changes a printed figure by more than 5% |
+| 5 | Dollar figures count each metal only up to a tenth of a year's world mine supply. | the cap changes a printed figure by more than 5% |
 | 6 | Of 100 like it, {n} hold no water bound in minerals. | always |
 | 7 | Nine in ten of the rest hold {t}. | at least 20 draws hold water |
-| 8 | As of 21 November 2026 we found nobody buying water in orbit. | always |
+| 8 | As of 2026-11-21, we found nobody buying water in orbit. | always |
 
 Figures print to one significant figure, two when the first digit is 1 or 2. An "under" figure rounds up and an "over" figure rounds down. A count is a band when its low and high scenarios differ. A dollar range whose low end is under $1,000 beside a high end in thousands or more prints both in figures, "$40 to $160,000": "$40 to $160 thousand" reads as forty thousand. One tonne is "1 tonne".
 
-An asteroid a spacecraft brought a sample back from prints none of the sentences above. In their place: for Ryugu, "If the whole body matches the returned sample, it holds {t} of water", from the sample's 6.84 ± 0.34% and the mass range; for Bennu, the same as an upper limit, "and all its hydrogen is in water", from 0.84 to 0.95% hydrogen; for Itokawa, "No analysis of the returned sample is on file here, so no figure is given." The fourth rung prints the analysis itself. A body that no longer exists (2008 TC3) has no block.
+An asteroid a spacecraft brought a sample back from prints none of the sentences above. In their place: for Ryugu, "If the whole body matches the returned sample, it holds {t} of water", from the sample's 6.84 ± 0.34% and the mass range; for Bennu, the same as an upper limit, "and all its hydrogen is in water", from 0.84 to 0.95% hydrogen; for Itokawa, "We have no analysis of the returned sample on file, so we give no figure." The fourth rung prints the analysis itself. A body that no longer exists (2008 TC3) has no block.
 
 The six uniform numbers are seeded as the joint draws were: by the object key, or, when nothing about the rock is measured, by its H and H error. Two unobserved asteroids of the same brightness print the same sentences.
 
@@ -239,11 +239,11 @@ One dark case (check `example_1_dark`): reflectivity 0.05 gives 34.2 m; at 1,600
 | Water, if any | 12.6 t (5th) | | 7,916 t (95th) |
 
 > Of 100 like it, 31 to 36 hold no platinum-group metal in metal grains.
-> Counting those, three in four hold under 21 kg ($1.6 million) and nineteen in twenty under 100 kg ($8 million), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.
-> 1 to 4 of the 100 would be iron-rich and hold 2.8 kg to 3 tonnes ($70 thousand to $230 million). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons.
+> Counting those, three in four hold under 21 kg ($1.6 million) and nineteen in twenty under 100 kg ($8 million). Dollars are for metal in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.
+> 1 to 4 of the 100 would be iron-rich and hold 2.8 kg to 3 tonnes ($70 thousand to $230 million). No observation from Earth can tell which. Their dollar figures use an assumed mix of metals in iron meteorites.
 > Of 100 like it, 94 to 97 hold no water bound in minerals.
 > Nine in ten of the rest hold 12 to 8,000 tonnes.
-> As of 21 November 2026 we found nobody buying water in orbit.
+> As of 2026-11-21, we found nobody buying water in orbit.
 
 ### 9.2 The same after a spectrum says S-type
 
@@ -259,12 +259,12 @@ A class is a label, and a label from a spectrum is taken as wrong, on S/Q agains
 | Water, if any | 13.3 t (5th) | | 8,715 t (95th) |
 
 > Of 100 like it, 8 to 10 hold no platinum-group metal in metal grains.
-> Counting those, three in four hold under 23 kg ($1.9 million) and nineteen in twenty under 70 kg ($5 million), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.
-> Three in four hold over 200 g ($8 thousand), in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025, if it is no more than 3 times smaller than its brightness suggests.
-> Up to 1 of the 100 would be iron-rich and hold 2.4 kg to 2.7 tonnes ($60 thousand to $220 million). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons.
+> Counting those, three in four hold under 23 kg ($1.9 million) and nineteen in twenty under 70 kg ($5 million). Dollars are for metal in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.
+> Three in four hold over 200 g ($8 thousand). Dollars are for metal in the rock, before any cost, at each metal's lowest yearly average list price of 2021–2025. This assumes its diameter is at least a third of what its brightness suggests.
+> Up to 1 of the 100 would be iron-rich and hold 2.4 kg to 2.7 tonnes ($60 thousand to $220 million). No observation from Earth can tell which. Their dollar figures use an assumed mix of metals in iron meteorites.
 > Of 100 like it, 99 or more hold no water bound in minerals.
 > Nine in ten of the rest hold 13 to 9,000 tonnes.
-> As of 21 November 2026 we found nobody buying water in orbit.
+> As of 2026-11-21, we found nobody buying water in orbit.
 
 The spectrum cut the chance of nothing from about a third to about a tenth and lowered the upper bound from $8 million to $5 million. It did not remove the zero: more than 1 draw in 20 holds nothing, so no figure is given as a nineteen-in-twenty floor. Before the review of 2026-11-25 the class was taken as certain, and this example printed "nineteen in twenty over 110 g ($5 thousand)" beside a sentence saying surveys disagree on the class for 21 of 100 asteroids. What is left is the label, then size, then which chondrite group, then density. How far the bound falls depends on the S-types' reflectivities holding at this brightness, which is untested.
 
@@ -288,12 +288,12 @@ One iron-rich case (check `example_3_iron_rich`): 60 m at 4,500 kg/m³ is 508,93
 | Water, if any | 16,292 t (5th) | | 165,576 t (95th) |
 
 > Of 100 like it, 31 to 36 hold no platinum-group metal in metal grains.
-> Counting those, three in four hold under 1.5 tonnes ($120 million) and nineteen in twenty under 4 tonnes ($300 million), in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.
-> Up to 1 of the 100 would be iron-rich and hold 7 to 230 tonnes ($190 million to $4 billion). No observation from Earth tells which, and the dollar figures rest on an assumed mix of metals in irons.
-> Dollars count each metal only up to a tenth of a year's world mine supply.
+> Counting those, three in four hold under 1.5 tonnes ($120 million) and nineteen in twenty under 4 tonnes ($300 million). Dollars are for metal in the rock, before any cost, at each metal's highest yearly average list price of 2021–2025.
+> Up to 1 of the 100 would be iron-rich and hold 7 to 230 tonnes ($190 million to $4 billion). No observation from Earth can tell which. Their dollar figures use an assumed mix of metals in iron meteorites.
+> Dollar figures count each metal only up to a tenth of a year's world mine supply.
 > Of 100 like it, 99 or more hold no water bound in minerals.
 > Nine in ten of the rest hold 16,000 to 170,000 tonnes.
-> As of 21 November 2026 we found nobody buying water in orbit.
+> As of 2026-11-21, we found nobody buying water in orbit.
 
 The measured size moved the upper figures up 40 to 70 times against 9.1. The water cases are the few draws over about 120 m, the only ones dark enough at this brightness.
 
@@ -307,11 +307,11 @@ Five rungs, in `longshot/types.py` order. Each is measured, a prior, or unknown.
 |---|---|---|
 | Found again | code 5 or better; worse; no orbit code; gone. Then one sentence only when JPL's own test says the code is not enough: a window only a survey could use, or none through 2045 | orbit code, the orbit gate, the flag on JPL's next window |
 | Reached | round trip on file; none. "Launch date not on file." | delta-v of the cheapest round trip |
-| Workable | what the spin means for loose material: slow; near the limit; fast; a period graded unreliable; sources disagree across 2.2 h; not measured; limit only; not checked | the period the spin row rests on |
-| Anything in it | sampled (the analysis); estimated from class and brightness; from its size, where that is measured and the class is not; from brightness alone; surface not checked | the surface and size rows, the returned sample |
+| Workable | what the spin means for loose material: slow; near the limit; fast; a period graded unreliable; sources disagree across 2.2 h; estimated (no period, or a source not checked); a bound only. The share of asteroids this bright that turn faster than 2.2 h prints as a percent | the period the spin row rests on |
+| Anything in it | sampled (the analysis); estimated from class and brightness; from its size, where that is measured and the class is not; from brightness alone | the surface and size rows, the returned sample |
 | Brought back | done three times, by space agencies; not yet attempted; proposed | size range and spin against the record below |
 
-A rung says what the rows above it do not. The orbit code's window, the trip's days, the size and mass ranges, the period and the price tag's sentences are each printed once, in their row or block; before the review of 2026-11-25 every entry printed at least one of them twice. Tianwen-2 is named on the second rung, with the source of the size: "at Kamoʻoalewa (18 ± 2 m, JWST)". The same 18 ± 2 m is on Kamoʻoalewa's own size row, from `registry/curated.toml`.
+A rung says what the rows above it do not. The orbit code's window, the trip's days, the size and mass ranges, the period and the price tag's sentences are each printed once, in their row or block; before the review of 2026-11-25 every entry printed at least one of them twice. A source that was not checked is named once, in its row; since the design pass of 2026-11-26 the rungs and the mission conditions call the value estimated and do not name the source again (an entry had named the lightcurve database six times). Tianwen-2 is named on the second rung, with the source of the size: "Kamoʻoalewa (18 ± 2 m, measured by JWST)". The same 18 ± 2 m is on Kamoʻoalewa's own size row, from `registry/curated.toml`.
 
 **Spin.** The outward pull at the equator of a sphere equals its gravity at a period of √(3π / (G × density)): 3.01 hours for rock of 1,200 kg/m³, 1.82 hours for 3,300 kg/m³. Faster than that the entry prints the ratio, (limit / period)², as a range: 15 to 40 for Kamoʻoalewa (27.9 minutes), 5,000 to 14,000 for 2022 OB5 (92.5 seconds).
 
@@ -319,15 +319,15 @@ A rung says what the rows above it do not. The orbit code's window, the trip's d
 
 | Size range | Spin | Sentence opens |
 |---|---|---|
-| all of it 300 m or more | 4 hours or slower | Grams: done three times, by space agencies, on asteroids of this size and spin |
-| all of it 300 m or more | not measured | Grams: done three times, by space agencies, on asteroids of this size that turn once in 4.3 to 12.1 hours |
+| all of it 300 m or more | 4 hours or slower | Grams: done three times, by space agencies, on asteroids of this diameter and spin |
+| all of it 300 m or more | not measured | Grams: done three times, by space agencies, on asteroids of this diameter that turn once in 4.3–12.1 h |
 | all of it 300 m or more | faster than 4 hours | Grams: not yet attempted on an asteroid that turns this fast |
-| straddles 300 m | any | Grams: done three times … on asteroids 330 to 900 m across, and not yet attempted on a smaller one |
-| top end 160–300 m | any | Grams: not yet attempted at this size |
-| under 160 m | under 10 minutes | Grams: not yet attempted. As of 21 November 2026 we found no spacecraft that has approached an asteroid turning this fast |
-| under 160 m | otherwise | Grams: not yet attempted. As of 21 November 2026 we found no spacecraft that has touched an asteroid this small |
+| straddles 300 m | any | Grams: done three times … on asteroids 330–900 m across, and not yet attempted on a smaller one |
+| top end 160–300 m | any | Grams: not yet attempted at this diameter |
+| under 160 m | under 10 minutes | Grams: not yet attempted. As of 2026-11-21, we found no spacecraft that has approached an asteroid turning this fast |
+| under 160 m | otherwise | Grams: not yet attempted. As of 2026-11-21, we found no spacecraft that has touched an asteroid this small |
 
-Every entry then prints: "Kilograms or tonnes: proposed since the 1990s, first costed in 2012 at $2.6 billion (2012 dollars) for about 500 tonnes to lunar orbit, never built." Bennu, Ryugu and Itokawa print their own sample; Kamoʻoalewa prints Tianwen-2's status.
+Every entry then prints: "Kilograms or tonnes: proposed since the 1990s, first costed in 2012, and never built. That study priced about 500 t to lunar orbit at $2.6 billion, in 2012 dollars." Bennu, Ryugu and Itokawa print their own sample; Kamoʻoalewa prints Tianwen-2's status.
 
 The 300 m, 4 hour, 160 m and 10 minute lines come from three sampled asteroids and one impact. They are judgement, not physical limits.
 
@@ -417,7 +417,7 @@ Changed:
 | `missions.toml` | 2022 DC5: 30 m or wider "in every draw", 1.0 | 0.999 of draws | the grid stopped at 1.8 sigma in H; a million random draws give 0.999 |
 | `missions.toml` | 2011 AA37 size 0.998; 2009 BD at 100 t 0.65; 2011 MD 63–817 t | 0.997; 0.64; 64–817 t | the same grid, now 121 steps in H |
 | `missions.toml`, `method.md` | "No spacecraft has touched…", "Nothing has ever enclosed…" | "As of 21 November 2026 we found no…" | `verify-capability.md` objection 14 |
-| `value.toml` | "Nobody buys water in orbit." | "As of 21 November 2026 we found nobody buying water in orbit." | the same objection; the space station's water is launched by its own agencies |
+| `value.toml` | "Nobody buys water in orbit." | "As of 2026-11-21, we found nobody buying water in orbit." | the same objection; the space station's water is launched by its own agencies |
 | `value.toml` | the iron mix "is bounded" | two bracketing mixes, a judgement; what lies outside them is printed | they are not the extremes of measured irons |
 | `value.toml` | iron-rich sentence: "the dollar range is wide because the mix of metals in irons is not settled" | "the dollar figures rest on an assumed mix of metals in irons" | the range is wide mostly from size and grade; the mixes add a factor of 3 |
 | `value.toml` | "a third of colour-based C labels disagree with spectra" | a third of shared objects, on four classes | the source gives no figure for C labels alone |

@@ -33,21 +33,21 @@ from longshot.missions import figures
 from longshot.types import ObjectRecord
 
 CLASS_WORDS = {"S": "S or Q", "C": "C, B, F or G", "X": "X, E, M or P", "other": "none of S, C or X"}
-SPIN_WORDS = {"under_2_2h": "2.2 hours", "under_1h": "1 hour", "under_10min": "10 minutes"}
+SPIN_WORDS = {"under_2_2h": "2.2 h", "under_1h": "1 h", "under_10min": "10 min"}
 # The brightness each size row is stated at: the middle of its band, and one magnitude inside the two open bands.
 SIZE_AT_H = {"under_20": 19.0, "20_22": 21.0, "22_24": 23.0, "24_26": 25.0, "26_28": 27.0, "28_up": 29.0}
 RANGE_P = 0.90          # a 5th-to-95th range holds nine times in ten if the prior is right
 
 SETTLES = {
-    "class": ("class labels published after the freeze; one survey aims at colours for about 1,000 small "
+    "class": ("class labels published after the method is frozen. One survey plans colours for about 1,000 small "
               "asteroids by the end of 2027"),
-    "spin": "rotation periods graded U 2 or better, published after the freeze",
-    "size": "sizes measured after the freeze",
+    "spin": "reliable rotation periods (grade 2 or better) published after the method is frozen",
+    "size": "diameters measured after the method is frozen",
 }
 # What stands in the "when" column for a prediction with no date: why there is none.
 NO_DATE = {
     "spin": "no date: needs about 30 new periods",
-    "size": "no date: needs new measured sizes",
+    "size": "no date: needs new measured diameters",
     "density": "no date set",
 }
 SOURCE = {
@@ -93,7 +93,7 @@ def class_rules(m: Method) -> list[dict]:
         for c in m.priors["class"]["ids"]:
             out.append(_base(
                 id=f"rule-class-{band}-{c}", kind="rule", group="class", band=band,
-                statement=f"A reachable asteroid {_band_condition(band)} that gets a class is {CLASS_WORDS[c]}.",
+                statement=f"A newly classified reachable asteroid {_band_condition(band)} is {CLASS_WORDS[c]}.",
                 p=round(row["central"][c], 4), p_low=round(row["low"][c], 4), p_high=round(row["high"][c], 4),
                 settles=SETTLES["class"], settle_by="2027-12-31",
                 basis=(f"{row['n']} labelled near-Earth asteroids in this band; "
@@ -108,8 +108,8 @@ def spin_rules(m: Method) -> list[dict]:
             row = m.priors["spin"]["bands"][band][s]
             out.append(_base(
                 id=f"rule-spin-{band}-{s}", kind="rule", group="spin", band=band,
-                statement=(f"A reachable asteroid {_band_condition(band)} that gets its first reliable period "
-                           f"turns faster than once in {SPIN_WORDS.get(s, s)}."),
+                statement=(f"The first reliable period of a reachable asteroid {_band_condition(band)} is shorter "
+                           f"than {SPIN_WORDS.get(s, s)}."),
                 p=row["central"], p_low=row["low"], p_high=row["high"], settles=SETTLES["spin"],
                 basis=f"low: {row['low_from']}; high: {row['high_from']}"))
     return out
@@ -129,8 +129,8 @@ def size_rules(m: Method) -> list[dict]:
         q = priors.quantiles(d.d)
         out.append(_base(
             id=f"rule-size-{band}", kind="rule", group="size", band=band,
-            statement=(f"A reachable asteroid of H {h:g} that gets a measured size is "
-                       f"{figures(q['q05'])} to {figures(q['q95'])} m across."),
+            statement=(f"A newly measured reachable asteroid of H {h:g} is "
+                       f"{figures(q['q05'])}–{figures(q['q95'])} m in diameter."),
             p=RANGE_P, settles=SETTLES["size"],
             basis=(f"H {h:g} ± {sigma:g} and the reflectivities Spitzer measured; each magnitude fainter is 0.63 "
                    "times the size" + ("; extrapolated, as nearly all of Spitzer's objects are brighter"
@@ -158,21 +158,21 @@ def cases(m: Method, records=None) -> list[dict]:
             if d is not None:
                 v = sorted(d.rho)
                 lo, hi = priors.quantile(v, 0.05), priors.quantile(v, 0.95)
-                statement = f"{what} of {figures(lo)} to {figures(hi)} kg/m³."
+                statement = f"{what} of {figures(lo)}–{figures(hi)} kg/m³."
                 p = RANGE_P
                 cls = d.inputs.cls
                 basis = (f"the density range for class {cls}" if cls else "the density ranges of its possible classes")
             else:
-                statement, basis = f"{what} inside the range this build gives it.", None
+                statement, basis = f"{what} inside the range this site gives it.", None
         else:
             if d is not None:
                 v = sorted(d.d)
                 lo, hi = priors.quantile(v, 0.05), priors.quantile(v, 0.95)
-                statement = f"is {figures(lo)} to {figures(hi)} m across."
+                statement = f"is {figures(lo)}–{figures(hi)} m in diameter."
                 p = RANGE_P
                 basis = priors.size_basis(m, d.inputs) if not d.inputs.size_measured else "its measured size"
             else:
-                statement, basis = "has a size inside the range this build gives it.", None
+                statement, basis = "has a diameter inside the range this site gives it.", None
         out.append(_base(
             id=case["id"], kind="case", group=case["group"], statement=statement, p=p,
             settles=case["settles"], settle_from=case["settle_from"], settle_by=case["settle_by"],

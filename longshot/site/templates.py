@@ -3,12 +3,15 @@
 Everything here takes plain dicts (gen.py converts the dataclasses once) and
 returns strings. Text from upstream is escaped at the point it is printed.
 
-One set of state marks everywhere (glyph): measured, an unbroken rock outline that
-glows; limit, a dashed outline; not measured, a small grey dot; not checked, a dashed
-ring. Mission results: pass, a heavy outline; untested, a dot; fail, a cross.
+The words and marks follow docs/design.md. Two states on the surface (the front page and an
+entry's summary): measured, an unbroken rock outline that glows; estimated, a dot. The entry's
+record layer adds the bound (a dashed outline) and "not checked: <source>", which is still an
+estimate. A mission's verdict is fits (a heavy outline), ruled out (a cross) or unclear (no mark,
+its chance beside it). The pipeline's own names (prior, unchecked, pass, fail, untested) stay in
+data attributes and are mapped to words here, at display.
 
-Interface copy goes without parentheses: B612 draws them square (unparen). The
-site's own sentences, set in the serif, keep theirs.
+Parentheses are conventional: the stylesheet takes them from the fallback font, since B612 draws
+its own square.
 """
 from __future__ import annotations
 
@@ -25,25 +28,74 @@ SITE = "longshot"
 
 ROWS = ("reach", "tracking", "size", "spin", "surface", "push")
 ROW_LABELS = {
-    "reach": "Reach", "tracking": "Tracking", "size": "Size",
-    "spin": "Spin", "surface": "Surface", "push": "Sunlight push",
+    "reach": "Δv", "tracking": "Orbit", "size": "Diameter",
+    "spin": "Spin", "surface": "Composition", "push": "Sunlight push", "density": "Density",
 }
+# The ledger files a bulk density under the push row; the entry gives it its own block after the push, where it is
+# on file, since it answers what the mass rests on, not how sunlight moves the asteroid (docs/design.md section 8).
+DENSITY_NOTE = "The density from SsODNet is computed from other values; it is not a measurement."
+
+
+def _is_density(f: dict) -> bool:
+    return (f.get("label") or "").casefold() == "density"
+
+
+def split_density(rw: dict) -> tuple[dict, dict | None]:
+    """(the push row without its densities, a density block or None): the block is 'measured' where a density is
+    used, and carries the ledger's note on a computed density."""
+    dens = [f for f in rw.get("facts", []) if _is_density(f)]
+    if not dens:
+        return rw, None
+    note = rw.get("note") or ""
+    rest = " ".join(x for x in [note.replace(DENSITY_NOTE, "").strip()] if x) or None
+    push = dict(rw, facts=[f for f in rw.get("facts", []) if not _is_density(f)], note=rest)
+    block = {"state": "measured" if any(used(f) for f in dens) else "prior", "facts": dens,
+             "note": DENSITY_NOTE if DENSITY_NOTE in note else None}
+    return push, block
+# A row's state on the record layer (the entry below its summary, Method). Not checked is an estimate:
+# which source was not checked is said on its own line, beside it.
 STATE_WORDS = {
-    "measured": "Measured", "limit": "Limit only",
-    "prior": "Not measured", "unchecked": "Not checked",
+    "measured": "Measured", "limit": "Bound",
+    "prior": "Estimated", "unchecked": "Estimated",
 }
-STATUS_WORDS = {"pass": "Pass", "untested": "Untested", "fail": "Fail"}
+# The surface has two states only: a bound is a measurement, and not checked is an estimate.
+SURFACE_WORDS = {"measured": "Measured", "limit": "Measured", "prior": "Estimated", "unchecked": "Estimated"}
+STATE_GLYPH = {"measured": "measured", "limit": "limit", "prior": "prior", "unchecked": "prior"}
+NOT_CHECKED = "Not checked"
+# A mission's verdict, and one condition's.
+STATUS_WORDS = {"pass": "Fits", "untested": "Unclear", "fail": "Ruled out"}
+CONDITION_WORDS = {"pass": "Met", "untested": "Unclear", "fail": "Failed"}
 # One name per mission: the field's filter, an entry's Missions section, the table view's columns.
 MISSION_LABELS = {"surface": "Surface work", "capture": "Whole-body capture"}
 METHOD_PAGE = "method.html"
 RUNG_LABELS = {
-    "found_again": "Find it again", "reached": "Reach it",
-    "workable": "Work on it", "anything_in_it": "Anything in it",
-    "brought_back": "Bring any back",
+    "found_again": "Finding it again", "reached": "Reaching it",
+    "workable": "Working on it", "anything_in_it": "Finding anything in it",
+    "brought_back": "Bringing any back",
 }
-RUNG_WORDS = {"measured": "Measured", "prior": "From what is typical", "unknown": "Unknown"}
-CLASS_LABELS = {"S": "S, stony", "C": "C, dark and carbon-rich", "X": "X, metal or rock", "other": "other"}
-CLASS_WORDS = {"S": "Stony", "C": "Carbon-rich", "X": "Metal or rock"}      # draws.class_group's groups
+RUNG_WORDS = {"measured": "Measured", "prior": "Estimated"}     # an unknown rung's text says what is missing
+DV_TITLE = "delta-v: the total change of speed a spacecraft needs for the cheapest round trip"
+# Technical terms on the record and reference layers, each defined in a hover note where it first appears
+# on a page (define). Longest first, so "Yarkovsky drift rate" is found before "Yarkovsky drift".
+TERMS = (
+    ("absolute magnitude", "The asteroid's brightness as seen from 1 au, with the Sun 1 au away. "
+                           "A lower H means a brighter, and so usually bigger, asteroid."),
+    ("orbit condition code", "JPL's rating of how well the orbit is known, from 0, best, to 9, worst."),
+    ("Yarkovsky drift", "A slow drift of the orbit. The asteroid takes in sunlight and gives the heat "
+                        "out again unevenly, and that pushes it."),
+    ("radiation pressure", "The push of sunlight itself on the asteroid."),
+    ("reflectivity", "The share of sunlight the surface reflects: geometric albedo."),
+    ("spin period", "The time the asteroid takes to turn once."),
+    ("lightcurve", "The asteroid's brightness measured over time. It rises and falls as the asteroid turns, "
+                   "which gives the spin period."),
+    ("signal-to-noise", "How far a value stands above its noise: the value divided by its error."),
+    ("thermal model", "A diameter and reflectivity worked out from the heat the asteroid gives off."),
+)
+CLASS_LABELS = {"S": "S, stony", "C": "C, dark and carbon-rich", "X": "X, possibly metallic", "other": "other"}
+CLASS_WORDS = {"S": "Stony", "C": "Carbon-rich", "X": "Possibly metallic"}      # draws.class_group's groups
+# A measured class outside those three groups, by its letter, in plain words (draws.class_group's "other").
+OTHER_CLASS_WORDS = {"V": "Basaltic", "A": "Olivine-rich", "D": "Dark, primitive", "T": "Dark, primitive",
+                     "K": "Stony", "L": "Stony", "R": "Stony", "O": "Stony"}
 SPIN_KEYS = ("p_fast_2_2h", "p_under_1h", "p_under_10min")    # the record's shares, one per line in priors.toml
 
 
@@ -60,40 +112,71 @@ LICENCE_WORDS = {
     "single": "Single values, with citation",
     "inference": "Feeds estimates; its values are not shown",
 }
-POINTER = "on file, not shown here"
-GATE_BASIS = {"measured": "measured", "prior": "typical for its brightness"}
+POINTER = "Not shown"          # a Data row whose source's licence keeps its value off the page (section 3, Not shown)
+GATE_BASIS = {"measured": "measured", "prior": "estimated"}
 GATE_ROW = {"findable": "tracking", "size": "size", "spin": "spin", "mass": "size"}
 
 # A fact's label is its stable id in the ledger (longshot.ledger.LABEL). These are the words printed for it,
-# so one thing has one name on the page: the gates and the ladder say "orbit code" and "reflectivity".
+# so one thing has one name on the page.
 FACT_WORDS = {
-    "condition code": "orbit code",
+    "delta-v": "Δv, cheapest round trip",
+    "trip at lowest delta-v": "duration, cheapest round trip",
+    "shortest trip": "duration, shortest round trip",
+    "delta-v of shortest trip": "Δv, shortest round trip",
+    "condition code": "orbit condition code",
     "arc": "observed over",
+    "window start": "window opens",
+    "window end": "window closes",
+    "window pointing": "telescope can point at it",
+    "H": "absolute magnitude (H)",
+    "period": "spin period",
+    "amplitude": "lightcurve amplitude",
     "albedo": "reflectivity",
     "A1": "radiation pressure, A1",
-    "A2": "drift, A2",
-    "A3": "out of plane, A3",
-    "drift": "drift of the orbit",
+    "A2": "Yarkovsky drift, A2",
+    "A3": "out-of-plane push, A3",
+    "drift": "Yarkovsky drift rate",
 }
 
-# Upstream method tags, in words. A tag not listed is printed as it is.
+
+def condition(label) -> str:
+    """A mission condition's label as the pages print it: the method file's own words, with the orbit's
+    code named in full."""
+    return re.sub(r"\b([Oo])rbit code\b", r"\1rbit condition code", "" if label is None else str(label))
+
+# Upstream method tags, in words. A tag not listed is printed as it is. The catalogues' own codes (SMASSII, SAGE,
+# Bin-PheMu) and the names of class schemes are not printed: the words say how the value was found.
 GRADE_WORDS = {
     "space": "spacecraft",
     "neatm": "thermal model",
     "tpm": "thermophysical model",
     "radar": "radar",
+    "radar-3d": "radar shape model",
+    "sage": "shape model",
     "polarimetry": "polarimetry",
-    "computed": "computed",
-    "astrometry(o)": "optical astrometry",
-    "astrometry(o+r)": "optical and radar astrometry",
+    "computed": "computed from other values",
+    "astrometry(o)": "fit to optical positions",
+    "astrometry(o+r)": "fit to optical and radar positions",
     "yarkovsky": "from its drift",
     "srp": "from radiation pressure",
     "yarkovsky+srp": "from drift and radiation pressure",
+    "bin-phemu": "from a binary's eclipses",
+    "smassii": "from a visible spectrum",
+    "tholen": "from colours",
+    "sidereal": "", "synodic": "",          # the kind of period: a difference far below the error, so left out
 }
 _TAXONOMY = re.compile(r"^(?P<scheme>.+?) (?P<how>Spec|Phot) (?P<band>VISNIR|VIS|NIR)$")
 _HOW = re.compile(r"^(?P<how>Spec|Phot)\b[ ,:]*(?P<rest>.*)$")     # a hand-entered class: how, then the detail
 _BANDS = {"VIS": "visible", "NIR": "near-infrared", "VISNIR": "visible and near-infrared"}
 _HOW_WORDS = {"Spec": "spectrum", "Phot": "colours"}
+# The way a period was found, from the lightcurve tables' codes; "sidereal" and "synodic" are left out.
+_PERIOD_HOW = {"lc": "lightcurve", "lci": "lightcurve inversion", "space": "spacecraft", "radar": "radar",
+               "sage": "shape model"}
+_PERIOD_NOTE = re.compile(r"^(?:sidereal|synodic), (?P<how>[\w+-]+)(?P<rest>;.*)?$", re.I)
+_SNR = re.compile(r"signal-to-noise (\d+(?:\.\d+)?)")
+# Values printed in words: a window's pointing.
+VALUE_WORDS = {"pointable": "yes", "survey-only": "no"}
+HIDDEN_FACTS = ("trajectories",)     # a count of the trajectories JPL searched: it answers no question here
 
 UNITS = {
     "km/s": "km/s", "kms": "km/s", "m": "m", "km": "km", "h": "h", "min": "min",
@@ -120,9 +203,14 @@ def cap(s) -> str:
     return s[:1].upper() + s[1:]
 
 
-def unparen(s) -> str:
-    """'Lee+2022 (2022A&A...661L...3L)' -> 'Lee+2022, 2022A&A...661L...3L': B612's parentheses are square."""
-    return re.sub(r"\s*\(([^()]*)\)", r", \1", "" if s is None else str(s))
+def plain(s) -> str:
+    """Upstream text as a string, '' for None. Its parentheses stay: the fallback font draws them."""
+    return "" if s is None else str(s)
+
+
+def nb(text: str) -> str:
+    """A value and its unit, kept on one line."""
+    return text.replace(" ", " ")
 
 
 def nowrap_dates(text: str) -> str:
@@ -136,8 +224,12 @@ _URL_IN = re.compile(r"https?://\S+")
 # only points into the project. The files themselves keep the full trail.
 _INTERNAL = re.compile(
     r"docs/|data/|tools/|build/|method/|registry/|AGENTS\.md|\b[\w.-]+\.(?:md|py|toml|txt|jsonl)\b"
-    r"|\b[a-z0-9]+_[a-z0-9_]+\b|saved copy|project file|\breview of 20\d\d|\bthe plan\b|\bplan's\b|\bWP\d",
+    r"|\b[a-z0-9]+_[a-z0-9_]+\b|saved copy|project file|\breview of 20\d\d|\bthe plan\b|\bplan's\b|\bWP\d"
+    r"|\bthe checker\b|\bthe sketch\b|\bderivation's\b|\bon disk\b|\bthe reviewer's\b",
     re.I)
+# The research files grade each citation by how close it is to the evidence: P, primary; S, secondary. The tag
+# is the project's own, so a page leaves it out: 'Shepard et al. 2015, P abstract' -> 'Shepard et al. 2015'.
+_GRADE_TAG = re.compile(r",\s*[PS](?:\s+abstract)?(?=\s*(?:[.;,)]|$))")
 # A path or file name into the project, with what locates a line in it: 'docs/research/x.md section 3',
 # 'priors.toml [density]', 'AGENTS.md, traps'.
 _PATHREF = re.compile(
@@ -150,7 +242,6 @@ _PATHREF = re.compile(
 _OPENS_WITH_PATH = re.compile(r"^\s*(?:(?:docs|data|tools|method|registry|build)/|[\w.-]+\.(?:md|py|toml|txt|jsonl)\b|AGENTS\.md)")
 _CLAUSE = re.compile(r"((?<=[.;])\s+)")
 _PAREN = re.compile(r"\s*\(([^()]*)\)")
-_ASIDE = re.compile(r"\s+\(([^()]*)\)(?!\^)")
 
 
 def _internal(text: str) -> bool:
@@ -158,9 +249,9 @@ def _internal(text: str) -> bool:
 
 
 def public_text(text) -> str:
-    """A line from a method file as a visitor reads it: no paths into the project, no brackets (B612 draws
-    them square), kg/m³ and ± in place of kg/m3 and +/-."""
-    text = "" if text is None else str(text)
+    """A line from a method file as a visitor reads it: no paths into the project or its own citation
+    grades, kg/m³ and ± in place of kg/m3 and +/-."""
+    text = _GRADE_TAG.sub("", "" if text is None else str(text))
     text = _PAREN.sub(lambda m: "" if _internal(m[1]) else m[0], text)
     kept, dropped = [], False
     for x in _CLAUSE.split(text)[::2]:
@@ -189,8 +280,39 @@ def public_text(text) -> str:
         kept.append(x)
         dropped = False
     text = " ".join(kept).rstrip(";")
-    text = _ASIDE.sub(r", \1", re.sub(r"^\(([^()]*)\)", r"\1", text))
+    text = re.sub(r"(?<![\w.])([0-3])-(?=[\s.,;:)]|$)", "\\1−", text)       # a lightcurve grade: 2−, a true minus
     return text.replace("kg/m3", "kg/m³").replace("+/-", "±")
+
+
+def define(page: str, terms=TERMS) -> str:
+    """The page with each technical term defined in a hover note where it first appears in its text.
+
+    Text inside a link, a heading of the page's own title, an existing definition, a script or a style is
+    left alone, and so are attribute values."""
+    left = {t.casefold(): (t, d) for t, d in terms}
+    out, skip = [], 0
+    for part in re.split(r"(<[^>]+>)", page):
+        if part.startswith("<"):
+            m = re.match(r"</?\s*([a-zA-Z0-9]+)", part)
+            tag = (m[1].lower() if m else "")
+            if tag in ("a", "dfn", "abbr", "script", "style", "title", "h1", "button", "svg", "option", "output"):
+                skip += -1 if part.startswith("</") else (0 if part.endswith("/>") else 1)
+            out.append(part)
+            continue
+        if skip or not left:
+            out.append(part)
+            continue
+        at, done = 0, []
+        while left:
+            found = [(m, key) for key, (word, _) in left.items()
+                     for m in [re.compile(r"(?<![\w-])" + re.escape(word) + r"(?![\w-])", re.I).search(part, at)] if m]
+            if not found:
+                break
+            m, key = min(found, key=lambda x: x[0].start())
+            done.append(part[at:m.start()] + f'<dfn title="{esc(left.pop(key)[1])}">{m[0]}</dfn>')
+            at = m.end()
+        out.append("".join(done) + part[at:])
+    return "".join(out)
 
 
 # ---------------------------------------------------------------- numbers
@@ -236,20 +358,20 @@ def pct(p) -> str:
     if not is_num(p):
         return ""
     if 0 < p < 0.005:
-        return "under 1%"
+        return "<1%"
     if 0.995 <= p < 1:
-        return "over 99%"
+        return ">99%"
     return f"{hundredths(p)}%"
 
 
 def chance(p) -> str:
-    """A chance counted from draws. None passing, or all, is still not certainty: 'under 1%', 'over 99%'."""
+    """A chance counted from draws. None passing, or all, is still not certainty: '<1%', '>99%'."""
     if not is_num(p):
         return ""
     if p < 0.005:
-        return "under 1%"
+        return "<1%"
     if p >= 0.995:
-        return "over 99%"
+        return ">99%"
     return pct(p)
 
 
@@ -260,6 +382,16 @@ def usd(x) -> str:
         if abs(x) >= size:
             return f"${num(x / size, 2)}\u00a0{word}"
     return f"${num(x, 2)}"
+
+
+def usd_range(lo, hi) -> str:
+    """A range of dollars: '$31–39 thousand' when both ends share a scale word, '$1.8 million to $1.9 billion'
+    when they do not (docs/design.md section 6)."""
+    a, b = usd(lo), usd(hi)
+    wa, wb = a.partition("\u00a0")[2], b.partition("\u00a0")[2]
+    if wa == wb:
+        return f"{a.partition(chr(160))[0]}–{b[1:]}"
+    return f"{a} to {b}"
 
 
 def with_unit(n: str, unit: str) -> str:
@@ -295,7 +427,7 @@ def span(lo, hi, unit: str, sig: int = 4) -> str:
     the dash is not read as a sign."""
     a, b = num(lo, sig), num(hi, sig)
     d = max(_decimals(a), _decimals(b))
-    if _decimals(a) and _decimals(b) and "×" not in a + b:
+    if sig > 2 and _decimals(a) and _decimals(b) and "×" not in a + b:      # an estimate keeps two figures each end
         a, b = (x + ("" if "." in x else ".") + "0" * (d - _decimals(x)) for x in (a, b))
     joiner = " to " if (lo < 0 or hi < 0 or "×" in a or "×" in b) else "–"
     return with_unit(f"{a}{joiner}{b}", unit)
@@ -310,11 +442,27 @@ def _scaled(x) -> tuple[str, str]:
 
 
 def amount(lo, hi, unit: str) -> str:
-    """A range of mass, both ends in the high end's scale: '13,000–550,000 t', '0.071–3.6 million t'."""
-    b, wb = _scaled(hi)
-    size = {"billion": 1e9, "million": 1e6}.get(wb, 1.0)
-    a = num(lo / size, 2)
-    return f"{a}–{b}" + (f"\u00a0{wb}" if wb else "") + f"\u00a0{unit}"
+    """A range of mass: '13,000–550,000 t', '1.5–3.6 million t'; 'to' when the ends differ in their scale word,
+    '71,000 t to 3.6 million t' (docs/design.md section 6)."""
+    (a, wa), (b, wb) = _scaled(lo), _scaled(hi)
+    words = lambda n, w: n + (f"\u00a0{w}" if w else "") + f"\u00a0{unit}"
+    if wa == wb:
+        return f"{a}–{words(b, wb)}"
+    return f"{words(a, wa)} to {words(b, wb)}"
+
+
+def sig2(v) -> str:
+    """An estimate to two significant figures, as the front page prints it (app.js sig2): '0.83', '3.0', '1,200'."""
+    if not v:
+        return "0"
+    d = 1 - math.floor(math.log10(abs(v)))
+    r = round(v * 10 ** d) / 10 ** d
+    return f"{r:.{d}f}" if d > 0 else f"{round(r):,}"
+
+
+def estimate_span(lo, hi, unit: str = "") -> str:
+    """An estimate's range, both ends to two significant figures: '0.83–3.0 m', '23–85 m'."""
+    return with_unit(f"{sig2(lo)}–{sig2(hi)}", unit)
 
 
 def date(s) -> str:
@@ -350,7 +498,7 @@ def displayable(fact: dict, sources: dict) -> bool:
 def source_name(sources: dict, sid: str) -> str:
     """A source's name as interface copy: 'Asteroid Lightcurve Database, LCDB' (unparen)."""
     s = sources.get(sid)
-    return unparen(s.get("name") or sid) if s else sid
+    return plain(s.get("name") or sid) if s else sid
 
 
 def short_name(sources: dict, sid: str) -> str:
@@ -375,26 +523,40 @@ def unreliable(quality) -> bool:
 
 
 def grade(row_id: str, quality) -> str:
-    """A grade or method tag as the page prints it (escaped)."""
+    """A grade or method tag as the page prints it (escaped): 'grade 2−', 'from a visible spectrum'."""
     q = (quality or "").strip()
     if not q:
         return ""
     if row_id == "spin" and _U_CODE.match(q):
-        return f"quality U {esc(q)}" + (", unreliable" if unreliable(q) else "")
+        return f"grade {esc(q.replace('-', '−'))}" + (", unreliable" if unreliable(q) else "")
     m = _HOW.match(q)
     if m:
-        return esc(_HOW_WORDS[m["how"]] + (f": {m['rest']}" if m["rest"] else ""))
-    return esc(", ".join(_tag(part.strip()) for part in q.split(",")))
+        return esc(f"from {_HOW_WORDS[m['how']]}" + (f": {m['rest']}" if m["rest"] else ""))
+    words = [_tag(part.strip()) for part in q.split(",")]
+    return esc(_SNR.sub(lambda m: f"signal-to-noise {num(float(m[1]), 3)}", ", ".join(w for w in words if w)))
 
 
 def _tag(tag: str) -> str:
-    """One upstream tag in words; a tag with no words here is printed as it is."""
+    """One upstream tag in words; a tag with no words here is printed as it is. 'SAGE+Radar-3D' is two tags."""
     if tag.casefold() in GRADE_WORDS:
         return GRADE_WORDS[tag.casefold()]
     m = _TAXONOMY.match(tag)
     if m:
-        return f"{m['scheme']} class, {_BANDS[m['band']]} {_HOW_WORDS[m['how']]}"
+        band = _BANDS[m["band"]]
+        return f"class from a {band} spectrum" if m["how"] == "Spec" else f"class from {band} colours"
+    if "+" in tag and all(x.casefold() in GRADE_WORDS for x in tag.split("+")):
+        return ", ".join(GRADE_WORDS[x.casefold()] for x in tag.split("+"))
     return tag
+
+
+def fact_note(note) -> str:
+    """A fact's note as the page prints it (not escaped): a lightcurve table's method code in words, the period
+    type left out; a signal-to-noise to three figures."""
+    text = plain(note).strip()
+    m = _PERIOD_NOTE.match(text)
+    if m:
+        return _PERIOD_HOW.get(m["how"].casefold(), m["how"]) + (m["rest"] or "")
+    return _SNR.sub(lambda m: f"signal-to-noise {num(float(m[1]), 3)}", text)
 
 
 def label(row_id: str, name) -> str:
@@ -422,11 +584,6 @@ def trip_days(rec: dict):
     """The round trip at the lowest delta-v, in days: the reach row's first count of days."""
     f = _first(rec["rows"].get("reach", {}).get("facts", []),
                lambda f: is_num(f.get("value")) and UNITS.get(f.get("unit", "")) == "d")
-    return f["value"] if f else None
-
-
-def first_observed(rec: dict):
-    f = _first(rec["rows"].get("tracking", {}).get("facts", []), lambda f: f.get("label") == "first observed")
     return f["value"] if f else None
 
 
@@ -541,17 +698,17 @@ def shown_period(rec: dict, sources: dict) -> tuple[dict | None, str]:
     spin row is measured, its sources do not disagree, and a period the page may print agrees with
     the adopted one (the row's first, within the ledger's tolerance). JPL's period is taken where it is
     one of those, so the entry turns at the rate the field turns at. Otherwise the reason says why not:
-    and never "no measured period" while a source for the row was not checked."""
+    and never "no spin period on file" while a source for the row was not checked."""
     row = rec["rows"].get("spin", {})
     on_file = [f for f in row.get("facts", []) if _is_period(f)]
     periods = [f for f in on_file if used(f)]
     if row.get("state") != "measured" or not periods:
         if row.get("unchecked") or row.get("state") == "unchecked":
             names = not_checked(row, sources)
-            return None, "period not checked" + (f": {names}" if names else "")
-        return None, "no period good enough to use" if on_file else "no measured period"
+            return None, "spin period not checked" + (f": {names}" if names else "")
+        return None, "no spin period good enough to use" if on_file else "no spin period on file"
     if row.get("conflicts"):
-        return None, "sources disagree on the period"
+        return None, "sources disagree on the spin period"
     seconds = lambda f: f["value"] * TIME_S[f["unit"]]
     adopted = seconds(periods[0])
     agree = [f for f in periods if displayable(f, sources) and not ledger_mod.periods_differ(adopted, seconds(f))]
@@ -568,22 +725,27 @@ def period_of(rec: dict, sources: dict) -> tuple[float | None, str]:
 
 # ---------------------------------------------------------------- marks
 
-GLYPHS = ("measured", "limit", "prior", "unchecked", "unknown", "pass", "untested", "fail")
+GLYPHS = ("measured", "limit", "prior", "pass", "fail")     # an unclear verdict has no mark: its chance says it
 
 
 def glyph(state: str, said: str = "") -> str:
-    """The mark for a row state or a mission status, drawn as the field draws it.
+    """The mark for a row state or a mission verdict, drawn as the field draws it: a measured outline,
+    a bound's dashed outline, an estimate's dot; fits, a heavy outline; ruled out, a cross.
 
     One empty element: style.css draws each mark (.g-measured and the rest), so a page that lists two
     thousand asteroids carries a class name per mark, not an outline. `said` gives it the state in words
     for a reader that does not see it; otherwise the words beside it say it and the mark is hidden."""
-    state = state if state in GLYPHS else "unchecked"
+    state = STATE_GLYPH.get(state, state)
+    if state not in GLYPHS:
+        return ""
     aria = f'role="img" aria-label="{esc(said)}"' if said else 'aria-hidden="true"'
     return f'<i class="g g-{state}" {aria}></i>'
 
 
-def state_tag(state: str, word: str | None = None) -> str:
-    word = word or STATE_WORDS.get(state) or STATUS_WORDS.get(state) or cap(state)
+def state_tag(state: str, word: str | None = None, surface: bool = False) -> str:
+    """A state's mark and word: the surface's two states, or the record layer's three."""
+    words = SURFACE_WORDS if surface else STATE_WORDS
+    word = word or words.get(state) or STATUS_WORDS.get(state) or cap(state)
     return f'<span class="st st-{esc(state)}">{glyph(state)}{esc(word)}</span>'
 
 
@@ -621,7 +783,7 @@ def rock_mark() -> str:
     pts = shape(MARK_KEY)
     p = _points(pts, 9.5 / max(math.hypot(x, y) for x, y in pts))
     return (f'<svg class="rockmark" viewBox="-10 -10 20 20" aria-hidden="true">'
-            f'<polygon class="halo" points="{p}"/><polygon points="{p}"/></svg>')
+            f'<polygon points="{p}"/></svg>')     # no glow: the glow means measured
 
 
 def _nice_near(x: float) -> float:
@@ -636,19 +798,21 @@ def _seconds(sec: float) -> str:
 
 
 NESTED_FROM = 1.25      # the low and high outlines are drawn when the range spans this ratio or more
-ONE_SIGMA = "1σ"        # what a stated range beside a measured value is (method/v0_1/missions.toml [rules.decide])
+ONE_SIGMA = "±1σ"       # what a stated range beside a measured value is (method/v0_1/missions.toml [rules.decide])
+ESTIMATE_RANGE = "90% range"    # what the range of an estimate is: its 5th to 95th percentile
 ROCK_BOX = 240
+BOUND_SIGN = {"upper": "≤ ", "lower": "≥ "}
 
 
 def rock(rec: dict, sources: dict) -> str:
-    """The asteroid to scale: its size range as nested outlines, turning at its measured rate."""
+    """The asteroid to scale: its diameter range as nested outlines, turning at its measured rate."""
     name = rec.get("name") or rec["designation"]
     size = size_of(rec, sources)
     period, why = period_of(rec, sources)
     if rec.get("gone"):                     # drawn as it was last known; nothing is left to turn
         period, why = None, "it no longer exists"
     if size is None:
-        return '<figure class="rockfig"><p class="none">No size on file: not drawn</p></figure>'
+        return '<figure class="rockfig"><p class="none">No brightness on file, so no outline</p></figure>'
     srow = rec["rows"].get("size", {})
     state = size["state"]
     if state == "prior" and srow.get("state") == "unchecked":
@@ -674,19 +838,16 @@ def rock(rec: dict, sources: dict) -> str:
     k, unit = scale_for("size", "", "m", outer)
     show = lambda m, sig=2: with_unit(num(m * k, sig), unit)
     if state == "measured":
-        rows = ([("High, 1σ", show(size["hi"], 3)), ("Measured", show(size["mid"], 3)), ("Low, 1σ", show(size["lo"], 3))]
-                if size["lo"] else [("Measured", show(size["mid"], 3))])
+        caption = f"Outlines: measured, and {ONE_SIGMA}" if nested else "Outline: measured"
         alt = f"{name}, {show(size['mid'], 3)} across"
     elif state == "limit":
-        word = "Under" if size["kind"] == "upper" else "Over"
-        rows = [(word, show(size["mid"], 3))]
-        alt = f"{name}, {word.lower()} {show(size['mid'], 3)} across"
+        caption = "Outline: the bound"
+        alt = f"{name}, {BOUND_SIGN.get(size['kind'], '')}{show(size['mid'], 3)} across"
     else:
-        rows = ([("Outer, 95th", show(size["hi"])), ("Middle", show(size["mid"])), ("Inner, 5th", show(size["lo"]))]
-                if size["lo"] else [("Middle", show(size["mid"]))])
+        caption = f"Outlines: median estimate, and {ESTIMATE_RANGE}" if nested else "Outline: median estimate"
         held = not_checked(srow, sources) if state == "unchecked" else ""
-        alt = (f"{name}, size not checked" + (f": {held}" if held else "") if state == "unchecked"
-               else f"{name}, size not measured") + ", the outline typical at its brightness"
+        alt = f"{name}, diameter estimated, median {show(size['mid'])}" + (
+            f"; {NOT_CHECKED.lower()}: {held}" if held else "")
     if period:
         pk, punit = scale_for("spin", "", "s", period)
         alt += f"; turns once in {with_unit(num(period * pk), punit)}, at its measured rate"
@@ -700,11 +861,10 @@ def rock(rec: dict, sources: dict) -> str:
     y = half + 6
     scale = (f'<g class="scale"><path d="M{-half + 10:.1f} {y}h{w:.1f}M{-half + 10:.1f} {y - 4}v8M{-half + 10 + w:.1f} {y - 4}v8"/>'
              f'<text x="{-half + 10:.1f}" y="{y + 20}">{with_unit(num(bar * bk, 2), bunit)}</text></g>')
-    cap_rows = "".join(f"<dt>{a}</dt><dd>{b}</dd>" for a, b in rows)
     return (f'<figure class="rockfig s-{state}">'
             f'<svg viewBox="{-half:g} {-half:g} {ROCK_BOX} {ROCK_BOX + 34}" role="img" aria-label="{esc(alt)}">'
             f'<g{turn}>{"".join(shapes)}</g>{scale}</svg>'
-            f'<figcaption><dl>{cap_rows}</dl></figcaption></figure>')
+            f'<figcaption>{esc(caption)}</figcaption></figure>')
 
 
 # ---------------------------------------------------------------- gauges: one scale per row, with the gates on it
@@ -727,7 +887,7 @@ AXES = {
              "ticks": ((1 / 60, "1 min"), (1 / 6, "10 min"), (1, "1 h"), (10, "10 h"), (100, "100 h"))},
     "surface": {"pos": _log(0.01, 1.0), "ticks": ((0.01, "1%"), (0.03, "3%"), (0.1, "10%"), (0.3, "30%"), (1, "100%"))},
 }
-_ROW_SAYS = {"reach": "delta-v", "tracking": "orbit code, 0 best", "size": "size", "spin": "rotation period",
+_ROW_SAYS = {"reach": "Δv", "tracking": "orbit condition code, 0 best", "size": "diameter", "spin": "spin period",
              "surface": "reflectivity"}
 
 
@@ -770,7 +930,7 @@ def gate_lines(missions: dict | None) -> dict:
         merged: dict = {}
         for v, said, mid, name in gates:
             merged.setdefault(v, []).append((said, mid, name))
-        lines[row_id] = [(v, items[0][2] if len(items) > 1 else f"{items[0][0]}: {MISSION_LABELS.get(items[0][1], items[0][1]).lower()}")
+        lines[row_id] = [(v, condition(items[0][2]) if len(items) > 1 else f"{items[0][0]}: {MISSION_LABELS.get(items[0][1], items[0][1]).lower()}")
                          for v, items in sorted(merged.items())]
     return lines
 
@@ -811,7 +971,7 @@ def gauge(row_id: str, row: dict, sources: dict, gates=()) -> str:
             a, b = pos(p["q05"] * k), pos(p["q95"] * k)
             marks.append(f'<i class="est" style="left:{a:.2f}%;width:{b - a:.2f}%"></i>')
             marks.append(f'<i class="mid" style="left:{pos(p["q50"] * k):.2f}%"></i>')
-            said = f"{_ROW_SAYS[row_id]} estimated, 9 in 10"
+            said = f"{_ROW_SAYS[row_id]} estimated, {ESTIMATE_RANGE}"
     if not marks and not gates:
         return ""
     ticks = []
@@ -841,7 +1001,7 @@ def timeline(start: str, end: str, data_date: str) -> str:
         text = f"<span>{y}</span>" if at > 14 else ""
         years.append(f'<i class="yr{last}" style="left:{at:.2f}%">{text}</i>')
     return (f'<div class="timeline" role="img" aria-label="Next window {esc(start)} to {esc(end)}">'
-            f'<i class="axis"></i><i class="yr d0" style="left:0"><span>{esc(data_date)}, data date</span></i>'
+            f'<i class="axis"></i><i class="yr d0" style="left:0"><span>Data date {esc(data_date)}</span></i>'
             f'{"".join(years)}<i class="win" style="left:{x(s):.2f}%;width:{max(x(e) - x(s), 0.5):.2f}%">'
             f'<span>Window {esc(start)} to {esc(end)}</span></i></div>')
 
@@ -855,7 +1015,7 @@ def _value(row_id: str, f: dict) -> tuple[str, str, str]:
     if is_num(val):
         k, unit = scale_for(row_id, f.get("label"), f.get("unit"), val)
         unit = esc(unit)
-        sign = {"upper": "under ", "lower": "over "}.get(f.get("kind", "value"), "")
+        sign = BOUND_SIGN.get(f.get("kind", "value"), "")
         lo, hi = f.get("lo"), f.get("hi")
         ranged = is_num(lo) and is_num(hi) and lo < hi
         extra = ""
@@ -874,12 +1034,14 @@ def _value(row_id: str, f: dict) -> tuple[str, str, str]:
             shown = f"{val * k:.3f}"    # JPL states delta-v to the metre per second
         else:
             shown = num(val * k, sig)
-        rng = f"{span(lo * k, hi * k, unit, sig)}, {ONE_SIGMA}" if ranged else ""
+        rng = f"{span(lo * k, hi * k, unit, sig)} ({ONE_SIGMA})" if ranged else ""
         return sign + with_unit(shown, unit), rng, extra
     if isinstance(val, str) and _ISO_DATE.match(val.strip()):
         return date(val.strip()), "", ""
     if val is None or val == "":
         return "no value given", "", ""
+    if isinstance(val, str) and val in VALUE_WORDS:
+        return VALUE_WORDS[val], "", ""
     unit = UNITS.get(f.get("unit"), f.get("unit"))
     return esc(val) + (f" {esc(unit)}" if unit else ""), "", ""
 
@@ -888,75 +1050,89 @@ FACT_COLS = ('<colgroup><col class="c-l"><col class="c-v"><col class="c-r"><col 
              '</colgroup>')
 
 
-def facts_table(row_id: str, facts: list, sources: dict) -> str:
+_SOLUTION = re.compile(r"\borbit solution JPL (\S+)")
+
+
+def _ref(ref) -> str:
+    """A fact's reference as printed: one spelling of an orbit solution ('orbit solution 118')."""
+    return _SOLUTION.sub(r"orbit solution \1", plain(ref))
+
+
+def facts_table(row_id: str, facts: list, sources: dict, counted: bool = False) -> str:
     """The row's facts, one line each: label, value, 1σ range, grade and note, source, in the ledger's order, so
-    the first used line is the one the row rests on. A value the licence rule holds back is a pointer in its
-    place. A source every line shares is printed once, under."""
+    the first used line is the one the row rests on. A value the licence rule holds back is left out, unless the
+    row rests on it (`counted` and the first used line): then a pointer stands in its place, and the Sources
+    table says why. A source every line shares is printed once, under."""
+    rests_on = next((f for f in facts if used(f)), None) if counted else None
+    facts = [f for f in facts if (displayable(f, sources) or f is rests_on) and f.get("label") not in HIDDEN_FACTS]
     held = [f for f in facts if not displayable(f, sources)]
     cites = {(f.get("source", ""), f.get("ref")) for f in facts}
     once = len(cites) == 1 and len(facts) > 1
     lines = []
     for f in facts:
         name = cap(label(row_id, f.get("label")))
-        cite = source_link(sources, f.get("source", "")) + (f", {esc(unparen(f['ref']))}" if f.get("ref") else "")
+        cite = source_link(sources, f.get("source", "")) + (f", {esc(_ref(f['ref']))}" if f.get("ref") else "")
         if f in held:
-            lines.append(f'<tr class="ptr"><th scope="row">{esc(name)}</th><td class="v dim">{POINTER}</td>'
+            lines.append(f'<tr class="ptr"><th scope="row">{esc(name)}</th><td class="v">{POINTER}</td>'
                          f'<td class="r"></td><td class="q"></td><td class="s">{"" if once else source_link(sources, f.get("source", ""))}</td></tr>')
             continue
         val, rng, extra = _value(row_id, f)
         if extra:
             name += f", {extra}"
         g = grade(row_id, f.get("quality"))
-        q = ", ".join(x for x in (unparen(g), esc(unparen(f.get("note") or ""))) if x)
+        q = ", ".join(x for x in (plain(g), esc(fact_note(f.get("note") or ""))) if x)
         tag = "" if used(f) else '<span class="tag">not used</span>'
         lines.append(f'<tr{"" if used(f) else ' class="nu"'}><th scope="row">{esc(name)}</th><td class="v">{val}</td>'
-                     f'<td class="r">{rng}{tag}</td><td class="q">{q}</td><td class="s">{"" if once else cite}</td></tr>')
+                     f'<td class="r">{rng}{" " if rng and tag else ""}{tag}</td><td class="q">{q}</td><td class="s">{"" if once else cite}</td></tr>')
     if not lines:
         return ""
     tail = ""
     if once:
         sid, ref = next(iter(cites))
         tail = (f'<p class="srcline">Source: {source_link(sources, sid)}'
-                + (f", {esc(unparen(ref))}" if ref else "") + "</p>")
+                + (f", {esc(_ref(ref))}" if ref else "") + "</p>")
     return f'<table class="facts">{FACT_COLS}<tbody>{"".join(lines)}</tbody></table>{tail}'
 
 
 def _odds(p: dict, summary: dict) -> str:
-    out = []
+    """The chance of each fast spin at this brightness, with the spread between surveys where there is one."""
+    out, spread = [], False
     rng = p.get("range") or {}
     for key, name in SPIN_SHARES:
         v = p.get(key, summary.get(key))
         if not is_num(v):
             continue
         r = rng.get(key) if isinstance(rng.get(key), (list, tuple)) and len(rng.get(key)) == 2 else None
-        spread = (f'<u style="left:{_clamp(r[0] * 100):.0f}%;width:{_clamp((r[1] - r[0]) * 100):.0f}%"></u>'
-                  if r and all(is_num(x) for x in r) else "")
-        out.append(f'<span class="lab">Faster than {name}</span><span class="meter" aria-hidden="true">'
-                   f'<i style="width:{_clamp(v * 100):.0f}%"></i>{spread}</span>'
-                   f'<span class="n">{hundredths(v)} in 100</span>'
-                   + (f'<span class="rng">surveys: {hundredths(r[0])} to {hundredths(r[1])}</span>' if spread else '<span></span>'))
+        r = r if r and all(is_num(x) for x in r) else None
+        spread = spread or r is not None
+        out.append((name, chance(v), f"{hundredths(r[0])}–{hundredths(r[1])}%" if r else ""))
     if not out:
         return ""
-    return f'<p class="cap">Of 100 asteroids this bright</p><div class="odds">{"".join(out)}</div>'
+    head = ('<th scope="col">Spin period under</th><th scope="col" class="num">Chance</th>'
+            + ('<th scope="col" class="num">Across surveys</th>' if spread else ""))
+    body = "".join(f'<tr><th scope="row">{esc(n)}</th><td class="num" data-l="Chance">{esc(c)}</td>'
+                   + (f'<td class="num" data-l="Across surveys">{esc(x)}</td>' if spread else "") + "</tr>"
+                   for n, c, x in out)
+    return f'<table class="tbl mini odds"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
 
 def _shares(shares: dict) -> str:
+    """The share of each class at this brightness, largest first."""
     keys = [c for c in ("S", "C", "X", "other") if is_num(shares.get(c))]
     keys += [c for c in sorted(shares) if c not in keys and is_num(shares.get(c))]
     if not keys:
         return ""
-    order = sorted(keys, key=lambda c: -shares[c])
-    bars = "".join(f'<span class="c{min(i, 3) + 1}" style="width:{_clamp(shares[c] * 100):.1f}%">'
-                   f'{esc(c) if hundredths(shares[c]) >= 6 else ""}</span>' for i, c in enumerate(order))
-    key = "".join(f'<span><b>{hundredths(shares[c])}</b> {esc(CLASS_LABELS.get(c, c))}</span>' for c in order)
-    return (f'<p class="cap">Class, of 100 asteroids this bright</p>'
-            f'<div class="shares" aria-hidden="true">{bars}</div><div class="shares-key">{key}</div>')
+    body = "".join(f'<tr><th scope="row">{esc(cap(CLASS_LABELS.get(c, c)))}</th>'
+                   f'<td class="num" data-l="Share">{hundredths(shares[c])}%</td></tr>'
+                   for c in sorted(keys, key=lambda c: -shares[c]))
+    return ('<table class="tbl mini shares"><thead><tr><th scope="col">Class</th><th scope="col" class="num">Share</th>'
+            f'</tr></thead><tbody>{body}</tbody></table>')
 
 
 def prior(row_id: str, row: dict, summary: dict, implied: bool = False) -> str:
-    """What is typical, for a row nobody has measured: the range first, never a single figure.
+    """The estimate, for a row no source on file gives a value for: the range first, never a single figure.
 
-    `implied` marks a reflectivity that follows from the asteroid's own measured size and H:
+    `implied` marks a reflectivity that follows from the asteroid's own measured diameter and H:
     it is not what is typical at its brightness, and it can come out above 100%.
     """
     if row.get("state") not in ("prior", "unchecked"):
@@ -966,16 +1142,12 @@ def prior(row_id: str, row: dict, summary: dict, implied: bool = False) -> str:
     if is_num(p.get("q05")) and is_num(p.get("q95")):
         surface = row_id == "surface"
         k, unit = scale_for(row_id, "albedo" if surface else "", p.get("unit"), p["q95"])
-        if surface and implied:
-            name, how = "Reflectivity", "9 in 10, implied by its size and H"
-        elif surface:
-            name, how = "Reflectivity", "9 in 10 at this brightness"
-        else:
-            name, how = "From brightness", "9 in 10"
-        flag = "over 100% cannot be: its size or H is off" if surface and unit == "%" and p["q95"] * k > 100 else ""
+        name = "Reflectivity, estimated" if surface else f"{ROW_LABELS.get(row_id, cap(row_id))}, estimated"
+        how = f"{ESTIMATE_RANGE}, from its diameter and H" if surface and implied else ESTIMATE_RANGE
+        flag = "over 100% is impossible: its diameter or H is off" if surface and unit == "%" and p["q95"] * k > 100 else ""
         out.append(f'<table class="facts est">{FACT_COLS}<tbody><tr class="pr"><th scope="row">{name}</th>'
-                   f'<td class="v">{span(p["q05"] * k, p["q95"] * k, esc(unit), 2)}</td><td class="r">{how}</td>'
-                   f'<td class="q">{flag}</td><td class="s">{esc(unparen(p.get("basis")))}</td></tr></tbody></table>')
+                   f'<td class="v">{estimate_span(p["q05"] * k, p["q95"] * k, esc(unit))}</td><td class="r">{how}</td>'
+                   f'<td class="q">{flag}</td><td class="s">{esc(cap(plain(p.get("basis"))))}</td></tr></tbody></table>')
     if isinstance(p.get("shares"), dict):
         out.append(_shares(p["shares"]))
     if row_id == "spin":
@@ -991,7 +1163,7 @@ _REASONS = (
      lambda m: "unknown there" + (f", {m[1]}" if m[1] else "")),
     (re.compile(r"^the request to .* failed(?: on (\S+))?(?: \((.*)\))?$", re.I),
      lambda m: "request failed" + (f" {m[1]}" if m[1] else "") + (f", {m[2]}" if m[2] else "")),
-    (re.compile(r"^(?:.* is )?(older than this object)$", re.I), lambda m: m[1].lower()),
+    (re.compile(r"^(?:.* is )?(older than this asteroid)$", re.I), lambda m: m[1].lower()),
     (re.compile(r"^.* was (not read)$", re.I), lambda m: m[1]),
     (re.compile(r"^.* was not checked$", re.I), lambda m: ""),          # the line already says so
 )
@@ -1026,35 +1198,40 @@ def row(row_id: str, rw: dict, summary: dict, sources: dict, implied: bool = Fal
         data_date: str = "") -> str:
     state = rw.get("state", "unchecked")
     facts = rw.get("facts", [])
+    counted = state in ("measured", "limit")
     parts = [gauge(row_id, rw, sources, gates)]
     if row_id == "tracking":
         window = [f for f in facts if str(f.get("label", "")).startswith("window")]
         rest = [f for f in facts if f not in window]
-        parts.append(facts_table(row_id, rest, sources))
+        parts.append(facts_table(row_id, rest, sources, counted))
         when = {f["label"]: f.get("value") for f in window}
         if isinstance(when.get("window start"), str) and isinstance(when.get("window end"), str):
             parts.append(timeline(when["window start"], when["window end"], data_date))
         parts.append(facts_table(row_id, window, sources))
     else:
-        parts.append(facts_table(row_id, facts, sources))
+        parts.append(facts_table(row_id, facts, sources, counted))
     parts.append(prior(row_id, rw, summary, implied))
     note = rw.get("note")
     if rw.get("unchecked"):
         # one line names every source not checked and says why; the note keeps what is not about them
         whys, note = unchecked_reasons(rw)
-        names = "; ".join(source_link(sources, s) + (f', <span class="dim">{esc(w)}</span>' if w else "")
+        names = "; ".join(source_link(sources, s) + (f", {esc(w)}" if w else "")
                           for s, w in zip(rw["unchecked"], whys))
-        parts.append(f'<p class="un">{glyph("unchecked")}<span>Not checked: {names}</span></p>')
+        parts.append(f'<p class="un">{NOT_CHECKED}: {names}</p>')
     for c in rw.get("conflicts", []):
-        parts.append(f'<p class="conflict">Conflict: {esc(c)}</p>')
+        parts.append(f'<p class="conflict"><span class="k">Sources disagree</span> {esc(c)}</p>')
     if note:
         parts.append(f'<p class="note">{esc(note)}</p>')
     if not "".join(parts):
         parts.append('<p class="none">None on file</p>')
+    heading = "Delta-v (Δv)" if row_id == "reach" else ROW_LABELS[row_id]    # spelled out once on the page
+    # A state mark answers "how sure is this?". Δv and the orbit are JPL's for every asteroid, so they carry none;
+    # nor does a sunlight push that is not measured, since nothing estimates it (docs/design.md section 3).
+    marked = row_id not in ("reach", "tracking") and (row_id not in ("push", "density") or counted)
     return (
         f'<section class="row" id="row-{row_id}" data-row="{row_id}" data-state="{esc(state)}" '
-        f'aria-labelledby="h-{row_id}"><div class="rh"><h3 id="h-{row_id}">{ROW_LABELS[row_id]}</h3>'
-        f'{state_tag(state)}</div><div class="rb">{"".join(parts)}</div></section>'
+        f'aria-labelledby="h-{row_id}"><div class="rh"><h3 id="h-{row_id}">{heading}</h3>'
+        f'{state_tag(state) if marked else ""}</div><div class="rb">{"".join(parts)}</div></section>'
     )
 
 
@@ -1074,19 +1251,19 @@ def ladder(rungs: list) -> str:
     items = []
     for i, r in enumerate(rungs, 1):
         status = r.get("status", "unknown")
-        mark = {"measured": "measured", "prior": "prior"}.get(status, "unknown")
         name = esc(RUNG_LABELS.get(r.get("rung"), r.get("rung")))
         if r.get("rung") in RUNG_LABELS:
             name = method_link(f'rung-{r["rung"]}', name)
         parts = [p for p in r.get("parts") or [] if p.get("label") and p.get("text")]
         if parts:       # the last rung's two amounts, one line each: the parts' texts joined are the rung's text
-            said = ('<table class="tbl prec"><thead><tr><th scope="col">Amount</th><th scope="col">Status</th></tr></thead><tbody>'
+            said = ('<table class="tbl prec"><thead><tr><th scope="col">Amount</th><th scope="col">Done so far</th></tr></thead><tbody>'
                     + "".join(f'<tr><th scope="row">{esc(p["label"])}</th><td>{esc(cap(p["text"]))}</td></tr>'
                               for p in parts) + '</tbody></table>')
         else:
             said = f'<p>{esc(r.get("text"))}</p>'
+        # no state mark: a step is not a value, and its sentence says what it rests on
         items.append(f'<li data-status="{esc(status)}"><span class="n">{i}</span><h3>{name}</h3>'
-                     f'{state_tag(mark, RUNG_WORDS.get(status, cap(status)))}<div class="rt">{said}</div></li>')
+                     f'<div class="rt">{said}</div></li>')
     return f'<ol class="ladder">{"".join(items)}</ol>'
 
 
@@ -1095,75 +1272,73 @@ def _q(d, a="q05", b="q95"):
     return (d.get(a), d.get(b)) if is_num(d.get(a)) and is_num(d.get(b)) else None
 
 
-UNIT_KEY = {"": "None", "u": "None or some", "s": "Some", "ru": "Iron-rich or not", "r": "Iron-rich"}
+VALUE_PARTS = (("metal", "Platinum-group metal, in metal grains"), ("water", "Water, bound in minerals"))
 
 
-def _units(spec: list) -> str:
-    """100 cells, the chance of nothing first, each kind counted in the key."""
-    spec = [(c, n) for c, n in spec if n > 0]
-    cells = "".join(f'<i class="{c}"></i>' * n for c, n in spec)
-    key = "".join(f'<span><i class="{c}"></i>{UNIT_KEY[c]}<b>{n}</b></span>' for c, n in spec)
-    return f'<p class="cap">100 asteroids like it</p><div class="units" aria-hidden="true">{cells}</div><div class="ukey">{key}</div>'
+def _figure(x: float) -> str:
+    """An amount already rounded by the pipeline, as a table cell: '400', '4,000', '0.07', '2.2 million'."""
+    if x >= 1e6:
+        return f"{num(x / 1e6, 2)}\u00a0million"
+    return f"{x:,.0f}" if x >= 100 else f"{x:.3f}".rstrip("0").rstrip(".")
 
 
-def _metal_cells(val: dict):
-    metal, iron = val.get("metal") or {}, val.get("iron_rich") or {}
-    lo = metal.get("p_nothing_lo", metal.get("p_nothing"))
-    hi = metal.get("p_nothing_hi", metal.get("p_nothing"))
-    if not (is_num(lo) and is_num(hi)):
+def _amount(pair, k: float) -> str:
+    lo, hi = (v * k for v in pair)
+    if lo == hi:
+        return _figure(lo)
+    a, b = _figure(lo), _figure(hi)
+    return f"{a} to {b}" if ("million" in a) != ("million" in b) else f"{a}–{b}"
+
+
+def _amounts(rows: list, key: str, unit: str) -> tuple[str, list[str]] | None:
+    """(the column's unit, its cells) for amounts the record carries as numbers (value.table's kg_n, tonnes_n):
+    kg, or t when the largest is 10,000 kg or more, so the unit is in the header and not in the cells. None when a
+    row carries its figure only as text."""
+    if any(r.get(key.removesuffix("_n")) and not r.get(key) for r in rows):
         return None
-    a, b = hundredths(lo), hundredths(hi)
-    r = hundredths(iron["p_lo"]) if is_num(iron.get("p_lo")) else 0
-    rhi = hundredths(iron["p_hi"]) if is_num(iron.get("p_hi")) else r
-    some = 100 - b - rhi
-    return [("", a), ("u", b - a), ("s", max(some, 0)), ("ru", rhi - r), ("r", r)]
-
-
-def _water_cells(val: dict):
-    water = val.get("water") or {}
-    lo = water.get("p_nothing_lo", water.get("p_nothing"))
-    hi = water.get("p_nothing_hi", water.get("p_nothing"))
-    if not (is_num(lo) and is_num(hi)):
-        return None
-    a, b = hundredths(lo), hundredths(hi)
-    return [("", a), ("u", b - a), ("s", 100 - b)]
-
-
-CELL_CLASS = {"none": "", "none_or_some": "u", "some": "s", "iron_rich_or_not": "ru", "iron_rich": "r"}   # value.table cell ids
-VALUE_COLS = {"metal": (("Of 100", "of100"), ("Metal", "kg"), ("At list price", "usd")),
-              "water": (("Of 100", "of100"), ("Water", "tonnes"))}
+    top = max((max(r[key]) for r in rows if r.get(key)), default=0)
+    if unit == "kg" and top >= 10_000:
+        unit, k = "t", 0.001
+    else:
+        k = 1.0
+    return unit, [_amount(r[key], k) if r.get(key) else "" for r in rows]
 
 
 def _vtable(part: str, rows: list) -> str:
-    """One price table from record.value.table: every figure as the record's statements print it."""
-    cols = VALUE_COLS[part]
-    head = '<th scope="col"><span class="vh">Holds</span></th>' + "".join(f'<th class="num" scope="col">{h}</th>' for h, _ in cols)
+    """One price table from record.value.table: every figure as the record's statements print it, the units in the
+    headers (docs/design.md section 6). A column with nothing in it is left out."""
+    cols = [("Of 100", [plain(r.get("of100") or "") for r in rows])]
+    if part == "metal":
+        got = _amounts(rows, "kg_n", "kg")
+        cols.append((f"Metal ({got[0]})", got[1]) if got else ("Metal", [plain(r.get("kg") or "") for r in rows]))
+        cols.append(("At list price ($)", [plain(r.get("usd") or "").replace("$", "") for r in rows]))
+    else:
+        got = _amounts(rows, "tonnes_n", "t")
+        cols.append(("Water (t)", got[1]) if got else ("Water", [plain(r.get("tonnes") or "") for r in rows]))
+    cols = [(h, cells) for h, cells in cols if any(cells)]
+    head = '<th scope="col">Holds</th>' + "".join(f'<th class="num" scope="col">{h}</th>' for h, _ in cols)
     body = "".join(
         f'<tr><th scope="row">{esc(r.get("label"))}</th>'
-        + "".join(f'<td class="num" data-l="{h}">{esc(r.get(k) or "")}</td>' for h, k in cols) + "</tr>"
-        for r in rows)
+        + "".join(f'<td class="num" data-l="{h}">{esc(cells[i])}</td>' for h, cells in cols) + "</tr>"
+        for i, r in enumerate(rows))
     return f'<table class="tbl vt"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
 
 
 def value(rec: dict) -> str:
+    """What is in the rock: the record's own table or sentences, the chance of nothing first. The mass is
+    the summary's to say."""
     val = rec.get("value") or {}
     if rec.get("gone"):
         return '<p class="none">No estimate: it no longer exists</p>'
     out = []
-    mass = _q((rec.get("summary") or {}).get("mass_t"))
-    if mass:
-        out.append(f'<p class="mass"><span>Mass of the whole asteroid</span><b>{amount(mass[0], mass[1], "t")}</b>'
-                   f'<span>9 in 10</span></p>')
     table = val.get("table")
     if table and not val.get("sample"):
-        for part, title in (("metal", "Platinum-group metal, in metal grains"), ("water", "Water, bound in minerals")):
+        for part, title in VALUE_PARTS:
             p = table.get(part) or {}
-            cells = [(CELL_CLASS.get(c.get("id"), ""), c.get("n") or 0) for c in p.get("cells") or []]
-            if not cells and not p.get("rows"):
-                continue
-            out.append(f'<div class="vblock"><div><h3>{title}</h3>{_units(cells) if cells else ""}</div>'
-                       f'<div>{_vtable(part, p.get("rows") or [])}</div></div>')
-        notes = [n for n in table.get("notes") or [] if n] + ([f'Prices: {val["basis"]}'] if val.get("basis") else [])
+            if p.get("rows"):
+                out.append(f'<div class="vblock"><h3>{title}</h3>{_vtable(part, p["rows"])}</div>')
+        priced = any(r.get("usd") for r in (table.get("metal") or {}).get("rows") or [])
+        notes = [n for n in table.get("notes") or [] if n] + ([f'Prices: {val["basis"]}'] if val.get("basis") and priced else [])
         if notes:
             out.append(f'<div class="foot-notes">{"".join(f"<p>{esc(n)}</p>" for n in notes)}</div>')
         return f'<div class="value">{"".join(out)}</div>'
@@ -1172,16 +1347,16 @@ def value(rec: dict) -> str:
     if statements:
         water_ids = ("water", "sample")
         if len(ids) == len(statements):
-            metal_s = [s for s, i in zip(statements, ids) if not str(i).startswith(water_ids)]
-            water_s = [s for s, i in zip(statements, ids) if str(i).startswith(water_ids)]
+            said = {"metal": [s for s, i in zip(statements, ids) if not str(i).startswith(water_ids)],
+                    "water": [s for s, i in zip(statements, ids) if str(i).startswith(water_ids)]}
         else:
-            metal_s, water_s = statements, []
-        for title, cells, said in (("Platinum-group metal, in metal grains", _metal_cells(val), metal_s),
-                                   ("Water, bound in minerals", _water_cells(val), water_s)):
-            if not said and not cells:
-                continue
-            out.append(f'<div class="vblock"><div><h3>{title}</h3>{_units(cells) if cells else ""}</div>'
-                       f'<ul class="stm">{"".join(f"<li>{esc(s)}</li>" for s in said)}</ul></div>')
+            said = {"metal": statements, "water": []}
+        for part, title in VALUE_PARTS:
+            if said[part]:
+                out.append(f'<div class="vblock"><h3>{title}</h3>'
+                           f'<ul class="stm">{"".join(f"<li>{esc(s)}</li>" for s in said[part])}</ul></div>')
+        if not said["metal"]:                   # nothing priced: the price rule has nothing to say
+            val = {k: v for k, v in val.items() if k != "basis"}
     else:
         # Only when the pipeline wrote no sentences: the bare ranges, the chance of nothing first.
         metal, water = val.get("metal") or {}, val.get("water") or {}
@@ -1189,21 +1364,21 @@ def value(rec: dict) -> str:
         if is_num(metal.get("p_nothing")):
             lines.append(("Chance of no separable metal", pct(metal["p_nothing"]), ""))
         if _q(metal.get("kg")):
-            lines.append(("Platinum-group metal, if any", amount(*_q(metal["kg"]), "kg"), "9 in 10"))
+            lines.append(("Platinum-group metal, if any", amount(*_q(metal["kg"]), "kg"), ESTIMATE_RANGE))
         if _q(metal.get("usd")):
             a, b = _q(metal["usd"])
-            lines.append(("That metal at list prices", f"{usd(a)} to {usd(b)}", "9 in 10"))
+            lines.append(("That metal at list prices", f"{usd(a)} to {usd(b)}", ESTIMATE_RANGE))
         if is_num(water.get("p_nothing")):
             lines.append(("Chance of no water", pct(water["p_nothing"]), ""))
         if _q(water.get("tonnes")):
-            lines.append(("Water, if any", amount(*_q(water["tonnes"]), "t"), "9 in 10"))
+            lines.append(("Water, if any", amount(*_q(water["tonnes"]), "t"), ESTIMATE_RANGE))
         if lines:
-            out.append('<dl class="kv">' + "".join(f"<dt>{a}</dt><dd>{b}" + (f' <span class="dim">{c}</span>' if c else "")
+            out.append('<dl class="kv">' + "".join(f"<dt>{a}</dt><dd>{esc(b)}" + (f' ({c})' if c else "")
                                                    + "</dd>" for a, b, c in lines) + "</dl>")
     if val.get("basis"):
         out.append(f'<p class="foot-notes">Prices: {esc(val["basis"])}</p>')
     if not out:
-        return '<p class="none">No estimate: no size on file</p>'
+        return '<p class="none">No estimate: no brightness on file</p>'
     return f'<div class="value">{"".join(out)}</div>'
 
 
@@ -1215,11 +1390,12 @@ def no_window(rec: dict) -> str:
 
 
 def settles(rec: dict) -> tuple[str, str]:
-    """(the gate an observation settles, the mission it belongs to), from the record's own gates; '' if unnamed."""
+    """(the condition an observation decides, the mission it belongs to), from the record's own gates; '' if
+    unnamed."""
     o = rec.get("observe") or {}
     m = (rec.get("missions") or {}).get(o.get("mission")) or {}
     g = _first(m.get("gates", []), lambda g: g.get("id") == o.get("gate") and g.get("label"))
-    return (g["label"], MISSION_LABELS.get(o["mission"], o["mission"]).lower()) if g else ("", "")
+    return (condition(g["label"]), MISSION_LABELS.get(o["mission"], o["mission"]).lower()) if g else ("", "")
 
 
 def nothing_ranked(rec: dict) -> str:
@@ -1231,8 +1407,8 @@ def nothing_ranked(rec: dict) -> str:
         return "orbit not good enough to find it again"
     states = [m.get("status") for m in missions]
     if "untested" not in states and all(states):
-        return "both missions rest on measurements"
-    return "no one observation would change a mission's result"
+        return "both verdicts rest on measurements"
+    return "no single observation would change a verdict"
 
 
 def next_window(rec: dict) -> tuple[str, str]:
@@ -1257,12 +1433,11 @@ def observe(rec: dict, observations: dict | None = None, sources: dict | None = 
         return f'<dl class="kv"><dt>Observation</dt><dd>None, {esc(nothing_ranked(rec))}</dd></dl>'
     lines = []
     gate, mission = settles(rec)
-    what = (observations or {}).get(o.get("best"))
+    what = obs_name(observations, o.get("best"))
     if gate and what:
         lines.append(("Observation", esc(what)))
         g = _first(((rec.get("missions") or {}).get(o.get("mission")) or {}).get("gates", []), lambda g: g.get("id") == o.get("gate"))
-        now = f'<span class="dim">, {chance(g["p"])} chance now</span>' if g and is_num(g.get("p")) and g.get("status") == "untested" else ""
-        lines.append(("Settles", f"{esc(gate)}, for {esc(mission)}{now}"))
+        lines.append(("Decides", f"{esc(gate)}, for {esc(mission)}"))     # its chance is under Missions, once
     elif o.get("text"):
         lines.append(("Observation", esc(o["text"])))
     kind, said = next_window(rec)
@@ -1271,8 +1446,27 @@ def observe(rec: dict, observations: dict | None = None, sources: dict | None = 
     elif o.get("needs"):
         lines.append(("Telescope", esc(cap(o["needs"]))))
     if o.get("unchecked"):                      # the measurement may already exist there
-        lines.append(("Check first", glyph("unchecked") + ", ".join(source_link(sources or {}, s) for s in o["unchecked"])))
+        lines.append((NOT_CHECKED, ", ".join(source_link(sources or {}, s) for s in o["unchecked"])))
     return '<dl class="kv">' + "".join(f"<dt>{a}</dt><dd>{b}</dd>" for a, b in lines) + "</dl>"
+
+
+def obs_name(observations: dict | None, oid, surface: bool = False) -> str:
+    """An observation's name from observe.toml: its technical name (`label`) on the record and reference layers,
+    its plain one (`plain`) on the surface. `observations` maps an id to {label, plain}, or to the label alone."""
+    o = (observations or {}).get(oid)
+    if isinstance(o, dict):
+        return (o.get("plain") if surface else None) or o.get("label") or ""
+    return o or ""
+
+
+def verdict(m: dict | None) -> tuple[str, str, str]:
+    """(the pipeline's status, the verdict as HTML with its mark, its chance in words or '')."""
+    status = (m or {}).get("status", "untested")
+    word = STATUS_WORDS.get(status, cap(status))
+    if status == "untested":
+        p = (m or {}).get("p")
+        return status, word, f"{esc(chance(p))} chance it fits" if is_num(p) else ""
+    return status, f"{glyph(status)}{word}", ""
 
 
 def missions(rec: dict) -> str:
@@ -1285,28 +1479,29 @@ def missions(rec: dict) -> str:
         rows = []
         for g in m.get("gates", []):
             st = g.get("status", "untested")
-            ch = (f'<span class="chance"><span class="meter" aria-hidden="true"><i style="width:{_clamp(g["p"] * 100):.0f}%"></i></span>'
-                  f'{chance(g["p"])}</span>') if st == "untested" and is_num(g.get("p")) else ""
+            ch = esc(chance(g["p"])) if st == "untested" and is_num(g.get("p")) else ""
             basis = GATE_BASIS.get(g.get("basis"), esc(g.get("basis")))
-            row_id = GATE_ROW.get(g.get("id"))
-            if g.get("basis") == "prior" and ((rec["rows"].get(row_id) or {}).get("state") == "unchecked"):
-                basis = "not checked"
-            text = f'<p class="gtext">{esc(unparen(g["text"]))}</p>' if g.get("text") else ""
-            what = esc(g.get("label"))
-            if g.get("id"):
+            row = rec["rows"].get(GATE_ROW.get(g.get("id"))) or {}
+            if g.get("basis") == "prior" and row.get("state") == "unchecked":
+                basis = f"estimated; a source {NOT_CHECKED.lower()}"     # its row names the source
+            note = plain(g.get("text") or "")
+            prose = bool(_ENDS_A_SENTENCE.search(note))         # a sentence is set as prose (docs/design.md section 5)
+            text = f'<p class="gtext{" t" if prose else ""}">{esc(note)}</p>' if note else ""
+            what = esc(condition(g.get("label")))
+            if rec.get("gone"):
+                # the method fails a gone asteroid's orbit condition with the reason (missions.toml [rules.gone]);
+                # the page names what failed, and the summary's Gone row gives the reason once
+                what, text = "Still exists", ""
+            elif g.get("id"):
                 what = method_link(f'g-{mid}-{g["id"]}', what)
-            rows.append(f'<tr data-status="{esc(st)}"><th scope="row">{what}{text}</th><td data-l="Status">{state_tag(st)}</td>'
-                        f'<td class="num" data-l="Chance">{ch}</td><td data-l="Basis">{basis}</td></tr>')
-        status = m.get("status", "untested")
-        if status == "untested":
-            verdict = f'<b>{chance(m.get("p"))}</b>chance of passing every gate{state_tag("untested")}'
-        elif status == "pass":
-            verdict = f'<b>{glyph("pass")}Pass</b>every gate measured'
-        else:
-            verdict = f'<b>{glyph("fail")}Fail</b>a measured gate fails'
-        out.append(f'<div class="mission" data-status="{esc(status)}"><h3>{name}</h3><p class="verdict">{verdict}</p>'
+            rows.append(f'<tr data-status="{esc(st)}"><th scope="row">{what}{text}</th>'
+                        f'<td data-l="Verdict">{CONDITION_WORDS.get(st, cap(st))}</td>'
+                        f'<td class="num" data-l="Chance it is met">{ch}</td><td data-l="Basis">{basis}</td></tr>')
+        status, word, said = verdict(m)
+        out.append(f'<div class="mission" data-status="{esc(status)}"><h3>{name}</h3>'
+                   f'<p class="verdict">{word}{", " + said if said else ""}</p>'
                    '<table class="tbl gates"><colgroup><col class="g1"><col class="g2"><col class="g3"><col class="g4"></colgroup>'
-                   '<thead><tr><th scope="col">Gate</th><th scope="col">Status</th><th scope="col" class="num">Chance</th>'
+                   '<thead><tr><th scope="col">Condition</th><th scope="col">Verdict</th><th scope="col" class="num">Chance it is met</th>'
                    f'<th scope="col">Basis</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
     return f'<div class="missions">{"".join(out)}</div>'
 
@@ -1339,8 +1534,8 @@ def source_row(sid: str, sources: dict, unchecked: bool = False) -> str:
         name = f'<a href="{esc(s["url"])}" rel="noopener">{name}</a>'
     use = esc(LICENCE_WORDS.get(s.get("licence"), s.get("licence")))
     if unchecked:
-        use = f'{glyph("unchecked")}Not checked for this asteroid'
-    return (f'<tr id="src-{esc(sid)}"><th scope="row">{name}<p class="gtext">{esc(unparen(public_text(s.get("citation"))))}</p></th>'
+        use = f"{NOT_CHECKED} for this asteroid"
+    return (f'<tr id="src-{esc(sid)}"><th scope="row">{name}<p class="gtext">{esc(plain(public_text(s.get("citation"))))}</p></th>'
             f'<td class="num" data-l="Edition">{date(s["edition"]) if s.get("edition") else ""}</td>'
             f'<td class="num" data-l="Fetched">{fetched(s)}</td><td data-l="Shown here">{use}</td></tr>')
 
@@ -1380,12 +1575,25 @@ def _squash(s) -> str:
 # ---------------------------------------------------------------- the summary: one list of label, value, detail, state
 
 def _class_word(c: str) -> str:
-    return CLASS_WORDS.get(draws_mod.class_group(c) or "", f"Class {c}")
+    group = draws_mod.class_group(c) or ""
+    if group in CLASS_WORDS:
+        return CLASS_WORDS[group]
+    return OTHER_CLASS_WORDS.get(str(c).strip()[:1].upper(), "Other type")
 
 
 def _held(sources: dict, sid: str) -> str:
     """The detail beside a value on file that the page may not print: whose it is."""
-    return f"{short_name(sources, sid)}, not shown here" if sid else POINTER
+    return f"in {source_name(sources, sid)}" if sid else "in a source whose values are not shown"
+
+
+NOT_SHOWN = "Not shown"         # a measurement on file whose source's licence keeps it off the page
+
+
+def cited(sources: dict, f: dict) -> str:
+    """Whom a value is cited to in a summary: its source, or, for a published paper, the paper."""
+    if f.get("source") == "curated" and f.get("ref"):
+        return plain(f["ref"]).split(",")[0].strip()
+    return source_name(sources, f.get("source", ""))
 
 
 def _density(rec: dict, sources: dict):
@@ -1396,6 +1604,7 @@ def _density(rec: dict, sources: dict):
 
 
 GROUP = None        # a summary item whose value is GROUP is a heading over the items after it
+BEST_NEXT = "Best next observation"
 
 
 def summary_items(rec: dict, sources: dict, observations: dict | None = None) -> list[tuple]:
@@ -1406,126 +1615,144 @@ def summary_items(rec: dict, sources: dict, observations: dict | None = None) ->
     gone = rec.get("gone") or {}
     if gone:                                # first, so nothing below reads as if it were still there
         items.append(("Gone", date(gone["date"]) if gone.get("date") else "Yes", gone.get("text") or "", None))
-    # size: the value the size row rests on, its range, how and by whom
+    # diameter: the value the size row rests on, its range and whose it is
     srow = rows.get("size") or {}
     sstate = srow.get("state", "unchecked")
     s = size_of(rec, sources)
     if s and sstate in ("measured", "limit") and s["state"] == sstate:
         k, unit = scale_for("size", "", "m", s["hi"] or s["mid"])
-        how = ", ".join(x for x in (unparen(html.unescape(grade("size", s.get("quality")))), source_name(sources, s["source"])) if x)
+        first = _first(srow.get("facts", []), lambda f: used(f) and f.get("source") == s["source"] and _metres(f))
+        who = cited(sources, first or {"source": s["source"]})
         if sstate == "measured":
-            rng = f"{span(s['lo'] * k, s['hi'] * k, unit, 3)}, {ONE_SIGMA}, " if s["lo"] else ""
-            items.append(("Size", f'{num(s["mid"] * k, 3)} {u(unit)}', rng + how, sstate))
+            rng = f"{span(s['lo'] * k, s['hi'] * k, unit, 3)} ({ONE_SIGMA}), " if s["lo"] else ""
+            items.append(("Diameter", f'{num(s["mid"] * k, 3)} {u(unit)}', rng + who, sstate))
         else:
-            word = "under" if s["kind"] == "upper" else "over"
-            items.append(("Size", f'{word} {num(s["mid"] * k, 3)} {u(unit)}', "a limit, " + how, sstate))
+            items.append(("Diameter", f'{BOUND_SIGN.get(s["kind"], "")}{num(s["mid"] * k, 3)} {u(unit)}', who, sstate))
     elif sstate in ("measured", "limit"):
         first = _first(srow.get("facts", []), lambda f: used(f) and _metres(f) and is_num(f.get("value")))
-        items.append(("Size", "On file", _held(sources, (first or {}).get("source", "")), sstate))
+        items.append(("Diameter", NOT_SHOWN, _held(sources, (first or {}).get("source", "")), sstate))
     elif s and s["lo"]:
         k, unit = scale_for("size", "", "m", s["hi"])
-        items.append(("Size", span(s["lo"] * k, s["hi"] * k, "", 2) + f" {u(unit)}", "9 in 10, from brightness", sstate))
+        items.append(("Diameter", estimate_span(s["lo"] * k, s["hi"] * k) + f" {u(unit)}", ESTIMATE_RANGE, sstate))
     else:
-        items.append(("Size", "None on file", "no brightness on file", sstate))
+        items.append(("Diameter", "None", "no brightness on file", None))
     # spin: the period the row rests on, as a source the page may print gives it
     prow = rows.get("spin") or {}
     pstate = prow.get("state", "unchecked")
     f, why = shown_period(rec, sources)
     rests_on = ((summ.get("period") or {}).get("rests_on")
                 or (_first(prow.get("facts", []), lambda f: used(f) and _is_period(dict(f, kind="value"))) or {}).get("source", ""))
+    adopted = _first(prow.get("facts", []), lambda f: used(f) and _is_period(f))
     if f:
         k, unit = scale_for("spin", "", f["unit"], f["value"])
-        items.append(("Spin", f'{num(f["value"] * k)} {u(unit)}', f"one turn, {source_name(sources, f.get('source'))}", pstate))
+        items.append(("Spin", f'{num(f["value"] * k)} {u(unit)}', f"time for one turn, {cited(sources, f)}", pstate))
+    elif pstate == "measured" and prow.get("conflicts") and adopted and displayable(adopted, sources):
+        # the period the ledger uses first, then each other period the page may print that disagrees with it
+        # ("250 h or 2.02 h"); a period whose source's values are not shown is named in the Data section's line
+        sec = lambda g: g["value"] * TIME_S[g["unit"]]
+        said, shown = [], []
+        for g in [adopted] + [g for g in prow.get("facts", []) if used(g) and _is_period(g) and displayable(g, sources)]:
+            if all(ledger_mod.periods_differ(sec(g), x) for x in shown):
+                shown.append(sec(g))
+                k, unit = scale_for("spin", "", g["unit"], g["value"])
+                said.append(f'{num(g["value"] * k)} {u(unit)}')
+        who = f", {cited(sources, adopted)}" if len(said) == 1 else ""
+        items.append(("Spin", " or ".join(said), f"time for one turn{who}; sources disagree", pstate))
     elif pstate == "measured":
-        items.append(("Spin", "On file", _held(sources, rests_on) if why == POINTER else why, pstate))
+        items.append(("Spin", NOT_SHOWN, _held(sources, rests_on) if why == POINTER or prow.get("conflicts") else why, pstate))
     elif pstate == "limit":
-        b = _first(prow.get("facts", []), lambda f: f.get("kind") in ("upper", "lower") and used(f)
-                   and displayable(f, sources) and _is_period(dict(f, kind="value")))
-        if b:
-            k, unit = scale_for("spin", "", b["unit"], b["value"])
-            word = "under" if b["kind"] == "upper" else "over"
-            items.append(("Spin", f'{word} {num(b["value"] * k)} {u(unit)}', f"a limit, {source_name(sources, b.get('source'))}", pstate))
+        bound = _first(prow.get("facts", []), lambda f: f.get("kind") in ("upper", "lower") and used(f)
+                       and _is_period(dict(f, kind="value")))
+        # the bound itself, or, where its source's values are not shown, the same number from a source that repeats
+        # it without the sign (ledger.toml [period].copy_of_a_limit): the number is that source's to print
+        b = bound if bound and displayable(bound, sources) else None
+        copy = None if b or not bound else _first(prow.get("facts", []), lambda f: not used(f) and _is_period(f)
+                                                  and displayable(f, sources) and f["value"] * TIME_S[f["unit"]]
+                                                  == bound["value"] * TIME_S[bound["unit"]])
+        shown = b or copy
+        if shown:
+            k, unit = scale_for("spin", "", shown["unit"], shown["value"])
+            items.append(("Spin", f'{BOUND_SIGN.get(bound["kind"], "")}{num(shown["value"] * k)} {u(unit)}',
+                          f"time for one turn, a bound; {cited(sources, shown)}", pstate))
         else:
-            items.append(("Spin", "On file", _held(sources, rests_on), pstate))
+            items.append(("Spin", NOT_SHOWN, _held(sources, rests_on), pstate))
     else:
         p = (prow.get("prior") or {}).get("p_fast_2_2h", summ.get("p_fast_2_2h"))
         if is_num(p):
-            items.append(("Spin", f"{hundredths(p)} in 100", f"this bright turn faster than once in {SPIN_SHARES[0][1]}", pstate))
+            items.append(("Spin", f"{esc(chance(p))} under {SPIN_SHARES[0][1]}", "time for one turn", pstate))
         else:
-            items.append(("Spin", "None on file", "no brightness on file", pstate))
-    # made of: the class and reflectivity the surface row rests on, or the shares at this brightness
+            items.append(("Spin", "None", "no brightness on file", None))
+    # composition: the class (or reflectivity) the surface row rests on, or the shares at this brightness
     crow = rows.get("surface") or {}
     cstate = crow.get("state", "unchecked")
     pick = lambda pred: _first(crow.get("facts", []), lambda f: used(f) and displayable(f, sources) and pred(f))
     cls = pick(lambda f: f.get("label") == "class" and isinstance(f.get("value"), str))
     alb = pick(lambda f: _ALBEDO.search(f.get("label") or "") and is_num(f.get("value")))
-    if cstate in ("measured", "limit") and (cls or alb):
-        word = _class_word(cls["value"]) if cls else ""
-        # the class in the detail only where the value names a group, not the class itself
-        bits = [f"class {cls['value']}" if cls and not word.startswith("Class ") else "",
-                f"reflectivity {pct(alb['value'])}" if alb and cls else ""]
-        who = ", ".join(dict.fromkeys(source_name(sources, x["source"]) for x in (cls, alb) if x))
-        value = esc(word) if cls else f'{pct(alb["value"])} {u("reflectivity")}'
-        items.append(("Made of", value, ", ".join(x for x in bits + [who] if x), cstate))
-    elif cstate in ("measured", "limit"):
+    # Composition is its class. A measured reflectivity alone does not give one: it narrows the estimate, which is
+    # shown as an estimate; the reflectivity itself is in the Data section.
+    if cstate in ("measured", "limit") and cls:
+        items.append(("Composition", esc(_class_word(cls["value"])), cited(sources, cls), cstate))
+    elif cstate in ("measured", "limit") and not alb and _first(crow.get("facts", []), lambda f: used(f) and f.get("label") == "class"):
         first = _first(crow.get("facts", []), lambda f: used(f))
-        items.append(("Made of", "On file", _held(sources, (first or {}).get("source", "")), cstate))
+        items.append(("Composition", NOT_SHOWN, _held(sources, (first or {}).get("source", "")), cstate))
     else:
+        measured_alb = cstate in ("measured", "limit")
+        if measured_alb:
+            cstate = "prior"
         sh = (crow.get("prior") or {}).get("shares") or summ.get("class") or {}
         if all(is_num(sh.get(c)) for c in ("S", "C", "X", "other")):
-            items.append(("Made of", f"{hundredths(sh['S'])} in 100 stony",
-                          f"{hundredths(sh['X'])} metal or rock, {hundredths(sh['C'])} carbon-rich, {hundredths(sh['other'])} other",
-                          cstate))
+            items.append(("Composition", f"{hundredths(sh['S'])}% stony",
+                          f"{hundredths(sh['X'])}% possibly metallic, {hundredths(sh['C'])}% carbon-rich, "
+                          f"{hundredths(sh['other'])}% other", cstate))
         else:
-            items.append(("Made of", "None on file", "no brightness on file", cstate))
-    # mass: nobody measures it here; it follows from the size and a density, the asteroid's own where one is on file
+            items.append(("Composition", "Not classified", "no class on file", None) if measured_alb
+                         else ("Composition", "None", "no brightness on file", None))
+    # mass: nobody measures it here; it follows from the diameter and a density, the asteroid's own where one is on file
     m = _q(summ.get("mass_t"))
     if m:
         rho = _density(rec, sources) if summ.get("mass_basis") == "density" else None
         if rho is not None:
-            said = (f"9 in 10, from its size and its density, {with_unit(num(rho['value'], 4), 'kg/m³')}, "
-                    f"{source_name(sources, rho.get('source'))}" if displayable(rho, sources)
-                    else f"9 in 10, from its size and its density on file, {short_name(sources, rho.get('source'))}")
-            # both inputs measured: the mass is as measured as its size; else it is no better than the size
+            # both inputs measured: the mass is as measured as its diameter; else it is no better than the diameter
             state = "measured" if sstate == "measured" else sstate if sstate != "limit" else "prior"
+            said = f"{ESTIMATE_RANGE}, from its diameter and density"
         else:
-            said, state = "9 in 10, from size and class", "unchecked" if sstate == "unchecked" else "prior"
+            state, said = "prior", f"{ESTIMATE_RANGE}, from its diameter and a density for its class"
         items.append(("Mass", amount(m[0], m[1], u("t")), said, state))
-    # reach
+    # Δv
     dv, days = delta_v(rec), trip_days(rec)
-    items.append(("Reach", f'{dv:.3f} {u("km/s")}' if dv is not None else "None on file",
-                  f"{count(days)} d round trip" if days is not None else "", (rows.get("reach") or {}).get("state", "unchecked")))
-    # missions, under their own heading: the value is the status where it is settled, so no second mark
+    # no state mark: JPL gives every asteroid's Δv, so the mark would answer nothing
+    items.append((f'<abbr title="{esc(DV_TITLE)}">Δv</abbr>', f'{dv:.3f} {u("km/s")}' if dv is not None else "None",
+                  f"{count(days)} d round trip" if days is not None else "", None))
+    # the verdicts, under their own heading: the verdict is the value, so no state column
     items.append(("Missions", GROUP, "", None))
     for mid, name in MISSION_LABELS.items():
         mm = (rec.get("missions") or {}).get(mid)
         if not mm:
             items.append((name, "Not assessed", "", None))
-        elif mm.get("status") == "untested":
-            items.append((name, chance(mm.get("p")), "chance of passing every gate", "untested"))
-        elif mm.get("status") == "pass":
-            items.append((name, f'{glyph("pass")}Pass', "every gate measured", None))
-        elif gone:
-            items.append((name, f'{glyph("fail")}Fail', "", None))
-        else:
-            fails = [g.get("label") or "" for g in mm.get("gates", []) if g.get("status") == "fail"]
-            items.append((name, f'{glyph("fail")}Fail', "needs " + " and ".join(x[:1].lower() + x[1:] for x in fails), None))
-    # the one observation that would settle the most
+            continue
+        status, word, said = verdict(mm)
+        if status == "fail" and gone:
+            said = "it no longer exists"
+        elif status == "fail":
+            fails = [condition(g.get("label")) for g in mm.get("gates", []) if g.get("status") == "fail"]
+            said = "needs " + " and ".join(x[:1].lower() + x[1:] for x in fails if x)
+        items.append((name, word, html.unescape(said), None))
+    # the one observation that would most change the verdicts
     o = rec.get("observe")
     if o:
-        what = cap((observations or {}).get(o.get("best")) or o.get("best") or "")
+        what = cap(obs_name(observations, o.get("best"), surface=True) or o.get("best") or "")
         w = o.get("window") or {}
         kind, said = next_window(rec)
         if kind == "Next window":
-            detail = f"no window, JPL lists {said[:1].lower() + said[1:]}"
+            detail = f"no window: JPL lists {said[:1].lower() + said[1:]}"
         elif kind:
             detail = said[:1].lower() + said[1:]
         else:
-            detail = ", ".join(x for x in (o.get("needs") or "", f"window {w['start']} to {w['end']}"
+            detail = "; ".join(x for x in (o.get("needs") or "", f"window {w['start']} to {w['end']}"
                                            if w.get("start") and w.get("end") else "") if x)
-        items.append(("Would settle most", esc(what), detail, None))
+        items.append((BEST_NEXT, esc(what), detail, None))
     else:
-        items.append(("Would settle most", "None", "" if gone else nothing_ranked(rec), None))
+        items.append((BEST_NEXT, "None", "" if gone else nothing_ranked(rec), None))
     return items
 
 
@@ -1535,7 +1762,7 @@ def summary_list(items: list) -> str:
         if val is GROUP:
             rows.append(f'<tr class="grp"><th colspan="4" scope="rowgroup">{name}</th></tr>')
             continue
-        tag = state_tag(state) if state else ""
+        tag = state_tag(state, surface=True) if state else ""
         rows.append(f'<tr><th scope="row">{name}</th><td class="v">{val}</td>'
                     f'<td class="d">{nowrap_dates(detail)}</td><td class="s">{tag}</td></tr>')
     return f'<table class="sumlist"><tbody>{"".join(rows)}</tbody></table>'
@@ -1543,48 +1770,63 @@ def summary_list(items: list) -> str:
 
 # ---------------------------------------------------------------- the entry
 
-TOC = (("on-file", "On file"), ("difficulty", "Difficulty"), ("value", "What is in it"),
-       ("settle", "What would settle it"), ("missions", "Missions"), ("sources", "Sources"))
+TOC = (("data", "Data"), ("difficulty", "Difficulty"), ("value", "Metal and water"),
+       ("settle", BEST_NEXT), ("missions", "Missions"), ("sources", "Sources"))
+
+
+def value_title(rec: dict) -> str:
+    """The price tag's heading, named for what it holds: an asteroid a sample came back from has statements on
+    water alone."""
+    val = rec.get("value") or {}
+    ids = val.get("statement_ids") or []
+    if val.get("sample") and ids and all(str(i).startswith(("water", "sample")) for i in ids):
+        return "Water"
+    return "Metal and water"
 
 
 def entry(rec: dict, sources: dict, observations: dict | None = None, gates: dict | None = None,
           data_date: str = "") -> str:
     """<main id="entry">: the whole entry. Its <section id="summary"> is what the front page's readout lifts."""
     head, others = names(rec)
-    ident = [("Number", str(rec["number"]) if rec.get("number") else "none yet")]
+    ident = [("Number", str(rec["number"]))] if rec.get("number") else []     # the orbit row says how new it is
     if rec.get("name"):
         ident.append(("Designation", rec["designation"]))
-    first = first_observed(rec)
-    if first:
-        ident.append(("First observed", first))
     aka = [a for a in others if a not in (str(rec.get("number") or ""), rec["designation"])]
     if aka:
         ident.append(("Also", ", ".join(aka)))
     ident_html = "".join(f'<div><dt>{a}</dt><dd>{nowrap_dates(b)}</dd></div>' for a, b in ident)
+    ident_html = f'<dl class="ident">{ident_html}</dl>' if ident_html else ""
     summary = rec.get("summary") or {}
     # a reflectivity drawn for an asteroid whose size is measured follows from that size, not from its brightness
     implied = (rec["rows"].get("size") or {}).get("state") == "measured"
     data_date = data_date or rec.get("data_date") or ""
-    rows = "".join(row(rid, rec["rows"].get(rid) or {"state": "unchecked"}, summary, sources,
+    push, density = split_density(rec["rows"].get("push") or {"state": "unchecked"})
+    rows = "".join(row(rid, push if rid == "push" else rec["rows"].get(rid) or {"state": "unchecked"}, summary, sources,
                        implied and rid == "surface", (gates or {}).get(rid, ()), data_date) for rid in ROWS)
-    toc = "".join(f'<li><a href="#{a}">{b}</a></li>' for a, b in TOC)
+    if density:
+        rows += row("density", density, summary, sources)
+    # no observation ranked: the summary's one line says why, so the section would only repeat it
+    heads = tuple((a, value_title(rec) if a == "value" else b) for a, b in TOC if a != "settle" or rec.get("observe"))
+    toc = "".join(f'<li><a href="#{a}">{b}</a></li>' for a, b in heads)
     unchecked = {s for r in rec["rows"].values() for s in r.get("unchecked") or []} - set(rec.get("sources") or [])
     return (
         f'<main id="entry" class="page entry" data-key="{esc(rec["key"])}">'
         f'<section id="summary" aria-label="Summary">'
-        f'<header class="ehead"><h1>{esc(head)}</h1><dl class="ident">{ident_html}</dl></header>'
+        f'<header class="ehead"><h1>{esc(head)}</h1>{ident_html}</header>'
         f'<details class="toc-m"><summary>On this page</summary><ul>{toc}</ul></details>'
         f'<div class="sum">{rock(rec, sources)}{summary_list(summary_items(rec, sources, observations))}</div>'
         f'</section>'
-        f'<div class="body"><nav class="toc" aria-label="On this page"><ul>{toc}</ul></nav><div class="secs">'
-        f'<section class="sec" id="on-file"><h2>On file</h2>{rows}</section>'
-        f'<section class="sec" id="difficulty"><h2>Difficulty</h2>{ladder(rec.get("ladder") or [])}</section>'
-        f'<section class="sec" id="value"><h2>What is in it</h2>{value(rec)}</section>'
-        f'<section class="sec" id="settle"><h2>What would settle it</h2>{observe(rec, observations, sources)}</section>'
-        f'<section class="sec" id="missions"><h2>Missions</h2>{missions(rec)}</section>'
-        f'<section class="sec" id="sources"><h2>Sources</h2>{sources_table(used_sources(rec), sources, unchecked)}</section>'
-        f'</div></div></main>'
+        + define(_sections(toc, heads, [body for (a, _), body in zip(TOC, (
+            rows, ladder(rec.get("ladder") or []), value(rec), observe(rec, observations, sources) if rec.get("observe") else "",
+            missions(rec), sources_table(used_sources(rec), sources, unchecked))) if a != "settle" or rec.get("observe")]))
+        + '</main>'
     )
+
+
+def _sections(toc: str, heads, bodies) -> str:
+    """The entry's record layer: a section per TOC line, with the rail beside them."""
+    secs = "".join(f'<section class="sec" id="{a}"><h2>{b}</h2>{body}</section>' for (a, b), body in zip(heads, bodies))
+    return f'<div class="body"><nav class="toc" aria-label="On this page"><ul>{toc}</ul></nav><div class="secs">{secs}</div></div>'
 
 
 # ---------------------------------------------------------------- the page shell
@@ -1621,16 +1863,17 @@ def header(depth: int, data_date: str, current: str = "") -> str:
     items = "".join(
         '<li><a href="{}"{}>{}</a></li>'.format(rel(href, depth), ' aria-current="page"' if href == current else "", word)
         for href, word in NAV)
-    when = f'<p class="date">Data {date(data_date)}</p>'
     return (f'<header class="site"><a class="mark" href="{rel("index.html", depth)}">{rock_mark()}{SITE}</a>'
-            f'<span class="proto">prototype</span><nav aria-label="Site"><ul>{items}</ul></nav>{when}'
-            f'<details class="menu"><summary>Menu</summary><nav aria-label="Site menu"><ul>{items}</ul>{when}</nav></details>'
+            f'<span class="proto">prototype</span><nav aria-label="Site"><ul>{items}</ul></nav>'
+            f'<p class="date">Data {date(data_date)}</p>'
+            f'<details class="menu"><summary>Menu</summary><nav aria-label="Site menu"><ul>{items}</ul></nav></details>'
             '</header>\n')
 
 
 def footer(depth: int, data_date: str, method: str) -> str:
-    return (f'<footer class="site-foot"><span>Data as of {date(data_date)}</span>'
-            f'<span>Method <a href="{rel(METHOD_PAGE, depth)}">{esc(method)}</a></span></footer>\n')
+    """The data date where a phone's header has no room for it. The header carries it everywhere else."""
+    return f'<footer class="site-foot"><p>Data {date(data_date)}</p></footer>\n'
+
 
 
 def page(*, title: str, body: str, kind: str, depth: int, assets: dict, data_date: str,
@@ -1653,9 +1896,18 @@ def line(label: str, *parts: str, cls: str = "") -> str:
     return f'<div{c}><dt>{label}</dt><dd>{" ".join(p for p in parts if p)}</dd></div>'
 
 
+_ENDS_A_SENTENCE = re.compile(r"[.?!]['’)]?$")
+
+
 def v(text: str, plain: bool = False) -> str:
-    """The value itself. `plain` marks words rather than a quantity."""
-    return f'<b class="v{" t" if plain else ""}">{text}</b>'
+    """The value itself. `plain` marks words rather than a quantity: words written as sentences are prose (the
+    serif, class t), closed with a full stop; a name or a phrase stays in B612 (docs/design.md section 5)."""
+    said = re.sub(r"<[^>]+>", "", str(text)).strip()
+    prose = plain and (_ENDS_A_SENTENCE.search(said) or _SENTENCE_END.search(said))
+    if prose and not _ENDS_A_SENTENCE.search(said):
+        text = f"{text}."
+    # "w": words that are not a sentence. A list that also holds prose sets them in the serif too (gen._prose_blocks).
+    return f'<b class="v{" t" if prose else " w" if plain else ""}">{text}</b>'
 
 
 def r(text: str) -> str:

@@ -34,13 +34,13 @@ DENSITY = (
      "for A, D, K, L, O, R, T, V, Z as a group; this takes its widest non-metal row"),
 )
 DENSITY_X = (
-    ("dark", "pv < 0.10 (Tholen P)", 900, 2300, "quoted",
+    ("dark", "reflectivity under 10%, Tholen class P", 900, 2300, "quoted",
      "docs/research/value-inputs.md section 1.4 ('P is dark primitive material like C-types') and section 4, row Dark"),
-    ("mid_silicate", "0.10 <= pv < 0.30 (Tholen M), not metal-rich", 2000, 3500, "quoted",
+    ("mid_silicate", "reflectivity 10–30%, Tholen class M, not metal-rich", 2000, 3500, "quoted",
      "docs/research/value-inputs.md section 4, row M, silicate-dominated"),
-    ("mid_metal", "0.10 <= pv < 0.30 (Tholen M), metal-rich", 3000, 7500, "quoted",
+    ("mid_metal", "reflectivity 10–30%, Tholen class M, metal-rich", 3000, 7500, "quoted",
      "docs/research/value-inputs.md section 4, row M, metal-rich: porous mix (1986 DA surface 3.79) to solid iron"),
-    ("bright", "pv >= 0.30 (Tholen E)", 2000, 3300, "quoted",
+    ("bright", "reflectivity 30% or more, Tholen class E", 2000, 3300, "quoted",
      "docs/research/value-inputs.md section 4, row Bright enstatite (E)"),
 )
 
@@ -256,6 +256,7 @@ def build():
     w('unit = "kg/m3"')
     w('shape = "uniform"')
     w('kind = "quoted"')
+    w('cite = "Carry 2012, Planet. Space Sci. 73, 98, and the densities measured by spacecraft"')
     w('source = "docs/research/value-inputs.md section 4 (\'flat within the range\'). The ranges are that report\'s judgement from Carry 2012 and the direct densities in docs/research/ground-truth.md section 7.1; none of those bodies is under about 150 m"')
     w('spin_does_not_change_density = true')
     w('spin_does_not_change_density_kind = "quoted"')

@@ -172,8 +172,8 @@ def claims_for(key: str, rows: list[dict]) -> list[Claim]:
         finer, words = remark_grade(r)
         if finer is not None and words != (r["u"] or ""):
             quality = finer
-            notes.append(f"U column {r['u'] or 'blank'}; the remark says U = {words}"
-                         + (", and the lower is used" if " or " in words else ""))
+            if " or " in words:                        # the grade alone says the rest
+                notes.append(f"graded {words.replace('-', '−')}; the lower grade is used")
         if len(rows) > 1:
             notes.append(f"{len(rows)} analyses in the table")
         ref = f"analysis by {r['analyser'] or 'the Ondřejov group'}"

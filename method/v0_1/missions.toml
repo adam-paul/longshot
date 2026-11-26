@@ -21,15 +21,18 @@ order = ["surface", "capture"]
 
 [rules]
 # How gates become a status. The same for every mission type.
+# Printed on method.html, one sentence each, in the words a visitor reads (docs/design.md section 3): a gate is a
+# condition; pass, fail and untested read as met, failed and unclear for a condition, fits, ruled out and unclear
+# for a mission.
 gate = [
-  "pass or fail when a measurement decides it: the measured value clears the threshold by 2 of its stated one-sigma errors, or, with no stated error, by a factor of 2",
-  "untested otherwise, with p = the share of the object's 2,000 joint draws of size, class, reflectivity, density and spin that pass the gate",
-  "an untested p is never 0 or 1: with n draws it is held between 1/n and 1 - 1/n, and prints as 'under 1%' or 'over 99%'",
+  "A measurement decides a condition when it clears the line by 2 of its stated one-sigma errors, or by a factor of 2 if it states no error",
+  "Otherwise the condition is unclear. Its chance is the share of the asteroid's 2,000 joint draws of diameter, class, reflectivity, density and spin that meet it",
+  "An unclear chance is never 0 or 1. With n draws it stays between 1/n and 1 − 1/n, and prints as <1% or >99%",
 ]
 mission = [
-  "fail if any gate fails",
-  "pass if every gate passes",
-  "untested otherwise, with p = the share of joint draws that pass every gate; a gate decided by measurement is fixed in every draw",
+  "A mission is ruled out if any condition fails",
+  "It fits if every condition is met",
+  "Otherwise it is unclear, with the share of joint draws that meet every condition. A condition a measurement decides is the same in every draw",
 ]
 kind = "quoted"
 source = "DESIGN.md section 3 (known pass, known fail, untested with a probability) and docs/plan.md Appendix C, WP2"
@@ -52,7 +55,7 @@ alternatives = [
 [rules.period]
 # Which rotation period decides a spin gate.
 min_grade = 2
-decides = "a period graded U 2 or 3, or a published period with no grade on file"
+decides = "a period graded 2− or better, or a published period with no grade"
 does_not_decide = "a period whose only grade is under 2: the gate is untested and its text gives the period and the grade"
 kind = "quoted"
 source = "docs/research/verify-coverage.md section 2.1 (reliable = U of 2 or more); AGENTS.md, traps: JPL's 10 h for 2011 AA37 is graded unreliable in the lightcurve database"
@@ -83,14 +86,14 @@ kind = "quoted"
 source = "ledger.toml [[gone]]"
 
 [rules.unchecked]
-text = "When a source for a gate's row was not checked, the gate's text says not checked, never not measured. The gate is untested with its prior."
+text = "When a source for a gate's row was not checked, the gate is untested with its prior. The row names the source once; the gate's text never says not measured."
 no_h = "An object with no H has no size, mass or spin prior: those gates are untested with no p, and so is the mission."
 kind = "quoted"
 source = "AGENTS.md, traps; docs/mvp.md section 4, Row"
 
 [rules.mass]
 # The mass gate has no direct measurement for any list member but the three sampled asteroids.
-decides = "pass when the upper end of a measured size at 7,500 kg/m3 is under the ceiling; fail when its lower end at 900 kg/m3 is over it"
+decides = "Met when a measured diameter's upper end, at 7,500 kg/m³, gives a mass under the limit. Failed when its lower end, at 900 kg/m³, gives a mass over it."
 otherwise = "untested, with p from the joint draws of density given class and reflectivity"
 density_on_file = "A bulk density on file (JPL's for the three sampled asteroids; a literature card's from radiation pressure or drift) replaces the class range in the draws, so it narrows the mass range and p. It does not decide the gate: 12 of the 15 on file come from a model of the push, not from a measured mass"
 kind = "judgement"
@@ -99,30 +102,31 @@ source = "7,500 and 900 kg/m3 are the two ends of priors.toml [density]"
 # ----------------------------------------------------------------------------------------------------------------
 [surface]
 label = "Surface work"
-summary = "Land on or anchor to a body tens of metres or more across and work loose material."
+summary = "Land on or anchor to an asteroid tens of metres or more across, and work its loose material."
 kind = "quoted"
 source = "docs/plan.md section 1.4 and section 6 (proposed mission types); DESIGN.md section 9"
 
 [[surface.gates]]
 id = "findable"
-label = "Orbit code 5 or better"
+label = "Orbit condition code ≤ 5"
 quantity = "occ"
 unit = "orbit condition code, 0 best to 9 worst"
 op = "<="
 preset = 5
 range = [2, 5]
-label_note = "The label names the test. Code 5 or better is the line docs/plan.md uses for 'an orbit good enough to find again', but JPL flags the next window of 137 list members that pass it as survey-recovery-only (130 at code 5, 7 at code 4), so the gate does not claim findability; its text says when JPL finds the position too uncertain to point at. Whether such an object should pass is Adam's call."
+label_note = "The label names the test. Code 5 or better is the line docs/plan.md uses for 'an orbit good enough to find again', but JPL flags the next window of 137 list members that pass it as survey-recovery-only (130 at code 5, 7 at code 4), so the gate does not claim findability; the ladder's first rung says when JPL finds the position too uncertain to point at. Whether such an object should pass is Adam's call."
 kind = "judgement"
 source = "docs/plan.md section 1.4 counts 'orbit good enough to find again' with code 5 or better (data/research/scripts/rv_users_sieve2.py). docs/research/verify-obs-window.md section 1: no object with code 0-3 is flagged survey-recovery-only, 2,339 of 2,655 windowed objects with code 6-9 are; code 5 or better and JPL's own pointing test give the same count under 6 km/s but not the same objects. docs/research/industry.md 'Which properties matter', item 1: codes 0-2 are 13.6% of the list, 6 or worse 69.8%"
 alternatives = [
-  { value = 2, what = "the strict cut in docs/research/industry.md item 1" },
-  { value = 3, what = "the worst code JPL never flags survey-recovery-only (docs/research/verify-obs-window.md section 1)" },
-  { value = 5, what = "the cut used for the counts in docs/plan.md section 1.4" },
+  { value = 2, what = "a strict cut: codes 0–2 are 13.6% of the list (docs/research/industry.md item 1)" },
+  { value = 3, what = "the worst code at which JPL never says only a survey could recover the asteroid (docs/research/verify-obs-window.md section 1)" },
+  { value = 5, what = "the usual line for an orbit good enough to find again (docs/plan.md section 1.4)" },
 ]
+caveat = "The code is one test and JPL's own pointing test is another. JPL says only a survey could recover 137 asteroids that meet this condition; an entry's first difficulty step says so."
 
 [[surface.gates]]
 id = "size"
-label = "30 m or wider"
+label = "Diameter ≥ 30 m"
 quantity = "diameter_m"
 unit = "m"
 op = ">="
@@ -136,11 +140,12 @@ alternatives = [
   { value = 40.0, what = "the H 24 line of the sketch in docs/plan.md section 1.4" },
   { value = 100.0, what = "Elvis 2014, smallest platinum-group ore body (docs/research/industry.md)" },
 ]
+caveat = "No source states a minimum diameter for working a surface. Michel's 30 m is the one view on it; the other figures are economic minimums or a preference."
 not_used = "Karman+ wanted a rubble pile 'with a diameter measured in hundreds of meters' (docs/research/industry.md item 3). It is a preference; two of the five targets the company has named are fainter than H 22.5."
 
 [[surface.gates]]
 id = "spin"
-label = "Turns once in 2.2 h or slower"
+label = "Spin period ≥ 2.2 h"
 quantity = "period_h"
 unit = "h"
 op = ">="
@@ -154,14 +159,14 @@ source = "docs/research/capability.md section 2: 2.3 h at 2,000 kg/m3, 3.0 h at 
 alternatives = [
   { value = 1.0, what = "period over 1 h: Alarcon et al. 2026 for surface work, Thirouin et al. 2016 for a viable target (docs/research/industry.md item 4; docs/research/verify-coverage.md section 2.3)" },
   { value = 2.2, what = "2,250 kg/m3; the spin barrier Karman+ uses" },
-  { value = 2.3, what = "2,000 kg/m3, the density Karman+'s Prospector assumes for every body (docs/research/verify-facts-missions.md)" },
-  { value = 3.0, what = "1,200 kg/m3, a body like Bennu or Ryugu (docs/research/capability.md section 2)" },
+  { value = 2.3, what = "2,000 kg/m3, the density Karman+'s Prospector assumes for every asteroid (docs/research/verify-facts-missions.md)" },
+  { value = 3.0, what = "1,200 kg/m3, an asteroid like Bennu or Ryugu (docs/research/capability.md section 2)" },
 ]
-caveat = "A screening line, not a physical limit: slight cohesion lets a small body turn faster and keep its surface (docs/plan.md section 1.2). As of 21 November 2026 we found no spacecraft that has touched an asteroid turning faster than once in about 4 h (docs/research/capability.md section 2)."
+caveat = "A screening line, not a physical limit: slight cohesion lets a small asteroid turn faster and keep its surface (docs/plan.md section 1.2). As of 2026-11-21 we found no spacecraft that has touched an asteroid turning faster than once in about 4 h (docs/research/capability.md section 2)."
 
 [surface.not_gated]
-delta_v = "Reach is a filter the visitor sets, not a gate. JPL's figure is the cheapest round trip over all launch dates, and first missions choose by launch date (docs/research/industry.md item 2)."
-tumbling = "Karman+ ranks 'slow rotation, and not tumbling' (docs/research/industry.md item 4). The lightcurve database flags tumblers, Apophis among them, and Apophis is the company's first target. No source gives a line for how much tumbling rules a body out."
+delta_v = "Max Δv is a filter on the field, not a condition. JPL's figure is the cheapest round trip over all launch dates, and first missions choose by launch date (docs/research/industry.md item 2)."
+tumbling = "Karman+ ranks 'slow rotation, and not tumbling' (docs/research/industry.md item 4). The lightcurve database flags tumblers, Apophis among them, and Apophis is the company's first target. No source gives a line for how much tumbling rules an asteroid out."
 class = "No class is required: the first missions filter loosely on class and choose by launch date (docs/plan.md section 1.3)."
 kind = "quoted"
 source = "as given in each entry"
@@ -240,7 +245,7 @@ source = "docs/plan.md section 1.4 (last paragraph) and section 6; docs/research
 
 [[capture.gates]]
 id = "findable"
-label = "Orbit code 5 or better"
+label = "Orbit condition code ≤ 5"
 quantity = "occ"
 unit = "orbit condition code, 0 best to 9 worst"
 op = "<="
@@ -251,7 +256,7 @@ source = "as for surface work. The Keck study on what is known beforehand: 'only
 
 [[capture.gates]]
 id = "size"
-label = "10 m or smaller"
+label = "Diameter ≤ 10 m"
 quantity = "diameter_m"
 unit = "m"
 op = "<="
@@ -261,12 +266,12 @@ kind = "judgement"
 source = "docs/research/capability.md section 7.2: 'whole-body capture, under about 10 m'; section 3: TransAstra's capture bag is 10 m, inflated and closed on the ground in November 2026. docs/research/nongrav.md section 5: NASA's Asteroid Redirect Mission 'needed a target of about 7-10 m and about 500 t'. The Keck study (Brophy et al. 2012) designed for 'roughly 7 m' with a bag for a body 6 m by 12 m (saved copy, data/research/dl/keck.txt lines 134 and 1046-1047)"
 alternatives = [
   { value = 7.0, what = "Keck study nominal: a 7 m, 500 t asteroid (docs/research/capability.md section 4.3)" },
-  { value = 10.0, what = "TransAstra's bag; capability.md section 7.2" },
+  { value = 10.0, what = "TransAstra's capture bag, 10 m across (docs/research/capability.md section 7.2)" },
 ]
 
 [[capture.gates]]
 id = "mass"
-label = "1,300 t or lighter"
+label = "Mass ≤ 1,300 t"
 quantity = "mass_t"
 unit = "t"
 op = "<="
@@ -274,17 +279,18 @@ preset = 1300.0
 range = [100.0, 1300.0]
 kind = "judgement"
 source = "docs/research/capability.md section 4.3 and docs/research/verify-capability.md row 52: 'the Keck capture hardware was sized for 250 to 1,300 t'. It is the top of that one design's range, not a limit: the same report lists trajectories for 1,800 and 3,600 t, and only this one capture study was read"
+caveat = "1,300 t is the top of that one design's range, not a limit. The same report lists trajectories for 1,800 and 3,600 t."
 alternatives = [
   { value = 100.0, what = "TransAstra: about 100 t; Karman+ 'Roc': whole asteroids up to 100,000 kg (docs/research/capability.md section 3)" },
   { value = 500.0, what = "Keck study nominal (docs/research/capability.md section 4.3)" },
-  { value = 1000.0, what = "Keck study: 'could retrieve NEAs with masses up to about 1,000,000 kg' (saved copy, data/research/dl/keck.txt line 1063)" },
+  { value = 1000.0, what = "Keck study: asteroids 'with masses up to about 1,000,000 kg' (saved copy, data/research/dl/keck.txt line 1063)" },
   { value = 1300.0, what = "Keck study, top of the range its hardware was sized for" },
 ]
 
 [capture.not_gated]
-spin = "No spin gate (docs/plan.md Appendix C, WP2). TransAstra's bag 'is designed to tolerate tumbling' (docs/research/industry.md section d). The Keck design set an upper limit of one turn a minute and sized its de-spin for 1,100 t at that rate (docs/research/capability.md section 4.3; saved copy, data/research/dl/keck.txt lines 986-987). priors.toml has no figure for periods under a minute, so that limit is recorded here and not applied. As of 21 November 2026 we found nothing that has enclosed a tumbling rock."
-delta_v = "Reach is a filter the visitor sets, not a gate. The Keck case needed 0.17 km/s to come back, on an object whose orbit returns it to Earth (docs/research/capability.md section 4.2)."
-class = "No class is required. The Keck study wanted a C-type and noted that none of the known candidates had a spectral type (docs/research/capability.md section 4.3)."
+spin = "No spin condition (docs/plan.md Appendix C, WP2). TransAstra's bag 'is designed to tolerate tumbling' (docs/research/industry.md section d). The Keck design set an upper limit of one turn a minute and sized its de-spin for 1,100 t at that rate (docs/research/capability.md section 4.3; saved copy, data/research/dl/keck.txt lines 986-987). priors.toml has no figure for periods under a minute, so that limit is recorded here and not applied. As of 2026-11-21 we found nothing that has enclosed a tumbling asteroid."
+delta_v = "Max Δv is a filter on the field, not a condition. The Keck case needed 0.17 km/s to come back, on an asteroid whose orbit returns it to Earth (docs/research/capability.md section 4.2)."
+class = "No class is required. The Keck study wanted a C-type, and none of the known candidates had a class from a spectrum (docs/research/capability.md section 4.3)."
 kind = "quoted"
 source = "as given in each entry"
 

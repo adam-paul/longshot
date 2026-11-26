@@ -115,7 +115,7 @@ def claims_for(key: str, r: dict) -> list[Claim]:
         if flag not in (None, "S"):
             raise IngestError(f"{where}: unknown obs_flag {flag!r}")
         add("window_pointing", SURVEY_ONLY if flag == "S" else POINTABLE, ref=as_of,
-            note="would have to be rediscovered by a survey" if flag == "S" else None)
+            note="only a survey could find it again" if flag == "S" else None)
     else:
         add("next_window", NO_WINDOW, ref=as_of)
     # Goldstone only: the Arecibo entries are dead (the telescope collapsed in 2020).

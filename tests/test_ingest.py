@@ -233,15 +233,16 @@ class LoadedCase(unittest.TestCase):
         p = by(claims, self.key("2011 AA37"), "period_h")[0]
         # the U column says 1; the remark grades it finer, and the lower of its pair is the claim's grade
         self.assertEqual((p.value, p.quality, p.kind), (10.0, "1+", "value"))
-        self.assertIn("U = 1+ or 2-", p.note)
-        self.assertIn("the lower is used", p.note)
+        self.assertIn("graded 1+ or 2−", p.note)
+        self.assertIn("the lower grade is used", p.note)
         p = by(claims, self.key("2023 RA4"), "period_h")[0]
         self.assertEqual((p.value, p.quality, p.lo, p.hi), (2.3478, "2", 2.3472, 2.3484))
         self.assertIn("2023-11-14", p.ref)
         p = by(claims, self.key("1999 AO10"), "period_h")[0]
         self.assertEqual((p.value, p.quality), (11.06, "2+"))               # column 3, remark "U = 2+ or 3-"
         p = by(claims, self.key("2026 AC4"), "period_h")[0]
-        self.assertEqual((p.quality, p.note), ("2-", "U column 1; the remark says U = 2-"))
+        self.assertEqual(p.quality, "2-")                                   # the remark's finer grade; the grade says it all
+        self.assertNotIn("U column", p.note or "")
         self.assertEqual(sum(1 for c in coverage if c.outcome == "found"), 127)    # upstream-physical.md, 3.2
 
     def test_pravec_parse(self):

@@ -161,7 +161,7 @@ def first_observed() -> dict[str, str]:
     return out
 
 
-OLDER_THAN_OBJECT = "older than this object"     # method/v0_1/ledger.toml [fixed_tables].reason
+OLDER_THAN_OBJECT = "older than this asteroid"     # method/v0_1/ledger.toml [fixed_tables].reason
 
 
 def too_old_for(edition: str, first_obs: str | None) -> bool:

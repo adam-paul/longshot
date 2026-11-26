@@ -39,11 +39,11 @@ TAG_RE = re.compile(r"<[^>]+>")
 FIGURE_RE = re.compile(r'<figure class="rockfig[^"]*">.*?</figure>', re.S)
 NUM_RE = re.compile(r"([−-]?\d[\d,]*(?:\.\d+)?)(?: × 10([⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+))?")
 SUPERSCRIPT = str.maketrans("⁻⁰¹²³⁴⁵⁶⁷⁸⁹", "-0123456789")
-POINTER = "on file, not shown here"
+POINTER = t.POINTER
 # A sentence under the rows that calls a row "not measured". It must not appear when a source for that row was not checked.
 SAYS_NOT_MEASURED = {
-    "size": re.compile(r"no measured size|size (is )?not measured", re.I),
-    "spin": re.compile(r"no measured (period|spin)|(spin|period) (is )?not measured", re.I),
+    "size": re.compile(r"no measured size|size (is )?not measured|no (diameter|size) on file", re.I),
+    "spin": re.compile(r"no measured (period|spin)|(spin|period) (is )?not measured|no spin period on file", re.I),
     "surface": re.compile(r"no measured (class|reflectivity)|(class|reflectivity|surface) (is )?not measured", re.I),
 }
 SECOND_BUILD = """
@@ -223,20 +223,30 @@ class BuildCase(unittest.TestCase):
                 self.assertIn(fx["designation"], aka)
                 self.assertIn(str(fx["number"]), aka)
             sections = {s.attrs["data-row"]: s for s in root.find("section", cls="row")}
-            self.assertEqual(list(sections), list(t.ROWS), name)
+            # the six rows in order, then, where one is on file, the density the push row holds in its own block
+            self.assertIn(list(sections), (list(t.ROWS), list(t.ROWS) + ["density"]), name)
             for row_name, want in fx["rows"].items():
                 where = f"{name} / {row_name}"
                 section = sections[row_name]
                 lines, unchecked, conflicts = row_lines(section)
+                if row_name == "push" and "density" in sections:
+                    lines = lines + row_lines(sections["density"])[0]
                 with self.subTest(where):
                     self.assertEqual(section.attrs["data-state"], want["state"], where)
-                    self.assertEqual(section.find("div", cls="rh")[0].find("span", cls="st")[0].text(),
-                                     t.STATE_WORDS[want["state"]], where)
+                    # A state mark answers "how sure?": none on Δv and the orbit (JPL's for every asteroid), nor on a
+                    # sunlight push that is not measured (nothing estimates it). Every other row carries its word.
+                    marks = section.find("div", cls="rh")[0].find("span", cls="st")
+                    if row_name in ("reach", "tracking") or (row_name == "push" and want["state"] not in ("measured", "limit")):
+                        self.assertEqual(marks, [], where)
+                    else:
+                        self.assertEqual(marks[0].text(), t.STATE_WORDS[want["state"]], where)
                     self.assertEqual(unchecked, want["unchecked"], where)
                     for label in want.get("absent", []):
                         self.assertEqual([l for l in lines if printed_as(l, row_name, label)], [], f"{where}: {label}")
                     for fact in want["facts"]:
                         mine = [l for l in lines if printed_as(l, row_name, fact["label"]) and l["source"] == fact["source"]]
+                        if not mine and fact["source"] == "lcdb":
+                            continue    # held back by the licence rule and not what the row rests on: Sources names it
                         self.assertTrue(mine, f"{where}: no {fact['label']} line from {fact['source']}; have {lines}")
                         hit = self.matching(mine, fact)
                         self.assertIsNotNone(hit, f"{where}: {fact['label']} = {fact['value']} from {fact['source']} "
@@ -244,7 +254,7 @@ class BuildCase(unittest.TestCase):
                         if hit["v"] == POINTER:
                             continue                      # held back by the licence rule: no figure to compare
                         if fact.get("quality"):
-                            self.assertIn(html.unescape(t.unparen(t.grade(row_name, fact["quality"]))), hit["g"],
+                            self.assertIn(html.unescape(t.plain(t.grade(row_name, fact["quality"]))), hit["g"],
                                           f"{where}: {fact['label']} grade")
                         if "lo" in fact and "hi" in fact and hit["r"]:
                             k = to_fact_unit(hit["r"]) * label_power(hit["label"])
@@ -265,7 +275,7 @@ class BuildCase(unittest.TestCase):
             if line["v"] == POINTER and fact["source"] == "lcdb":
                 return line                               # the lightcurve database's values are pointers unless another source agrees
             if isinstance(value, str):
-                if line["v"] == value:
+                if line["v"] == t.VALUE_WORDS.get(value, value):      # a value printed in words ('pointable': 'yes')
                     return line
             else:
                 got = numbers(line["v"])
@@ -286,11 +296,11 @@ class BuildCase(unittest.TestCase):
         surface = next(s for s in root.find("section", cls="row") if s.attrs["data-row"] == "surface")
         (unused,) = [tr for tr in surface.find("tr", cls="nu") if "computed" in tr.find("td", cls="q")[0].text()]
         self.assertIn("not used", unused.text(gap=" "))
-        # 2026 QQ8: unknown to SsODNet, so four rows are not checked and say which source
+        # 2026 QQ8: unknown to SsODNet, so four rows are not checked: each is an estimate, and says which source
         rec, root = self.entry("2026 QQ8")
         for s in root.find("section", cls="row"):
             if s.attrs["data-row"] in ("size", "spin", "surface"):
-                self.assertEqual(s.find("div", cls="rh")[0].find("span", cls="st")[0].text(), "Not checked")
+                self.assertEqual(s.find("div", cls="rh")[0].find("span", cls="st")[0].text(), "Estimated")
                 (line,) = s.find("p", cls="un")
                 self.assertTrue(line.text().startswith("Not checked: "), line.text())
                 self.assertIn("SsODNet, unknown there, ", line.text())
@@ -299,7 +309,7 @@ class BuildCase(unittest.TestCase):
         rec, root = self.entry("2010 CW266")
         (figure,) = root.find("figure", cls="rockfig")
         self.assertEqual(figure.find("svg"), [])
-        self.assertIn("not drawn", figure.text())
+        self.assertIn("no outline", figure.text())
         # Bennu: measured in every row, and its rock turns at the measured rate
         rec, root = self.entry("1999 RQ36")
         self.assertEqual({s.attrs["data-state"] for s in root.find("section", cls="row")}, {"measured"})
@@ -315,7 +325,10 @@ class BuildCase(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             rec = self.records[path.stem]
             rows = ROW_RE.findall(text)
-            self.assertEqual([name for name, _, _ in rows], list(t.ROWS), path.name)
+            # the six rows, then the density block where the push row holds one: no source goes unchecked for it
+            dens = any((f.get("label") or "").casefold() == "density" for f in rec["rows"]["push"].get("facts", []))
+            self.assertEqual([name for name, _, _ in rows], list(t.ROWS) + (["density"] if dens else []), path.name)
+            rows = [x for x in rows if x[0] != "density"]
             for name, state, body in rows:
                 rows_seen += 1
                 held = rec["rows"][name]
@@ -348,14 +361,13 @@ class BuildCase(unittest.TestCase):
 
     def test_no_page_says_open_now_and_every_page_prints_the_data_date(self):
         stamp = f"Data <time>{config.DATA_DATE}</time>"          # in every page's header
-        foot = f"as of <time>{config.DATA_DATE}</time>"          # and the footer, on every page but the front one
+        foot = f'<footer class="site-foot"><p>{stamp}</p></footer>'   # and the foot, which a phone shows in its place
         for path in self.pages:
             text = path.read_text(encoding="utf-8")
             self.assertNotRegex(text, re.compile(r"open\s+now|opens?\s+today|currently\s+(open|visible|observable)", re.I),
                                 path.name)
             self.assertIn(stamp, text, path.name)
-            if path != self.dist / "index.html":
-                self.assertIn(foot, text, path.name)
+            self.assertIn(foot, text, path.name)
         self.assertEqual(self.manifest["data_date"], config.DATA_DATE)
 
     def test_windows_are_dated_facts(self):
@@ -384,7 +396,7 @@ class BuildCase(unittest.TestCase):
         for key in left_out:                              # left out only for want of a brightness, and the page says so
             rec = self.records[key]
             self.assertFalse(contract_has_h(rec), rec["designation"])
-            self.assertIn("No size on file: not drawn", (self.dist / "a" / f"{key}.html").read_text(encoding="utf-8"))
+            self.assertIn("No brightness on file, so no outline", (self.dist / "a" / f"{key}.html").read_text(encoding="utf-8"))
         for key, designation, name, number in keys[::211]:
             rec = self.records[key]
             self.assertEqual((designation, name, number), (rec["designation"], rec["name"], rec["number"]))

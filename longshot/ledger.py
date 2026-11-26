@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import functools
 import json
+import math
 import os
 import re
 import sys
@@ -317,8 +318,8 @@ def tracking_row(claims: list[Claim], cov, gone: Gone | None = None) -> Row:
         was = next((c.value for c in nh if c.prop == "orbit_id"), None)
         now = next((c.value for c in claims if c.source == "jpl-sbdb" and c.prop == "orbit_id"), None)
         notes.append(
-            f"The reachable list was computed from orbit solution {was} (condition code {int(nh_code.value)}); "
-            f"JPL's database now holds {now} (condition code {int(sb_code.value)})."
+            f"The reachable list was computed from orbit solution {_solution(was)} (condition code {int(nh_code.value)}). "
+            f"On {config.DATA_DATE}, JPL's database held solution {_solution(now)} (condition code {int(sb_code.value)})."
         )
     if gone is not None:
         # JPL's list still computes a window for it; a body that no longer exists has none.
@@ -465,8 +466,17 @@ def _period_who(c: Claim) -> str:
     elif c.source == "curated" and c.ref:
         extra.append(c.ref.split(",")[0])
     if grade_rank(c.quality) is not None and LICENCE.get(c.source) != "inference":
-        extra.append(f"U {c.quality}")
+        extra.append(f"grade {c.quality}")
     return ", ".join([SPOKEN[c.source]] + extra)
+
+
+def _period_words(hours: float) -> str:
+    """A period in the unit the pages print it in: seconds under 2 min, minutes under 2 h, else hours."""
+    if hours < 2.0 / 60.0:
+        return f"{_show(hours * 3600.0)} s"
+    if hours < 2.0:
+        return f"{_show(hours * 60.0)} min"
+    return f"{_show(hours)} h"
 
 
 def period_conflict(in_play: list[Claim]) -> str | None:
@@ -492,7 +502,7 @@ def period_conflict(in_play: list[Claim]) -> str | None:
         if shown is None:
             parts.append(f"a different period on file in {SPOKEN[g[0].source]}, not shown here")
         else:
-            parts.append(f"{_show(shown.value)} h ({who})")
+            parts.append(f"{_period_words(shown.value)} ({who})")
     return _cap(" against ".join(parts)) + "."
 
 
@@ -520,13 +530,13 @@ def spin_row(claims: list[Claim], cov, editions: dict[str, str] | None = None) -
         old = dict.fromkeys(SPOKEN[c.source] for c in periods
                             if verdict[id(c)] == "usable" and periods_differ(c.value, newer[0].value))
         notes.append(f"{_cap(' and '.join(dict.fromkeys(SPOKEN[c.source] for c in newer)))} hold a period from a "
-                     f"reference dated after the edition of {' and '.join(old)} on disk; the newer period is used.")
+                     f"reference dated after the edition of {' and '.join(old)} we hold; the newer period is used.")
     for c in rest:
         if verdict[id(c)] == "contradicted":
             notes.append(f"{_cap(SPOKEN[c.source])} holds a period with no grade that differs from the graded one; "
                          "it is not used.")
     if not usable and periods and any(verdict[id(c)] == "low grade" for c in periods):
-        notes.append(f"The period on file is graded below U {r.min_grade}, the lowest grade "
+        notes.append(f"The period on file is graded below {r.min_grade}, the lowest grade "
                      "the lightcurve database accepts.")
     copy_note = None
     for c in copies:
@@ -536,7 +546,7 @@ def spin_row(claims: list[Claim], cov, editions: dict[str, str] | None = None) -
         notes.append(f"{_cap(SPOKEN[c.source])} repeats a limit from {SPOKEN[b.source]} without its limit sign; "
                      "it is not a measured period.")
     if rest_bounds:
-        notes.append(f"The limit on file is graded below U {r.min_grade}.")
+        notes.append(f"The limit on file is graded below {r.min_grade}.")
     amplitudes = _by_source(claims, "spin", ("amplitude_mag",))
     facts = ([_fact(c) for c in usable + bounds] + [_fact(c, used=False) for c in rest + rest_bounds]
              + [_fact(c, used=False, note=copy_note) for c in copies]
@@ -584,7 +594,7 @@ def surface_row(claims: list[Claim], cov, designations: set[str]) -> Row:
             f"class {c.value} ({c.quality})" for c in classes))) + f". Both are from {SPOKEN[classes[0].source]}."
     measured = bool(classes) or bool(usable_albedo)
     if not measured and any(_computed(c) for c in rest):
-        notes.append("The reflectivity on file is computed from size and brightness; it is not a measurement.")
+        notes.append("The reflectivity on file is computed from the diameter and brightness; it is not a measurement.")
     facts = [_fact(c) for c in classes + usable_albedo] + [_fact(c, used=False) for c in rest]
     return _row("surface", facts, measured, False, cov, notes, [conflict] if conflict else [])
 
@@ -598,10 +608,26 @@ def detected(c: Claim) -> bool:
     return sigma > 0 and abs(c.value) / sigma >= rules().detection_sigma * (1.0 - 1e-9)
 
 
+_SUPERSCRIPT = str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹")
+_UNIT_SIGNS = {"au/d^2": "au/d²", "au/d2": "au/d²"}
+
+
+def _solution(orbit) -> str:
+    """An orbit solution's name as the pages print it: '118', not 'JPL 118' (JPL's two lists spell it both ways)."""
+    return re.sub(r"^JPL\s+", "", str(orbit))
+
+
 def _push_text(c: Claim) -> str:
+    """'−4.6 × 10⁻¹⁴ au/d² (±1σ: −5.26 to −3.94)': three figures, a true minus, the power of ten written out."""
+    def sci(v, e):
+        return f"{v / 10.0 ** e:.3g}".replace("-", "−")
+    unit = _UNIT_SIGNS.get(c.unit, c.unit)
+    e = math.floor(math.log10(abs(c.value))) if c.value else 0
+    power = f" × 10{str(e).translate(_SUPERSCRIPT)}" if e else ""
+    said = f"{sci(c.value, e)}{power} {unit}".strip()
     if c.lo is not None and c.hi is not None:
-        return f"{c.value:.3g} ({c.lo:.3g} to {c.hi:.3g}) {c.unit}"
-    return f"{c.value:.3g} {c.unit}"
+        said += f" (±1σ: {sci(c.lo, e)} to {sci(c.hi, e)})"
+    return said
 
 
 def push_row(claims: list[Claim], cov) -> Row:
@@ -615,7 +641,7 @@ def push_row(claims: list[Claim], cov) -> Row:
     density = _by_source(claims, "push", ("density_kgm3",))
     counted = [c for c in fitted if c.prop in r.push_counts]
     if counted and not usable:
-        notes.append(f"No fitted value reaches {r.detection_sigma:g} sigma.")
+        notes.append(f"No fitted value reaches {r.detection_sigma:g}σ.")
     if any(c.prop not in r.push_counts for c in fitted):
         notes.append("A3 is the out-of-plane term, not a push from sunlight; it is listed and not counted.")
     if any(c.source == "jpl-sbdb" for c in fitted):

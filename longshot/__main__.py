@@ -192,9 +192,7 @@ def build(build_dir: Path | None = None, dist_dir: Path | None = None, out=None)
     for name, c in report["missions"].items():
         say(f"{name:<10} {c['pass']:,} pass, {c['untested']:,} untested, {c['fail']:,} fail")
     say(f"observe    {report['observe']:,} ranked")
-    typical = assets["readout"]["typical"]
-    say(f"readout    {len(assets['readout']['named']):,} named; typical unmeasured: "
-        + (f"{typical['designation']} ({typical['key']})" if typical else "none qualifies"))
+    say(f"readout    {len(assets['readout']['named']):,} named")
     say(f"record     {report['predictions']:,} predictions")
     say(f"pages      {report['pages']:,} written ({report['entry_pages']:,} entries, "
         f"{report['entry_bytes']:,} bytes of entries)")

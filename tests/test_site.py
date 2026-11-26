@@ -21,7 +21,7 @@ from tests import sample_records as sample
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 CSS = (Path(gen.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
-SUMMARY_LABELS = ["Size", "Spin", "Made of", "Mass", "Reach", "Surface work", "Whole-body capture", "Would settle most"]
+SUMMARY_LABELS = ["Diameter", "Spin", "Composition", "Mass", "Δv", "Surface work", "Whole-body capture", "Best next observation"]
 SUMMARY_GROUPS = ["Missions"]       # headings in the summary list: one row, a single cell
 
 
@@ -101,11 +101,24 @@ def parse(text: str) -> Tree:
 
 UNIT = r"(?:km/s|au/d²|au/Myr|kg/m³|m²/kg|km|min|mag|kg|m|h|s|d|t)(?![A-Za-z])"
 
-# What a figure must not say of a row while a source for that row was not checked (docs/mvp.md section 8).
+# What a figure must not say of a row while a source for that row was not checked (docs/mvp.md section 8): that
+# nothing is on file, as if every source had been asked.
 SAYS_NOT_MEASURED = {
-    "size": re.compile(r"no measured size|size (is )?not measured", re.I),
-    "spin": re.compile(r"no measured (period|spin)|(spin|period) (is )?not measured", re.I),
+    "size": re.compile(r"no measured size|size (is )?not measured|no (diameter|size) on file", re.I),
+    "spin": re.compile(r"no measured (period|spin)|(spin|period) (is )?not measured|no spin period on file", re.I),
 }
+# The words docs/design.md section 3 retires: none may appear on any page.
+RETIRED = re.compile(r"\b(not measured|limit only|untested|would settle most|chance of passing|under 1%|over 99%|gates?|priors?|visitors?|survey-recovery|older than this object|U column|on disk|hand-entered|see entry|check first|our line|metal or rock)\b", re.I)
+
+
+def observation(oid: str) -> str:
+    """An observation's name as the method file gives it."""
+    return {o["id"]: o["label"] for o in method.load().observe["observations"]}[oid]
+
+
+def plain_observation(oid: str) -> str:
+    """An observation's plain name, as the front page and an entry's summary give it."""
+    return {o["id"]: o.get("plain") or o["label"] for o in method.load().observe["observations"]}[oid]
 
 
 def everything_in(n: Node) -> str:
@@ -216,11 +229,33 @@ class SiteTest(unittest.TestCase):
             (body,) = tree.root.find("body")
             self.assertIn(sample.DATA_DATE, body.text(), name)
             (head,) = tree.root.find("header", cls="site")
-            self.assertIn(f"Data {sample.DATA_DATE}", head.find("p", cls="date")[0].text(), name)
+            self.assertEqual(head.find("p", cls="date")[0].text(), f"Data {sample.DATA_DATE}", name)
+            # on a phone the header has no room for it: the foot carries it, and only it
+            (foot,) = tree.root.find("footer", cls="site-foot")
+            self.assertEqual(foot.text(), f"Data {sample.DATA_DATE}", name)
 
     def test_no_page_says_open_now(self):
         for name, text in self.pages.items():
             self.assertNotIn("open now", text.lower(), name)
+            self.assertNotRegex(text.lower(), r"chance now|\bnow\b open|\bopen\b now", name)
+
+    def test_no_retired_word_on_any_page(self):
+        """docs/design.md section 3: the vocabulary is closed. The words it replaces appear nowhere."""
+        for name, tree in self.trees.items():
+            (body,) = tree.root.find("body")
+            said = " ".join([body.text(gap=" ")] + [str(v) for x in body.walk() for k, v in x.attrs.items()
+                                                             if v and k in ("aria-label", "title", "placeholder", "alt")])
+            self.assertIsNone(RETIRED.search(said), name)       # the pipeline's names stay in data attributes
+        self.assertIsNotNone(RETIRED.search("Limit only"))          # the check catches what it is there to catch
+
+    def test_no_project_reference_on_any_page(self):
+        """No project file, script or internal id on a page (docs/design.md section 7)."""
+        for name, tree in self.trees.items():
+            text = tree.root.find("body")[0].text(gap=" ")
+            for word in ("docs/", "data/", "tools/", "AGENTS.md", ".toml", ".py", "build/", "method/v0_1",
+                         "sonter 1998", "keck 2012", " arm,"):
+                self.assertNotIn(word, text, (name, word))
+            self.assertNotRegex(text, r"\b[a-z]+_[a-z_]+\b", name)      # a snake_case id
 
     def test_prototype_is_said_once(self):
         for name, tree in self.trees.items():
@@ -277,20 +312,22 @@ class SiteTest(unittest.TestCase):
         lo, hi = math.floor(min(v for v in dvs if v is not None) * 10) / 10, math.ceil(max(v for v in dvs if v is not None) * 10) / 10
         self.assertEqual({k: dv.attrs[k] for k in ("type", "min", "max", "step", "value")},
                          {"type": "range", "min": f"{lo:g}", "max": f"{hi:g}", "step": "0.1", "value": f"{hi:g}"})
-        self.assertEqual(form.find("output", name="dv-value")[0].text(), f"{hi:.1f} km/s")
+        # the label carries the unit; the value is the number alone
+        self.assertEqual(form.find("label", **{"for": "dv"})[0].text(), "Max Δv (km/s)")
+        self.assertEqual(form.find("output", name="dv-value")[0].text(), f"{hi:.1f}")
         (q,) = form.find("input", name="q")
         self.assertEqual(q.attrs["type"], "search")
-        self.assertEqual(form.find("label", **{"for": q.attrs["id"]})[0].text(), "Find asteroid")
-        drawn = sum(1 for r in sample.RECORDS if t.placed(dataclasses.asdict(r)))
-        self.assertEqual(drawn, len(sample.RECORDS) - 1)                     # F has no brightness, so no rock
-        self.assertEqual(form.find("span", id="count-label")[0].text(), "Plotted")
-        self.assertEqual(form.find("output", name="count")[0].text(), f"{drawn} of {len(sample.RECORDS)}")
-        # the legend, the zoom group and the figure
+        self.assertEqual(form.find("label", **{"for": q.attrs["id"]})[0].text(), "Find")
+        # the strip is the four controls of docs/design.md section 8, and nothing else
+        self.assertEqual([sorted(d.classes - {"ctl"}) for d in form.kids if isinstance(d, Node)],
+                         [["view"], ["mission"], ["dv"], ["find"]])
+        self.assertEqual(form.find("output", name="count"), [])
+        # the legend, the zoom group and the figure: no zoom factor
         self.assertEqual(len(root.find("div", id="legend")), 1)
         (zoom,) = root.find("div", cls="zoom")
         self.assertEqual([b.attrs["name"] for b in zoom.find("button")], ["zoom-out", "zoom-in", "zoom-reset"])
         self.assertTrue(all(b.attrs["form"] == "controls" for b in zoom.find("button")))
-        self.assertEqual(zoom.find("output", name="zoom")[0].attrs["form"], "controls")
+        self.assertEqual(zoom.find("output"), [])
         (plot,) = root.find("figure", id="plot")
         self.assertEqual(len(plot.find("canvas", id="field")), 1)
         self.assertEqual(len(plot.find("div", id="axes")), 1)
@@ -323,43 +360,61 @@ class SiteTest(unittest.TestCase):
         self.assertNotIn(".", "".join(h.text() for h in root.find("h2")))
 
     def test_legend_counts_the_rocks_drawn(self):
+        """One line: the count shown, the two marks with theirs, then those with no rock. A bound is a measurement
+        and a row not checked is an estimate, so the line has two states (docs/design.md section 3)."""
         legend = self.trees["index.html"].root.find("div", id="legend")[0]
-        counts = {li.text().replace(li.find("span", cls="n")[0].text(), "").strip(): int(li.find("span", cls="n")[0].text())
-                  for li in legend.find("li") if li.find("span", cls="n")}
+        counts = {li.attrs["data-k"]: int(li.find("span", cls="n")[0].text()) for li in legend.find("li")}
         drawn = [r for r in sample.RECORDS if t.placed(dataclasses.asdict(r))]
-        for state, word in t.STATE_WORDS.items():
-            n = sum(1 for r in drawn if r.rows["size"].state == state)
-            if n or state != "limit":
-                self.assertEqual(counts[word], n, word)
-        self.assertEqual(counts["No size"], len(sample.RECORDS) - len(drawn))
-        self.assertEqual(sum(counts.values()), len(sample.RECORDS))
-        # one glyph per state, the same marks the field and the entries use
-        self.assertEqual({sorted(s.classes - {"g"})[0] for s in legend.find("i", cls="g")}, {"g-prior", "g-unchecked", "g-measured", "g-limit"})
+        self.assertEqual(list(counts), ["shown", "measured", "estimated", "loose"])
+        self.assertEqual(counts["shown"], len(drawn))
+        # measured where the field file carries the measured value; a value it may not carry is shown as its estimate
+        self.assertEqual(counts["measured"], sum(1 for r in drawn if gen.plotted_measured(dataclasses.asdict(r))))
+        self.assertLessEqual(counts["measured"], sum(1 for r in drawn if r.rows["size"].state in ("measured", "limit")))
+        self.assertEqual(counts["measured"] + counts["estimated"], counts["shown"])
+        self.assertEqual(counts["loose"], len(sample.RECORDS) - len(drawn))
+        words = [li.text(gap=" ").split() for li in legend.find("li")]
+        # the shown count first, of every reachable asteroid, so the numbers close; then each mark's words and count
+        self.assertEqual([" ".join(w) for w in words], [f"{len(drawn)} of {len(sample.RECORDS)} reachable asteroids",
+                         f"Measured {counts['measured']}", f"Estimated (median) {counts['estimated']}",
+                         "No brightness on file 1"])
+        # the two marks the field and the entries use, and no other
+        self.assertEqual({sorted(s.classes - {"g"})[0] for s in legend.find("i", cls="g")}, {"g-prior", "g-measured"})
 
-    def test_readout_lists_the_named_and_the_on_file_counts(self):
+    def test_readout_lists_only_the_named(self):
+        """The readout's default is the named asteroids with their Δv: no typical example, no counts table
+        (docs/design.md section 8; the counts are Method's)."""
         (over,) = self.trees["index.html"].root.find("div", cls="overview")
-        heads = [h.text() for h in over.find("h2")]
+        # one table: the name and its Δv, the unit in the header and never in the cells (docs/design.md section 6)
+        (named,) = over.find("table")
+        self.assertEqual(named.classes, {"named"})
+        self.assertEqual([th.text() for th in named.find("thead")[0].find("th")], ["Named asteroid", "Δv (km/s)"])
         want = export.readout(sample.RECORDS, method.load())
-        self.assertEqual(heads[0], "Named asteroids")
-        links = over.find("ul", cls="named")[0].find("a")
+        links = named.find("a")
         self.assertEqual([(a.attrs["href"], a.attrs["data-key"], a.text()) for a in links],
                          [(f"a/{r['key']}.html", r["key"], r["name"]) for r in want["named"]])
-        self.assertTrue(all("km/s" in li.text() for li in over.find("ul", cls="named")[0].find("li")))
-        self.assertEqual("Typical, nothing measured" in heads, want["typical"] is not None)
-        self.assertEqual(heads[-1], "On file")
-        # counts by state: one line per row, and each line adds up to every record
-        (table,) = over.find("table", cls="counts")
-        self.assertEqual([th.text() for th in table.find("thead")[0].find("th")],
-                         ["Row", "Measured", "Limit", "Not measured", "Not checked"])     # "Row" for screen readers only
-        lines = table.find("tbody")[0].find("tr")
-        self.assertEqual([tr.find("th")[0].text() for tr in lines], [t.ROW_LABELS[r] for r in ROWS])
-        for row_id, tr in zip(ROWS, lines):
-            cells = [int(td.text()) for td in tr.find("td")]
-            self.assertEqual(cells, [sum(1 for r in sample.RECORDS if r.rows[row_id].state == s) for s in t.STATE_WORDS], row_id)
+        self.assertFalse(any("km/s" in tr.text() for tr in named.find("tbody")[0].find("tr")))
         # the pipeline's own list wins where the build hands it one
         page = gen.index_page([dataclasses.asdict(r) for r in sample.RECORDS], sample.ASSETS, sample.DATA_DATE, sample.METHOD,
-                              {"named": [], "typical": {"key": "s0000008", "designation": "2099 HT", "dv": 4.58}})
-        self.assertIn('<a href="a/s0000008.html" data-key="s0000008">2099 HT</a>', page)
+                              {"named": [{"key": "s0000005", "name": "Samplea", "dv": 5.09}]})
+        self.assertIn('<a href="a/s0000005.html" data-key="s0000005">Samplea</a>', page)
+        self.assertNotIn("Typical", page)
+
+    def test_method_counts_every_row_by_state(self):
+        """The coverage table moved from the front page to Method: one line per row, each adding up to every record."""
+        (table,) = self.trees["method.html"].root.find("table", cls="counts")
+        self.assertEqual([th.text() for th in table.find("thead")[0].find("th")],
+                         ["Row", "Measured", "Bound", "Estimated", "Estimated, not checked", "None"])
+        lines = table.find("tbody")[0].find("tr")
+        # Δv and the orbit are JPL's for every asteroid, so they are not counted: the four rows whose state varies
+        self.assertEqual([tr.find("th")[0].text() for tr in lines], [t.ROW_LABELS[r] for r in gen.COVERAGE_ROWS])
+        for row_id, tr in zip(gen.COVERAGE_ROWS, lines):
+            cells = [int(td.text()) for td in tr.find("td")]
+            self.assertEqual(cells, [sum(1 for r in sample.RECORDS if gen.coverage_state(dataclasses.asdict(r), row_id) == s)
+                                     for s in gen.COVERAGE], row_id)
+            self.assertEqual(sum(cells), len(sample.RECORDS))
+            # a row counted as estimated has an estimate: sunlight push never does
+            if row_id == "push":
+                self.assertEqual(cells[2] + cells[3], 0)
 
     # ---- entries
 
@@ -376,11 +431,15 @@ class SiteTest(unittest.TestCase):
             self.assertEqual(summary.parent, main)
             self.assertEqual(summary.find("h1")[0].text(), r.name or r.designation)
             ident = {dt.text(): dt.parent.find("dd")[0].text() for dt in summary.find("dt") if dt.parent.parent.tag == "dl" and "ident" in dt.parent.parent.classes}
-            self.assertEqual(ident["Number"], str(r.number) if r.number else "none yet")
+            # a number only where there is one; the orbit row says when it was first seen
+            self.assertEqual(ident.get("Number"), str(r.number) if r.number else None)
+            self.assertNotIn("First observed", ident)
             if r.name:
                 self.assertEqual(ident["Designation"], r.designation)
+            # the price tag is named for what it holds; with no observation ranked there is no section to repeat that
             self.assertEqual([a.text() for a in main.find("nav", cls="toc")[0].find("a")],
-                             ["On file", "Difficulty", "What is in it", "What would settle it", "Missions", "Sources"])
+                             ["Data", "Difficulty", t.value_title(dataclasses.asdict(r))]
+                             + (["Best next observation"] if r.observe else []) + ["Missions", "Sources"])
             for a in main.find("nav", cls="toc")[0].find("a"):
                 self.assertEqual(len(main.find(id=a.attrs["href"][1:])), 1)
             # links inside the liftable element: its own anchors, the outside world, and the method page,
@@ -402,43 +461,114 @@ class SiteTest(unittest.TestCase):
             self.assertEqual(list(s), want, r.key)
             groups = [tr.text() for tr in self.entry(r.key).find("table", cls="sumlist")[0].find("tr") if "grp" in tr.classes]
             self.assertEqual(groups, SUMMARY_GROUPS, r.key)
-            for name, row_id in (("Size", "size"), ("Spin", "spin"), ("Made of", "surface"), ("Reach", "reach")):
-                self.assertEqual(s[name][2].text(), t.STATE_WORDS[r.rows[row_id].state], (r.key, name))
+            # the surface's two states: a bound is measured, and not checked is estimated
+            for name, row_id in (("Diameter", "size"), ("Spin", "spin"), ("Composition", "surface")):
+                if s[name][0].text() not in ("None", "Not classified"):
+                    want_word = t.SURFACE_WORDS[r.rows[row_id].state]
+                    if row_id == "surface" and not any(f.used and f.label == "class" for f in r.rows["surface"].facts):
+                        want_word = "Estimated"     # a reflectivity alone gives no class: the class is estimated
+                    self.assertEqual(s[name][2].text(), want_word, (r.key, name))
+                    self.assertIn(s[name][2].text(), ("Measured", "Estimated"))
+            self.assertEqual(s["Δv"][2].text(), "", r.key)       # JPL's for every asteroid: no state mark
         a = self.summary("s0000001")
-        self.assertEqual(a["Size"][0].text(), "3.1–13 m")
+        self.assertEqual(a["Diameter"][0].text(), "3.1–13 m")
+        self.assertEqual(a["Diameter"][1].text(), "90% range")
         self.assertEqual(a["Spin"][0].text(), "92.52 s")
-        self.assertEqual(a["Spin"][1].text(), "one turn, Ondřejov photometry table")
-        self.assertEqual(a["Reach"][0].text(), "4.620 km/s")
-        self.assertEqual(a["Reach"][1].text(), "354 d round trip")
-        self.assertEqual((a["Whole-body capture"][0].text(), a["Whole-body capture"][2].text()), ("41%", "Untested"))
-        # a settled mission's value is its status, with its mark, and no second tag
-        self.assertEqual((a["Surface work"][0].text(), a["Surface work"][2].text()), ("Fail", ""))
-        self.assertEqual(a["Surface work"][1].text(), "needs 40 m or more across and turns slower than 2.2 h")
-        self.assertEqual(a["Would settle most"][0].text(), "Size or reflectivity measurement")
-        self.assertIn("window 2027-02-10 to 2027-04-02", a["Would settle most"][1].text())
-        self.assertEqual(self.summary("s0000005")["Surface work"][0].text(), "Pass")
-        self.assertEqual(self.summary("s0000005")["Made of"][0].text(), "Carbon-rich")
-        self.assertEqual(self.summary("s0000002")["Size"][1].text(), "50–85 m, 1σ, thermal model, SsODNet")
-        self.assertEqual(self.summary("s0000008")["Spin"][0].text(), "over 4 h")
-        # a measured row nobody may print says so, and names whose value it is
-        self.assertEqual(self.summary("s0000004")["Spin"][1].text(), f"{t.short_name(srcs(), 'lcdb')}, not shown here")
-        self.assertEqual(self.summary("s0000003")["Spin"][1].text(), "sources disagree on the period")
-        # the missions' results are said once, under Missions: here only why nothing is ranked
-        self.assertEqual(self.summary("s0000005")["Would settle most"][1].text(), "both missions rest on measurements")
+        self.assertEqual(a["Spin"][1].text(), "time for one turn, Ondřejov photometry table")
+        self.assertEqual(a["Δv"][0].text(), "4.620 km/s")
+        self.assertEqual(a["Δv"][1].text(), "354 d round trip")
+        # a verdict is the value: the word with its mark, an unclear one's chance beside it, and no state column
+        self.assertEqual([a["Whole-body capture"][i].text() for i in range(3)], ["Unclear", "41% chance it fits", ""])
+        self.assertEqual((a["Surface work"][0].text(), a["Surface work"][2].text()), ("Ruled out", ""))
+        self.assertEqual(len(a["Surface work"][0].find("i", cls="g-fail")), 1)
+        self.assertEqual(a["Surface work"][1].text(), "needs diameter ≥ 40 m and spin period ≥ 2.2 h")
+        self.assertEqual(a["Best next observation"][0].text(), plain_observation("size"))     # its plain name on the surface
+        self.assertIn("window 2027-02-10 to 2027-04-02", a["Best next observation"][1].text())
+        self.assertEqual(self.summary("s0000005")["Surface work"][0].text(), "Fits")
+        self.assertEqual(len(self.summary("s0000005")["Surface work"][0].find("i", cls="g-pass")), 1)
+        self.assertEqual(self.summary("s0000005")["Composition"][0].text(), "Carbon-rich")
+        self.assertEqual(self.summary("s0000002")["Diameter"][1].text(), "50–85 m (±1σ), SsODNet")
+        self.assertEqual(self.summary("s0000003")["Diameter"][0].text(), "≤ 200 m")          # a bound, measured
+        self.assertEqual(self.summary("s0000003")["Diameter"][2].text(), "Measured")
+        self.assertEqual(self.summary("s0000008")["Spin"][0].text(), "≥ 4 h")
+        self.assertEqual(self.summary("s0000008")["Spin"][2].text(), "Measured")
+        # an estimated spin: the chance with what it is the chance of, in the value; the time for one turn its detail
+        self.assertEqual(self.summary("s0000009")["Spin"][0].text(), "94% under 2.2 h")
+        self.assertEqual(self.summary("s0000009")["Spin"][1].text(), "time for one turn")
+        # a measured row nobody may print says so, and names in full whose value it is: never "On file"
+        self.assertEqual(self.summary("s0000004")["Spin"][0].text(), "Not shown")
+        self.assertEqual(self.summary("s0000004")["Spin"][1].text(), f"in {t.source_name(srcs(), 'lcdb')}")
+        self.assertFalse(any(v[0].text() == "On file" for r in sample.RECORDS for v in self.summary(r.key).values()))
+        # sources disagree: each period a page may print, the one the ledger uses first, and that the sources disagree;
+        # with one period printable, whose it is
+        self.assertEqual(self.summary("s0000003")["Spin"][0].text(), "2.02 h or 72.72 s")
+        self.assertEqual(self.summary("s0000003")["Spin"][1].text(), "time for one turn; sources disagree")
+        one = dataclasses.asdict(sample.RECORDS[2])
+        one["rows"]["spin"]["facts"][1]["source"] = "lcdb"           # the other period's source is not shown
+        (spin,) = [i for i in t.summary_items(one, srcs()) if i[0] == "Spin"]
+        self.assertEqual(tuple(re.sub(r"<[^>]+>", "", x) for x in spin[1:3]), ("2.02 h", "time for one turn, SsODNet; sources disagree"))
+        # the missions' verdicts are said once, under Missions: here only why nothing is ranked
+        self.assertEqual(self.summary("s0000005")["Best next observation"][1].text(), "both verdicts rest on measurements")
+        # no brightness: nothing to estimate from, and no state is claimed
+        f = self.summary("s0000006")
+        self.assertEqual([f["Diameter"][i].text() for i in range(3)], ["None", "no brightness on file", ""])
+        # Δv is spelled out where it is abbreviated
+        (th,) = [th for th in self.entry("s0000001").find("table", cls="sumlist")[0].find("th") if th.text() == "Δv"]
+        self.assertEqual(th.find("abbr")[0].attrs["title"], t.DV_TITLE)
+
+    def test_density_has_its_own_block(self):
+        """The ledger files a bulk density under the push row. The entry lists it in its own Data block after the
+        push, since it is what a mass rests on; a computed one is listed, not used, and carries no mark."""
+        rec = dataclasses.asdict(sample.RECORDS[0])
+        note = t.DENSITY_NOTE
+        rec["rows"]["push"]["facts"] += [
+            {"label": "density", "value": 1194, "unit": "kg/m^3", "kind": "value", "source": "jpl-sbdb", "used": True},
+            {"label": "density", "value": 1205, "unit": "kg/m^3", "kind": "value", "source": "ssodnet", "used": False,
+             "quality": "computed"}]
+        rec["rows"]["push"]["note"] = " ".join(x for x in (rec["rows"]["push"].get("note"), note) if x)
+        root = parse(t.entry(rec, srcs())).root
+        rows = {n.attrs["data-row"]: n for n in root.find("section", cls="row")}
+        self.assertEqual(list(rows), list(ROWS) + ["density"])
+        self.assertNotIn("Density", rows["push"].text())
+        self.assertNotIn(note, rows["push"].text())
+        dens = rows["density"]
+        self.assertEqual(dens.find("h3")[0].text(), "Density")
+        self.assertEqual(dens.find("div", cls="rh")[0].find("span", cls="st")[0].text(), "Measured")
+        self.assertIn("1,194", dens.text())
+        self.assertIn("not used", dens.text())
+        self.assertIn(note, dens.text())
+        # only a computed density on file: listed, no state mark, since none is used
+        rec["rows"]["push"]["facts"] = [f for f in rec["rows"]["push"]["facts"] if f["source"] != "jpl-sbdb"]
+        root = parse(t.entry(rec, srcs())).root
+        (dens,) = [n for n in root.find("section", cls="row") if n.attrs["data-row"] == "density"]
+        self.assertEqual(dens.find("div", cls="rh")[0].find("span", cls="st"), [])
 
     def test_six_rows_in_order_with_state(self):
         for r in sample.RECORDS:
             rows = self.entry(r.key).find("section", cls="row")
-            self.assertEqual([n.attrs["data-row"] for n in rows], list(ROWS), r.key)
+            dens = any((f.label or "").casefold() == "density" for f in r.rows["push"].facts)
+            self.assertEqual([n.attrs["data-row"] for n in rows], list(ROWS) + (["density"] if dens else []), r.key)
             for n in rows:
+                if n.attrs["data-row"] == "density":
+                    continue        # test_density_has_its_own_block
                 state = r.rows[n.attrs["data-row"]].state
                 self.assertEqual(n.attrs["data-state"], state)
-                (tag,) = n.find("div", cls="rh")[0].find("span", cls="st")
-                self.assertEqual(tag.text(), t.STATE_WORDS[state])
-                self.assertIn(f"st-{state}", tag.classes)
-                self.assertEqual(n.find("h3")[0].text(), t.ROW_LABELS[n.attrs["data-row"]])
+                tags = n.find("div", cls="rh")[0].find("span", cls="st")
+                # no mark where it would answer nothing: Δv and the orbit are JPL's for every asteroid, and a sunlight
+                # push that is not measured has no estimate
+                if n.attrs["data-row"] in ("reach", "tracking") or (n.attrs["data-row"] == "push" and state in ("prior", "unchecked")):
+                    self.assertEqual(tags, [], (r.key, n.attrs["data-row"]))
+                else:
+                    (tag,) = tags
+                    self.assertEqual(tag.text(), t.STATE_WORDS[state])
+                    self.assertIn(tag.text(), ("Measured", "Bound", "Estimated"))
+                    self.assertIn(f"st-{state}", tag.classes)
+                want = "Delta-v (Δv)" if n.attrs["data-row"] == "reach" else t.ROW_LABELS[n.attrs["data-row"]]
+                self.assertEqual(n.find("h3")[0].text(), want)
 
-    def test_unchecked_never_prints_not_measured(self):
+    def test_unchecked_never_prints_as_nothing_on_file(self):
+        """A row not checked is an estimate that names, on its entry, every source not checked. It never reads as
+        if every source had been asked and held nothing, and never as a measurement."""
         seen = 0
         for r in sample.RECORDS:
             for row_id, n in self.rows(r.key).items():
@@ -446,20 +576,47 @@ class SiteTest(unittest.TestCase):
                     continue
                 seen += 1
                 text = n.text()
-                self.assertNotIn("not measured", text.lower(), (r.key, row_id))
-                self.assertIn("Not checked", text, (r.key, row_id))
+                self.assertIsNone(RETIRED.search(text), (r.key, row_id))
+                self.assertNotIn("Nothing on file", text, (r.key, row_id))
+                self.assertIn("Not checked: ", text, (r.key, row_id))
+                tags = n.find("div", cls="rh")[0].find("span", cls="st")
+                # an estimate where there is one; sunlight push has none, so it claims no state at all
+                self.assertEqual([x.text() for x in tags], [] if row_id == "push" else ["Estimated"], (r.key, row_id))
                 for sid in r.rows[row_id].unchecked:
                     self.assertIn(sample.SOURCES[sid].name, text, (r.key, row_id))
-            # the summary: an unchecked row's mark is the ring and its word "Not checked", and so is the
-            # mass that rests on an unchecked size
+            # the summary is the surface: an unchecked row is an estimate, with the estimate's mark, as is the mass
+            # that rests on it. The source not checked is the entry's to name, below.
             s = self.summary(r.key)
-            for name, row_id in (("Size", "size"), ("Spin", "spin"), ("Made of", "surface")):
+            for name, row_id in (("Diameter", "size"), ("Spin", "spin"), ("Composition", "surface")):
                 if r.rows[row_id].state == "unchecked":
-                    self.assertEqual(s[name][2].text(), "Not checked", (r.key, name))
-                    self.assertEqual(len(s[name][2].find("i", cls="g-unchecked")), 1)
+                    self.assertEqual(s[name][2].text(), "Estimated", (r.key, name))
+                    self.assertEqual([sorted(g.classes) for g in s[name][2].find("i")], [["g", "g-prior"]])
             if r.rows["size"].state == "unchecked" and "Mass" in s:
-                self.assertEqual(s["Mass"][2].text(), "Not checked", r.key)
+                self.assertEqual(s["Mass"][2].text(), "Estimated", r.key)
         self.assertGreaterEqual(seen, 6)
+
+    def test_an_estimate_never_reads_as_a_measurement(self):
+        """Measured is said, and its glowing outline drawn, only for a row a source gives a value for."""
+        for r in sample.RECORDS:
+            s = self.summary(r.key)
+            for name, row_id in (("Diameter", "size"), ("Spin", "spin"), ("Composition", "surface")):
+                state = r.rows[row_id].state
+                cell = s[name][2]
+                if state in ("prior", "unchecked"):
+                    self.assertNotIn("Measured", cell.text(), (r.key, name))
+                    self.assertEqual(cell.find("i", cls="g-measured"), [], (r.key, name))
+                elif state == "measured" and row_id == "surface" and not any(f.used and f.label == "class" for f in r.rows["surface"].facts):
+                    # a reflectivity alone gives no class: the class is estimated, or, with no brightness, not given
+                    self.assertEqual(cell.text(), "" if s[name][0].text() == "Not classified" else "Estimated", (r.key, name))
+                    self.assertEqual(cell.find("i", cls="g-measured"), [], (r.key, name))
+                elif state == "measured":
+                    self.assertEqual(cell.text(), "Measured", (r.key, name))
+            for row_id, n in self.rows(r.key).items():
+                if r.rows[row_id].state in ("prior", "unchecked"):
+                    self.assertEqual(n.find("i", cls="g-measured"), [], (r.key, row_id))
+            # the rock's glow is the measured row's alone
+            fig = self.entry(r.key).find("figure")[0]
+            self.assertEqual(bool(fig.find("polygon", cls="halo")), r.rows["size"].state == "measured", r.key)
 
     def test_the_figure_never_says_not_measured_of_an_unchecked_row(self):
         """The rock heads the summary. What it gives a screen reader follows the same rule as a row:
@@ -473,26 +630,30 @@ class SiteTest(unittest.TestCase):
             for row_id, ids in unchecked.items():
                 seen += 1
                 self.assertIsNone(SAYS_NOT_MEASURED[row_id].search(said), (r.key, said))
-                what = "size" if row_id == "size" else "period"
                 names = ", ".join(sample.SOURCES[s].name for s in ids)
-                self.assertIn(f"{what} not checked: {names}", figure.find("svg")[0].attrs["aria-label"], r.key)
+                said_here = figure.find("svg")[0].attrs["aria-label"]
+                if row_id == "size":
+                    self.assertIn(f"diameter estimated, median", said_here, r.key)
+                    self.assertIn(f"; not checked: {names}", said_here, r.key)
+                else:
+                    self.assertIn(f"spin period not checked: {names}", said_here, r.key)
             if "size" in unchecked:
-                # drawn in its own line, not the line of a size nobody has measured
+                # an estimate's line: the same half-bright outline as any estimate, never dashed like a bound
                 self.assertIn("s-unchecked", figure.classes)
                 self.assertEqual(len(figure.find("polygon", cls="s-unchecked")), 1)
         self.assertGreaterEqual(seen, 3)
         # a row that was checked and holds nothing still says so
-        self.assertIn("size not measured", self.entry("s0000001").find("svg")[0].attrs["aria-label"])
-        self.assertIn("not turning: no measured period", self.entry("s0000008").find("svg")[0].attrs["aria-label"])
+        self.assertIn("diameter estimated", self.entry("s0000001").find("svg")[0].attrs["aria-label"])
+        self.assertIn("not turning: no spin period on file", self.entry("s0000008").find("svg")[0].attrs["aria-label"])
         # the check itself: it would catch the words it is there to catch
-        self.assertIsNotNone(SAYS_NOT_MEASURED["spin"].search("not turning: no measured period"))
+        self.assertIsNotNone(SAYS_NOT_MEASURED["spin"].search("not turning: no spin period on file"))
         self.assertIsNotNone(SAYS_NOT_MEASURED["size"].search("2099 QQ8, size not measured, typical outline"))
 
     def test_an_unchecked_source_is_named_once_with_its_reason(self):
         rows = self.rows("s0000009")
         line = lambda row_id: rows[row_id].find("p", cls="un")[0].text()
-        self.assertEqual(line("size"), "Not checked: SsODNet, unknown there, 2026-11-21")
-        self.assertEqual(line("spin"), "Not checked: SsODNet, no card fetched; Ondřejov photometry table, older than this object")
+        self.assertEqual(line("size"), "Not checked: SsODNet, unknown there, 2026-11-21")       # the record layer's term
+        self.assertEqual(line("spin"), "Not checked: SsODNet, no card fetched; Ondřejov photometry table, older than this asteroid")
         self.assertEqual(line("surface"), "Not checked: SsODNet, request failed 2026-11-25, timed out")
         for row_id in ("size", "spin", "surface"):
             self.assertEqual(rows[row_id].find("p", cls="note"), [], row_id)       # nothing left to say twice
@@ -502,7 +663,7 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(push.find("p", cls="note")[0].text(),
                          "JPL's bulk values are rounded to two figures and carry no force law.")
         self.assertEqual(push.find("p", cls="un")[0].text(), "Not checked: SsODNet, unknown there, 2026-11-21")
-        # one <p class="un"> a row, every source linked inside it, with the ring
+        # one <p class="un"> a row, every source linked inside it, and no mark: line style means a bound
         for r in sample.RECORDS:
             for row_id, n in self.rows(r.key).items():
                 held = r.rows[row_id].unchecked
@@ -510,7 +671,7 @@ class SiteTest(unittest.TestCase):
                 if held:
                     un = n.find("p", cls="un")[0]
                     self.assertEqual([a.attrs["href"] for a in un.find("a")], [f"#src-{s}" for s in held])
-                    self.assertEqual(len(un.find("i", cls="g-unchecked")), 1)
+                    self.assertEqual(un.find("i"), [])
 
     def test_unchecked_reasons(self):
         row = {"unchecked": ["ssodnet"], "note": "No fitted value reaches 3 sigma. No SsODNet card has been fetched."}
@@ -534,13 +695,13 @@ class SiteTest(unittest.TestCase):
                     k, shown = t.scale_for(row_id, f["label"], f["unit"], f["value"])
                     self.assertTrue(shown in val or shown in extra, (r.key, f["label"], val, extra))
                     if rng:
-                        self.assertTrue(rng.endswith(", 1σ"), rng)
+                        self.assertTrue(rng.endswith(" (±1σ)"), rng)
         self.assertGreater(checked, 20)
         val, rng, extra = t._value("push", {"label": "A2", "value": -2.9e-14, "lo": -2.919e-14, "hi": -2.881e-14, "unit": "au/d^2"})
-        self.assertEqual((val, rng, extra), ("−2.9", "−2.919 to −2.881, 1σ", "10⁻¹⁴ au/d²"))
+        self.assertEqual((val, rng, extra), ("−2.9", "−2.919 to −2.881 (±1σ)", "10⁻¹⁴ au/d²"))
         page = self.rows("s0000001")["push"].text()
         self.assertIn("Drift, A2, 10⁻¹³ au/d²", page)
-        self.assertIn("under 2.1", page)
+        self.assertIn("≤ 2.1", page)                     # a bound, written with its sign
 
     def test_inference_values_are_pointers(self):
         # D: the only period is in the lightcurve database.
@@ -561,7 +722,9 @@ class SiteTest(unittest.TestCase):
         b = self.rows("s0000002")["spin"].text()
         self.assertEqual(len(re.findall(r"10\s*h", b)), 2)   # JPL's fact and the scale's tick
         self.assertNotIn("U 1+", b)
-        self.assertIn(t.POINTER, b)
+        self.assertNotIn("1+", b)
+        # the database's line is not what the row rests on (the row is estimated), so it is left out, not pointed to
+        self.assertNotIn(t.POINTER, b)
         # and the source's own line says so
         self.assertIn("its values are not shown", self.pages["a/s0000002.html"])
 
@@ -588,7 +751,7 @@ class SiteTest(unittest.TestCase):
         same = {"label": "amplitude", "value": 0.43, "lo": 0.07, "hi": 0.43, "unit": "mag", "source": "pravec"}
         self.assertIsNone(t.public(held, srcs()))
         self.assertEqual(t.public(same, srcs()), same)
-        html = t.facts_table("spin", [held, same], srcs())
+        html = t.facts_table("spin", [held, same], srcs(), counted=True)      # the row rests on the held value
         self.assertEqual(html.count("0.43"), 2)                 # the value and its range, once, under Pravec's name
         self.assertNotIn("2+", html)
         self.assertEqual(html.count(t.POINTER), 1)
@@ -599,6 +762,10 @@ class SiteTest(unittest.TestCase):
         for r in sample.RECORDS:
             for row_id, n in self.rows(r.key).items():
                 facts = [dataclasses.asdict(f) for f in r.rows[row_id].facts]
+                # every fact the page may print, and a pointer for a held one only where the row rests on it
+                counted = r.rows[row_id].state in ("measured", "limit")
+                rests = next((f for f in facts if t.used(f)), None) if counted else None
+                facts = [f for f in facts if (t.displayable(f, srcs()) or f is rests) and f.get("label") not in t.HIDDEN_FACTS]
                 tables = [tb for tb in n.find("table", cls="facts") if "est" not in tb.classes]
                 lines = [tr for tb in tables for tr in tb.find("tr")]
                 self.assertEqual(len(lines), len(facts), (r.key, row_id))
@@ -618,36 +785,42 @@ class SiteTest(unittest.TestCase):
         rows = self.rows("s0000009")
         labels = lambda n: [th.text() for th in n.find("th")]
         self.assertIn("Observed over", labels(rows["tracking"]))
-        self.assertNotIn("condition code", rows["tracking"].text())
+        self.assertIn("Orbit condition code", labels(rows["tracking"]))   # the full term, not "orbit code"
+        self.assertNotRegex(rows["tracking"].text(), r"[Oo]rbit code")
         self.assertEqual(labels(rows["push"])[0].split(",")[0], "Radiation pressure")
-        self.assertEqual(labels(rows["surface"])[0], "Reflectivity")
+        self.assertEqual(labels(rows["push"])[1].split(",")[0], "Yarkovsky drift")
+        self.assertEqual(labels(rows["size"])[0], "Absolute magnitude (H)")
+        self.assertEqual(labels(rows["reach"])[0], "Δv, cheapest round trip")
+        self.assertEqual(labels(rows["surface"])[0], "Reflectivity, estimated")
         # an upstream tag is printed in words
         self.assertIn("spacecraft", self.rows("s0000005")["size"].text())
         self.assertNotIn("SPACE", self.pages["a/s0000005.html"])
-        self.assertEqual(t.label("spin", "period"), "period")
+        self.assertEqual(t.label("spin", "period"), "spin period")
+        # how a value was found, in words: no catalogue code, no scheme name, no period type (docs/design.md section 7)
         for tag, words in (("SPACE", "spacecraft"), ("NEATM", "thermal model"), ("TPM", "thermophysical model"),
-                           ("Astrometry(O+R)", "optical and radar astrometry"), ("Astrometry(O)", "optical astrometry"),
-                           ("Computed", "computed"), ("Yarkovsky+SRP", "from drift and radiation pressure"),
-                           ("Mahlke Spec VISNIR", "Mahlke class, visible and near-infrared spectrum"),
-                           ("Bus-DeMeo Phot VIS", "Bus-DeMeo class, visible colours"),
-                           ("SMASSII", "SMASSII"), ("thermal model, one band", "thermal model, one band"),
-                           ("sidereal, SPACE", "sidereal, spacecraft"),
-                           ("Phot five bands, X-complex", "colours: five bands, X-complex")):
+                           ("Astrometry(O+R)", "fit to optical and radar positions"), ("Astrometry(O)", "fit to optical positions"),
+                           ("Computed", "computed from other values"), ("Yarkovsky+SRP", "from drift and radiation pressure"),
+                           ("Mahlke Spec VISNIR", "class from a visible and near-infrared spectrum"),
+                           ("Bus-DeMeo Phot VIS", "class from visible colours"),
+                           ("SMASSII", "from a visible spectrum"), ("thermal model, one band", "thermal model, one band"),
+                           ("sidereal, SPACE", "spacecraft"), ("SAGE+Radar-3D", "shape model, radar shape model"),
+                           ("thermal model, signal-to-noise 191.064", "thermal model, signal-to-noise 191"),
+                           ("Phot five bands, X-complex", "from colours: five bands, X-complex")):
             self.assertEqual(t.grade("surface", tag), words)
-        self.assertEqual(t.grade("spin", "2-"), "quality U 2-")
+        self.assertEqual(t.fact_note("synodic, LC"), "lightcurve")
+        self.assertEqual(t.fact_note("sidereal, LCI"), "lightcurve inversion")
+        self.assertEqual(t.grade("spin", "2-"), "grade 2−")
         self.assertEqual(t.grade("spin", None), "")
 
-    def test_interface_copy_has_no_parentheses(self):
-        """B612 draws parentheses square: interface copy goes without them; the serif sentences keep theirs."""
-        self.assertEqual(t.unparen("Lee+2022 (2022A&A...661L...3L)"), "Lee+2022, 2022A&A...661L...3L")
+    def test_parentheses_are_conventional(self):
+        """docs/design.md section 6: conventional parentheses everywhere. B612's own look square, so the font is
+        used without them and the fallback draws them (the @font-face's unicode-range leaves out U+0028-0029)."""
+        self.assertEqual(t.plain("Lee+2022 (2022A&A...661L...3L)"), "Lee+2022 (2022A&A...661L...3L)")
         self.assertEqual(t.source_name({"x": {"name": "Asteroid Lightcurve Database (LCDB)"}}, "x"),
-                         "Asteroid Lightcurve Database, LCDB")
+                         "Asteroid Lightcurve Database (LCDB)")
         self.assertEqual(t.short_name({"x": {"name": "Asteroid Lightcurve Database (LCDB)"}}, "x"), "LCDB")
-        serif = lambda n: bool(n.classes & {"note", "stm", "stmt", "gtext"}) or n.tag == "p" and n.parent.tag == "li"
-        for name, tree in self.trees.items():
-            (main,) = tree.root.find("main")
-            for tr in main.find("table", cls="facts") + main.find("table", cls="sumlist"):
-                self.assertNotRegex(tr.text(serif), r"[()]", name)
+        self.assertIn("(±1σ)", self.rows("s0000002")["size"].text())
+        self.assertIn("Absolute magnitude (H)", self.rows("s0000009")["size"].text())
 
     def test_a_fact_prints_the_ledgers_word_on_it(self):
         f = {"label": "A2", "value": -4.5e-14, "lo": None, "hi": None, "unit": "au/d^2", "kind": "value",
@@ -662,14 +835,14 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(g.attrs["style"], "animation-duration:92.52s")   # nothing capped
         self.assertEqual(len(g.find("polygon")), 3)                       # the size range as nested outlines
         self.assertEqual([sorted(p.classes) for p in g.find("polygon")], [["edge"], ["mid", "s-prior"], ["edge", "in"]])
-        self.assertEqual([dd.text() for dd in a.find("dd")], ["13 m", "6.2 m", "3.1 m"])
-        self.assertEqual([dt.text() for dt in a.find("dt")], ["Outer, 95th", "Middle", "Inner, 5th"])
+        # the caption says what the outlines are; the summary beside it gives the figures
+        self.assertEqual(a.find("figcaption")[0].text(), "Outlines: median estimate, and 90% range")
         self.assertEqual(len(a.find("g", cls="scale")), 1)
         # the glow means measured: a halo under the line of a measured size, and nowhere else
         measured = self.entry("s0000007").find("figure")[0]
         self.assertEqual([sorted(p.classes) for p in measured.find("polygon")],
                          [["halo"], ["edge"], ["mid", "s-measured"], ["edge", "in"]])
-        self.assertEqual([dt.text() for dt in measured.find("dt")], ["High, 1σ", "Measured", "Low, 1σ"])
+        self.assertEqual(measured.find("figcaption")[0].text(), "Outlines: measured, and ±1σ")
         for r in sample.RECORDS:
             fig = self.entry(r.key).find("figure")[0]
             self.assertEqual(bool(fig.find("polygon", cls="halo")), "s-measured" in fig.classes, r.key)
@@ -677,23 +850,24 @@ class SiteTest(unittest.TestCase):
         self.assertEqual([sorted(p.classes) for p in limit], [["mid", "s-limit"]])
         self.assertEqual(self.entry("s0000005").find("g", cls="turn")[0].attrs["style"], "animation-duration:15470s")
         # no usable period, no animation: graded too low, sources disagree, held back, only a bound, not checked
-        for key, why in (("s0000002", "no period good enough to use"), ("s0000003", "sources disagree on the period"),
-                         ("s0000004", t.POINTER), ("s0000008", "no measured period"),
-                         ("s0000009", "period not checked: SsODNet, Ondřejov photometry table")):
+        for key, why in (("s0000002", "no spin period good enough to use"), ("s0000003", "sources disagree on the spin period"),
+                         ("s0000004", t.POINTER), ("s0000008", "no spin period on file"),
+                         ("s0000009", "spin period not checked: SsODNet, Ondřejov photometry table")):
             fig = self.entry(key).find("figure")[0]
             self.assertEqual(fig.find("g", cls="turn"), [], key)
             self.assertIn(f"not turning: {why}", fig.find("svg")[0].attrs["aria-label"], key)
         # nothing to draw without a size
         none = self.entry("s0000006")
         self.assertEqual(none.find("figure")[0].find("svg"), [])
-        self.assertIn("not drawn", none.find("figure")[0].text())
+        self.assertEqual(none.find("figure")[0].text(), "No brightness on file, so no outline")
 
     def test_a_narrow_range_is_one_outline(self):
         # E: 484 to 496 m. Three outlines 2 px apart read as one bevelled line, so one is drawn
         # and the caption carries the range.
         e = self.entry("s0000005").find("figure")[0]
         self.assertEqual([sorted(p.classes) for p in e.find("polygon")], [["halo"], ["mid", "s-measured"]])
-        self.assertEqual([dd.text() for dd in e.find("dd")], ["496 m", "490 m", "484 m"])
+        self.assertEqual(e.find("figcaption")[0].text(), "Outline: measured")
+        self.assertEqual(self.summary("s0000005")["Diameter"][1].text(), "484–496 m (±1σ), SsODNet")
         wide = dict(dataclasses.asdict(sample.RECORDS[6]))
         for lo, hi, outlines in ((7.9, 9.8, 2), (7.0, 8.75, 4)):         # either side of a ratio of 1.25, with the halo
             wide["rows"]["size"]["facts"][0].update(lo=lo, hi=hi)
@@ -731,16 +905,23 @@ class SiteTest(unittest.TestCase):
         self.assertIn(t._points(t.shape(t.MARK_KEY), 9.5 / max((x * x + y * y) ** 0.5 for x, y in t.shape(t.MARK_KEY))),
                       t.rock_mark())
 
-    def test_what_is_not_measured_leads_with_its_range(self):
+    def test_an_estimate_leads_with_its_range(self):
         size = self.rows("s0000001")["size"]
         (line,) = size.find("tr", cls="pr")
-        self.assertEqual(line.find("th")[0].text(), "From brightness")
+        self.assertEqual(line.find("th")[0].text(), "Diameter, estimated")
         self.assertEqual(line.find("td", cls="v")[0].text(), "3.1–13 m")     # the range is the value
-        self.assertEqual(line.find("td", cls="r")[0].text(), "9 in 10")
+        self.assertEqual(line.find("td", cls="r")[0].text(), "90% range")    # and it says what range it is
         self.assertNotIn("6.2", size.text())                                       # no single figure beside it
         surface = self.rows("s0000008")["surface"].find("tr", cls="pr")[0]
-        self.assertEqual((surface.find("th")[0].text(), surface.find("td", cls="v")[0].text()), ("Reflectivity", "5–45%"))
-        self.assertEqual(surface.find("td", cls="r")[0].text(), "9 in 10 at this brightness")
+        self.assertEqual((surface.find("th")[0].text(), surface.find("td", cls="v")[0].text()),
+                         ("Reflectivity, estimated", "5.0–45%"))       # two significant figures each end
+        self.assertEqual(surface.find("td", cls="r")[0].text(), "90% range")
+        # the shares and the spin's chances are tables, with the chances as percentages
+        spin = self.rows("s0000009")["spin"].find("table", cls="odds")[0]
+        self.assertEqual([[c.text() for c in tr.kids if isinstance(c, Node)] for tr in spin.find("tbody")[0].find("tr")],
+                         [["2.2 h", "94%"], ["1 h", "94%"], ["10 min", "93%"]])
+        shares = self.rows("s0000009")["surface"].find("table", cls="shares")[0]
+        self.assertEqual([tr.find("td")[0].text() for tr in shares.find("tbody")[0].find("tr")], ["52%", "19%", "17%", "12%"])
         # and its scale draws the band, the middle as a tick, no point
         (gauge,) = size.find("div", cls="gauge")
         self.assertEqual((len(gauge.find("i", cls="est")), len(gauge.find("i", cls="pt"))), (1, 0))
@@ -749,8 +930,8 @@ class SiteTest(unittest.TestCase):
         # G: the size is measured, so the reflectivity drawn for it follows from that size and H.
         line = self.rows("s0000007")["surface"].find("tr", cls="pr")[0]
         self.assertEqual(line.find("td", cls="v")[0].text(), "30–140%")
-        self.assertEqual(line.find("td", cls="r")[0].text(), "9 in 10, implied by its size and H")
-        self.assertIn("over 100% cannot be", line.find("td", cls="q")[0].text())
+        self.assertEqual(line.find("td", cls="r")[0].text(), "90% range, from its diameter and H")
+        self.assertIn("over 100% is impossible", line.find("td", cls="q")[0].text())
         # the population's reflectivity carries no such flag
         self.assertEqual(self.rows("s0000008")["surface"].find("tr", cls="pr")[0].find("td", cls="q")[0].text(), "")
 
@@ -765,7 +946,7 @@ class SiteTest(unittest.TestCase):
         self.assertEqual([g.text() for g in spin.find("i", cls="gate")], [f"{t.num(preset[('surface', 'spin')])} h: surface work"])
         # both missions draw the orbit code at the same line: it is drawn once, by its own name
         track = self.rows("s0000001")["tracking"].find("div", cls="gauge")[0]
-        self.assertEqual([g.text() for g in track.find("i", cls="gate")], [m.missions["surface"]["gates"][0]["label"]])
+        self.assertEqual([g.text() for g in track.find("i", cls="gate")], [t.condition(m.missions["surface"]["gates"][0]["label"])])
         self.assertEqual(t.gate_lines(None), {})
 
     def test_prior_and_conflict_and_sources(self):
@@ -773,7 +954,7 @@ class SiteTest(unittest.TestCase):
         self.assertIn("factor of 100", self.rows("s0000003")["spin"].find("p", cls="conflict")[0].text())
         self.assertEqual(len(self.rows("s0000003")["spin"].find("i", cls="pt")), 2)   # both periods on the scale
         limit = self.rows("s0000008")["spin"]
-        self.assertIn("over 4 h", limit.text())
+        self.assertIn("≥ 4 h", limit.text())
         self.assertTrue(limit.find("i", cls="lim"))
         for r in sample.RECORDS:
             main = self.entry(r.key)
@@ -804,33 +985,34 @@ class SiteTest(unittest.TestCase):
     def test_blocks(self):
         a = self.entry("s0000001")
         text = a.text()
-        for words in ("Find it again", "Reach it", "Work on it", "Anything in it", "Bring any back",
+        for words in ("Finding it again", "Reaching it", "Working on it", "Finding anything in it", "Bringing any back",
                       "Prices: list prices of 2026-11-20", "Counting the zeros, three in four hold under $310 thousand of it."):
             self.assertIn(words, text)
         rungs = a.find("ol", cls="ladder")[0].find("li")
         self.assertEqual([li.attrs["data-status"] for li in rungs], [r["status"] for r in self.by_key["s0000001"].ladder])
-        self.assertEqual([li.find("span", cls="st")[0].text() for li in rungs][:3], ["Measured"] * 3)
+        # a step carries no state mark: it is not a value, and its sentence says what it rests on
+        self.assertEqual([li.find("span", cls="st") for li in rungs], [[]] * len(rungs))
         self.assertIn("No estimate", self.entry("s0000006").find("section", id="value")[0].text())
+        # the mass is the summary's to say, once
+        self.assertEqual(a.text().count("28–2,300"), 1)
         statuses = {m.attrs["data-status"] for r in sample.RECORDS for m in self.entry(r.key).find("div", cls="mission")}
         self.assertEqual(statuses, {"pass", "fail", "untested"})
         # with no sentences from the pipeline the chance of nothing comes first, and no single dollar figure
         b = self.entry("s0000002").find("section", id="value")[0].text()
         self.assertLess(b.index("Chance of no separable metal"), b.index("That metal at list prices"))
         self.assertIn("$20 million to $2.4 billion", b)
-        # a mass range that crosses a million: both ends in the high end's scale
-        self.assertIn("0.071–3.6 million t", self.entry("s0000008").text())
+        # a mass range that crosses a million: "to", each end in its own scale
+        self.assertIn("71,000 t to 3.6 million t", self.entry("s0000008").text())
 
-    def test_a_hundred_cells_counted_from_the_record(self):
-        """Of 100 like it: the chance of nothing first, the uncertain cells half-filled, every count from the record."""
+    def test_the_records_sentences_go_to_the_block_they_are_about(self):
+        """The chance of nothing first, in the record's own sentences; no grid of a hundred cells, whose shades
+        would give brightness a second meaning (docs/design.md section 4)."""
         val = {"metal": {"p_nothing_lo": 0.3665, "p_nothing_hi": 0.427}, "iron_rich": {"p_lo": 0.01, "p_hi": 0.06},
                "water": {"p_nothing_lo": 0.9465, "p_nothing_hi": 0.965}}
-        self.assertEqual(t._metal_cells(val), [("", 37), ("u", 6), ("s", 51), ("ru", 5), ("r", 1)])
-        self.assertEqual(t._water_cells(val), [("", 95), ("u", 2), ("s", 3)])
         rec = dict(dataclasses.asdict(sample.RECORDS[0]))
         rec["value"] = dict(rec["value"], **val, statement_ids=["metal_none", "metal_under", "water_none", "metal_cap"])
         block = parse(t.value(rec)).root
-        for units in block.find("div", cls="units"):
-            self.assertEqual(len(units.find("i")), 100)
+        self.assertEqual(block.find("div", cls="units"), [])
         heads = [h.text() for h in block.find("h3")]
         self.assertEqual(heads, ["Platinum-group metal, in metal grains", "Water, bound in minerals"])
         said = [[li.text() for li in ul.find("li")] for ul in block.find("ul", cls="stm")]
@@ -850,13 +1032,21 @@ class SiteTest(unittest.TestCase):
         rec = dict(dataclasses.asdict(sample.RECORDS[0]))
         rec["value"] = dict(rec["value"], table=table, basis="USGS list prices")
         block = parse(t.value(rec)).root
-        units = block.find("div", cls="units")
-        self.assertEqual([len(u.find("i")) for u in units], [100, 100])
-        self.assertEqual([len(u.find("i", cls="ru")) for u in units], [5, 0])
+        self.assertEqual(block.find("div", cls="units"), [])
         metal, water = block.find("table", cls="vt")
+        # the unit in the header: dollars there, not in the cells; a figure the record carries only as text keeps its own
+        self.assertEqual([th.text() for th in metal.find("thead")[0].find("th")], ["Holds", "Of 100", "Metal", "At list price ($)"])
         self.assertEqual([[c.text() for c in tr.kids if isinstance(c, Node) and c.tag in ("th", "td")] for tr in metal.find("tbody")[0].find("tr")],
-                         [["Hold none", "37 to 43", "", ""], ["3 in 4 hold under", "", "400 kg", "$26 million"]])
-        self.assertEqual([c.text() for c in water.find("tbody")[0].find("td")], ["all 100", ""])
+                         [["Hold none", "37 to 43", "", ""], ["3 in 4 hold under", "", "400 kg", "26 million"]])
+        # a column with nothing in it is left out
+        self.assertEqual([c.text() for c in water.find("tbody")[0].find("td")], ["all 100"])
+        # with the amounts as numbers, one unit for the column, in its header
+        rows = [dict(table["metal"]["rows"][0], kg_n=None), dict(table["metal"]["rows"][1], kg_n=[400.0, 400.0]),
+                {"id": "under_q95", "label": "Under", "of100": "95", "kg": "4 t", "usd": "$240 million", "kg_n": [4000.0, 4000.0]}]
+        cells = parse(t._vtable("metal", rows)).root
+        self.assertEqual([th.text() for th in cells.find("th") if th.attrs.get("scope") == "col"],
+                         ["Holds", "Of 100", "Metal (kg)", "At list price ($)"])
+        self.assertEqual([td.text() for td in cells.find("td")][4:], ["400", "26 million", "95", "4,000", "240 million"])
         notes = [p.text() for p in block.find("div", cls="foot-notes")[0].find("p")]
         self.assertEqual(notes, [table["notes"][0], "Prices: USGS list prices"])
         self.assertEqual(block.find("ul", cls="stm"), [])               # the table replaces the sentences
@@ -877,9 +1067,14 @@ class SiteTest(unittest.TestCase):
     def test_an_untested_chance_is_never_printed_as_certain(self):
         i = self.entry("s0000009")
         said = [m.find("p", cls="verdict")[0].text() for m in i.find("div", cls="mission")]
-        self.assertEqual(said, ["under 1%chance of passing every gateUntested", "over 99%chance of passing every gateUntested"])
+        self.assertEqual(said, ["Unclear, <1% chance it fits", "Unclear, >99% chance it fits"])
         chances = [td.text() for td in i.find("div", cls="mission")[0].find("td", cls="num")]
-        self.assertEqual(chances, ["", "under 1%", "1%"])     # pass, 0 of 2,000, then 10 of 2,000
+        self.assertEqual(chances, ["", "<1%", "1%"])     # met, 0 of 2,000, then 10 of 2,000
+        verdicts = [td.text() for td in i.find("div", cls="mission")[0].find("td") if td.attrs.get("data-l") == "Verdict"]
+        self.assertEqual(verdicts, ["Met", "Unclear", "Unclear"])
+        # a condition resting on a row not checked says so, on the entry
+        basis = [td.text() for td in i.find("div", cls="mission")[0].find("td") if td.attrs.get("data-l") == "Basis"]
+        self.assertEqual(basis, ["measured", "estimated; a source not checked", "estimated; a source not checked"])
         for r in sample.RECORDS:
             main = self.entry(r.key)
             said = [td.text() for td in main.find("td", cls="num") if td.parent.parent.parent.tag == "table"
@@ -893,38 +1088,45 @@ class SiteTest(unittest.TestCase):
         a = self.entry("s0000001").find("section", id="settle")[0]
         kv = a.find("dl")[0]
         pairs = dict(zip([dt.text() for dt in kv.find("dt")], [dd.text() for dd in kv.find("dd")]))
-        self.assertEqual(pairs["Observation"], "Size or reflectivity measurement")
-        self.assertEqual(pairs["Settles"], "10 m or less across, for whole-body capture, 86% chance now")
+        self.assertEqual(pairs["Observation"], observation("size"))
+        self.assertEqual(pairs["Decides"], "Diameter ≤ 10 m, for whole-body capture")     # its chance is under Missions, once
         self.assertEqual(pairs["Telescope"], "2 m telescope, or radar at the close pass")
         self.assertNotIn("2027-02-10", a.text())                 # when it can be observed is the tracking row's to say
-        # nothing ranked: the reason, in a few words
-        said = lambda key: dict(zip(*[[x.text() for x in self.entry(key).find("section", id="settle")[0].find(tag)]
-                                       for tag in ("dt", "dd")]))["Observation"]
-        self.assertEqual(said("s0000005"), "None, both missions rest on measurements")
-        self.assertEqual(said("s0000006"), "None, orbit not good enough to find it again")
-        self.assertEqual(said("s0000009"), "None, no one observation would change a mission's result")
+        # nothing ranked: the summary gives the reason in a few words, and no section repeats it
+        said = lambda key: self.summary(key)["Best next observation"][1].text()
+        for key, why in (("s0000005", "both verdicts rest on measurements"), ("s0000006", "orbit not good enough to find it again"),
+                         ("s0000009", "no single observation would change a verdict")):
+            self.assertEqual(said(key), why)
+            self.assertEqual(self.entry(key).find("section", id="settle"), [], key)
         both = dataclasses.asdict(sample.RECORDS[4])
         both["missions"]["surface"]["status"] = "fail"
-        self.assertEqual(t.nothing_ranked(both), "both missions rest on measurements")
+        self.assertEqual(t.nothing_ranked(both), "both verdicts rest on measurements")
         gone = dict(dataclasses.asdict(sample.RECORDS[5]), gone={"date": "2099-02-15", "text": "It hit.", "evidence": "x"})
         self.assertEqual(t.nothing_ranked(gone), "it no longer exists")
         # and nothing on its entry treats it as still there: no turning rock, no estimate of what is in it
         was = dataclasses.asdict(next(r for r in sample.RECORDS if t.period_of(dataclasses.asdict(r), srcs())[0]))
         self.assertIn('class="turn"', t.rock(was, srcs()))
-        self.assertIn("Mass of the whole asteroid", t.value(was))
+        self.assertNotIn("No estimate", t.value(was))
         was["gone"] = gone["gone"]
         self.assertNotIn('class="turn"', t.rock(was, srcs()))
         self.assertIn("not turning: it no longer exists", t.rock(was, srcs()))
         self.assertEqual(t.value(was), '<p class="none">No estimate: it no longer exists</p>')
+        # its missions fail on one plain condition, and the reason is said once, in the summary's Gone row
+        was["missions"] = {mid: {"status": "fail", "p": 0.0, "gates": [{"id": "findable", "label": "Orbit condition code ≤ 5",
+                                                                         "status": "fail", "p": None, "basis": "measured",
+                                                                         "text": "It hit."}]} for mid in ("surface", "capture")}
+        block = parse(t.missions(was)).root
+        self.assertEqual([th.text() for th in block.find("th") if th.attrs.get("scope") == "row"], ["Still exists"] * 2)
+        self.assertNotIn("It hit.", block.text())
 
     def test_an_observation_says_which_source_was_not_checked(self):
         rec = dataclasses.asdict(sample.RECORDS[0])
         rec["observe"]["unchecked"] = ["ssodnet"]
         block = parse(t.observe(rec, {"size": "Size or reflectivity measurement"}, srcs())).root
         pairs = dict(zip([dt.text() for dt in block.find("dt")], block.find("dd")))
-        self.assertEqual(pairs["Check first"].text(), "SsODNet")
-        self.assertEqual(pairs["Check first"].find("a")[0].attrs["href"], "#src-ssodnet")
-        self.assertEqual(len(pairs["Check first"].find("i", cls="g-unchecked")), 1)
+        self.assertEqual(pairs["Not checked"].text(), "SsODNet")
+        self.assertEqual(pairs["Not checked"].find("a")[0].attrs["href"], "#src-ssodnet")
+        self.assertEqual(pairs["Not checked"].find("i"), [])
         rec["observe"]["unchecked"] = ["lcdb"]
         page = parse(gen.observe_page([rec], srcs(), sample.ASSETS, sample.DATA_DATE, sample.METHOD,
                                       {"size": "Size or reflectivity measurement"})).root
@@ -946,21 +1148,25 @@ class SiteTest(unittest.TestCase):
         self.assertEqual([tr.find("a")[0].text() for tr in rows], want)
         self.assertEqual([tr.find("td")[0].text() for tr in rows], ["1", "2", "3", "4"])
         # the columns are named by position: style.css labels each on a phone
-        cols = ("Rank", "Asteroid", "Delta-v, km/s", "Size, m", "Telescope", "Window opens", "Window closes", "Peak, V mag", "Check first")
+        cols = gen.OBSERVE_COLS
+        self.assertEqual([th.text() for th in root.find("thead")[0].find("th")], list(cols))
+        for i, c in enumerate(cols[2:], 3):         # the phone names each column by position, in the same words
+            self.assertIn(f'.ltbl.obs td:nth-child({i})::before {{ content: "{c}"; }}', CSS)
         cells = {tr.find("a")[0].text(): dict(zip(cols, (td.text() for td in tr.find("td")))) for tr in rows}
         first = cells["2099 HT"]
-        self.assertEqual((first["Window opens"], first["Window closes"], first["Peak, V mag"]), ("2027-02-20", "2027-04-11", "17.5"))
+        self.assertEqual((first["Window opens"], first["Window closes"], first["Peak brightness (mag)"]),
+                         ("2027-02-20", "2027-04-11", "17.5"))
         self.assertEqual(first["Telescope"], "Small telescope, a few nights")
-        self.assertEqual(first["Delta-v, km/s"], "4.58")
-        self.assertEqual(cells["2099 NJ"]["Window opens"], "")
+        self.assertEqual(first["Δv (km/s)"], "4.580")                   # to the metre per second, as everywhere
+        self.assertEqual(cells["2099 NJ"]["Window opens"], "none listed")  # a missing value is its state, never blank
         # what one observation settles is said once for each run of rows that share it, not on every row
         runs = [tr for tr in root.find("tbody")[0].find("tr") if "run" in tr.classes]
         self.assertEqual(len(runs), 4)
-        self.assertEqual(runs[1].text(gap=" "), "Observation Size or reflectivity measurement Settles 10 m or less across, for whole-body capture")
+        self.assertEqual(" ".join(runs[1].text(gap=" ").split()), f"Observation {observation('size')} Decides Diameter ≤ 10 m, for whole-body capture")
         # the list is in the method's order and has no script: its headings are plain
         self.assertEqual(root.find("thead")[0].find("button"), [])
         self.assertEqual(root.find("script"), [])
-        self.assertIn("4 untested asteroids", root.find("dl", cls="lmeta")[0].text())
+        self.assertIn("4 asteroids with an unclear verdict", root.find("dl", cls="lmeta")[0].text())
         # a window kind heads its rows, with its count
         recs = [dataclasses.replace(r, observe=dict(r.observe, tier="pointable")) if r.observe else r for r in sample.RECORDS]
         page = parse(gen.observe_page([dataclasses.asdict(r) for r in recs], srcs(), sample.ASSETS, sample.DATA_DATE,
@@ -975,7 +1181,7 @@ class SiteTest(unittest.TestCase):
         withheld = 0
         def cell(r):        # the mark's state in words, as a reader that does not see it hears it, then the text
             root = parse(gen.size_cell(dataclasses.asdict(r), srcs())).root
-            return ", ".join(x for x in (root.find("i", cls="g")[0].attrs.get("aria-label"), root.text()) if x)
+            return ", ".join(x for x in ([g.attrs.get("aria-label") for g in root.find("i", cls="g")] + [root.text()]) if x)
         for r in sample.RECORDS:
             own = t.size_of(dataclasses.asdict(r), srcs())
             if own and own["state"] != "prior" and sample.SOURCES[own["source"]].licence != "open":
@@ -985,10 +1191,11 @@ class SiteTest(unittest.TestCase):
         by = {r.designation: cell(r) for r in sample.RECORDS}
         self.assertEqual(by["2099 AA37"], "Measured, on entry")                 # nothing open on the record
         self.assertEqual(by["2099 RQ36"], "Measured, 492")                      # JPL's own diameter
-        self.assertEqual(by["2099 KY26"], "Measured, 5.2–21")                   # the field file's range, dimmed
-        self.assertIn('title="Placed by brightness', gen.size_cell(dataclasses.asdict(self.by_key["s0000007"]), srcs()))
-        self.assertEqual(by["2099 NJ"], "Limit only, on entry")
-        self.assertEqual(by["2099 OB5"], "Not measured, 3.1–13")                # our own range: as on the entry
+        # the field file's range is an estimate: it never stands beside the measured mark
+        self.assertEqual(by["2099 KY26"], "Measured, on entry")
+        self.assertEqual(by["2099 NJ"], "Measured, on entry")                  # a bound is measured
+        self.assertEqual(by["2099 OB5"], "Estimated, 3.1–13")                   # our own range: as on the entry
+        self.assertEqual(by["2099 CW266"], "none: no brightness on file")
         page = self.pages["list/observe.html"]
         for sid, s in sample.SOURCES.items():
             if s.licence != "open":
@@ -1038,6 +1245,12 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(rows[0].find("a")[0].attrs["href"], "a/s0000008.html")
         meta = {dt.text(): dt.parent.find("dd")[0].text() for dt in root.find("dl", cls="lmeta")[0].find("dt")}
         self.assertEqual(meta, {"Predictions": "3", "Frozen": "2", "Settled": "1"})
+        # the page says what it is, once, with its terms: frozen, and a miss listed like a hit
+        (intro,) = root.find("p", cls="intro")
+        self.assertIn("freeze each one, with a date, before the observation", intro.text())     # active: the site acts
+        self.assertIn("a miss the same way as a hit.", intro.text())
+        self.assertEqual([th.text() for th in root.find("thead")[0].find("th")],
+                         ["Prediction", "Chance", "Frozen", "Settled by", "When", "Outcome"])
 
     def test_record_prints_a_family_of_rules_as_one_grid(self):
         preds = predictions.predictions()
@@ -1048,45 +1261,58 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(tree.errors, [])
         root = tree.root
         meta = {dt.text(): dt.parent.find("dd")[0].text() for dt in root.find("main")[0].find("dl")[0].find("dt")}
-        self.assertEqual(meta, {"Predictions": str(len(preds)), "Frozen": "none", "Settled": "0"})
+        self.assertEqual(meta, {"Predictions": str(len(preds)), "Frozen": "0", "Settled": "0"})
         grids = root.find("table", cls="grid")
-        self.assertEqual(len(grids), 2)                                   # class by band, spin by band
+        self.assertEqual(len(grids), 3)                                   # class, spin and diameter by band
         for grid, columns in zip(grids, (classes, spins)):
             self.assertEqual(len(grid.find("tbody")[0].find("tr")), len(bands))
             heads = grid.find("thead")[0].find("tr")[-1].find("th")
-            self.assertEqual(heads[0].text(), "H, mag")                  # the rows' column is headed, with its unit
+            self.assertEqual(heads[0].text(), "H (mag)")                 # the rows' column is headed, with its unit
+            self.assertIn("absolute magnitude", heads[0].find("abbr")[0].attrs["title"])
             self.assertEqual(len(heads), len(columns) + 1)
-        self.assertEqual(grids[1].find("th", cls="over")[0].text(), "Faster than")
+        self.assertEqual(grids[1].find("th", cls="over")[0].text(), "Spin period under")
         # label headings, not sentences; the statement once, as a line under it; each chance keeps its id as an anchor
         heads = [h.text() for h in root.find("h2")]
-        self.assertLessEqual({"Class, by brightness", "Spin, by brightness"}, set(heads))
+        self.assertLessEqual({"Class, by brightness", "Spin, by brightness", "Diameter, by brightness"}, set(heads))
+        # diameter by band: one range a band, its chance said once, the unit in the column head and not the cells
+        size = grids[2]
+        self.assertEqual([th.text() for th in size.find("thead")[0].find("th")], ["H (mag)", "Diameter, 90% range (m)"])
+        self.assertEqual(len(size.find("tbody")[0].find("tr")), len(bands))
+        for td in size.find("td"):
+            self.assertRegex(td.text(), r"^[\d.]+–[\d.]+$")
         self.assertEqual(root.find("i"), [])
-        self.assertEqual(page.count("gets a class gets each one"), 1)
+        self.assertEqual(page.count("for a reachable asteroid that gets a class"), 1)
         ids = {n.attrs["id"] for n in root.walk() if "id" in n.attrs}
         self.assertLessEqual({p["id"] for p in preds}, ids)
         by_id = {p["id"]: p for p in preds}
         (cell,) = root.find("td", id=f"rule-class-{bands[2]}-S")
         self.assertTrue(cell.text().startswith(t.pct(by_id[f"rule-class-{bands[2]}-S"]["p"])))
-        self.assertEqual(cell.parent.find("th")[0].text(), "22 to 24")
-        self.assertEqual(grids[0].find("thead")[0].find("tr")[-1].find("th")[1].text(), "S or Q")
-        self.assertEqual(grids[1].find("thead")[0].find("tr")[-1].find("th")[1].text(), "2.2 hours")
+        self.assertEqual(cell.parent.find("th")[0].text(), "22–24")
+        # the class columns in the site's words; the letters are the hover note (docs/design.md section 3)
+        stony = grids[0].find("thead")[0].find("tr")[-1].find("th")[1]
+        self.assertEqual(stony.text(), "Stony")
+        self.assertEqual(stony.find("abbr")[0].attrs["title"], "classes S and Q")
+        self.assertEqual(grids[1].find("thead")[0].find("tr")[-1].find("th")[1].text(), "2.2 h")       # the symbol, as entries write it
+        # the spread between surveys, in brackets after the chance
+        self.assertRegex(cell.text(), r"^\d+% \(\d+–\d+%\)$")
         # what settles a family is said once, beside its grid; nothing says "not yet frozen" 51 times
-        self.assertEqual(page.lower().count("class labels published after the freeze"), 1)
+        settles = next(p["settles"] for p in preds if p.get("group") == "class")
+        self.assertEqual(page.count(t.esc(t.cap(settles))), 1)
         self.assertNotIn("not yet", page)
         self.assertNotIn(">open<", page)
-        # the rest are one to a line: a size per band, then the single asteroids
+        # the rest are one to a line: the single asteroids
         self.assertEqual(len(root.find("table", cls="flat")[0].find("tbody")[0].find("tr")),
-                         len(preds) - len(bands) * (len(classes) + len(spins)))
+                         len(preds) - len(bands) * (len(classes) + len(spins) + 1))
         # a family with a frozen member goes back to one line each, with the column that says so
         frozen = [dict(p, frozen="2026-12-01") if p["id"] == f"rule-class-{bands[0]}-S" else p for p in preds]
         again = parse(gen.record_page(frozen, set(), sample.ASSETS, sample.DATA_DATE, sample.METHOD)).root
-        self.assertEqual(len(again.find("table", cls="grid")), 1)
+        self.assertEqual(len(again.find("table", cls="grid")), 2)
         self.assertIn("Frozen", [th.text() for th in again.find("table", cls="flat")[0].find("th")])
 
     def test_method(self):
         root = self.trees["method.html"].root
         text = root.find("main")[0].text()
-        self.assertIn(f"version {sample.METHOD}", text)
+        self.assertIn(f"Version {sample.METHOD}", text)
         for sid, s in sample.SOURCES.items():
             row = root.find("tr", id=f"src-{sid}")[0].text()
             self.assertIn(t.source_name(srcs(), sid), row)
@@ -1094,13 +1320,16 @@ class SiteTest(unittest.TestCase):
             self.assertIn(s.citation, row)
         for line in gen.NOT_CLAIMED:
             self.assertIn(line, text)
-        self.assertIn("A dollar figure appears only as a range", text)
+        self.assertIn("A dollar figure is always a range", text)
         self.assertNotIn("No water for a small reachable asteroid", text)
-        self.assertIn("a miss is listed the same way as a hit", text)
-        # the states, with the marks every page uses
+        # the marks, with the words every page uses: the record layer's three states, then not checked
         (states,) = root.find("section", id="states")
-        self.assertEqual([tag.text() for tag in states.find("table")[0].find("span", cls="st")], list(t.STATE_WORDS.values()))
-        self.assertIn("never reads as not measured", states.text())
+        marks, verdicts = states.find("table")
+        self.assertEqual([tag.text() for tag in marks.find("span", cls="st")], ["Measured", "Bound", "Estimated", "Not checked"])
+        self.assertIn("The value shown is still an estimate.", marks.text())
+        self.assertEqual([tag.text() for tag in verdicts.find("span", cls="st")], ["Fits", "Ruled out", "Unclear"])
+        # delta-v is spelled out once
+        self.assertEqual(text.count("Delta-v (Δv)"), 1)
         for a in root.find("nav", cls="toc")[0].find("a"):
             self.assertEqual(len(root.find(id=a.attrs["href"][1:])), 1)
 
@@ -1113,28 +1342,36 @@ class SiteTest(unittest.TestCase):
         for mid in m.missions["order"]:
             for g in m.missions[mid]["gates"]:
                 (block,) = main.find("div", id=f"g-{mid}-{g['id']}")
-                said = block.text(gap=" ")
-                self.assertIn(g["label"], said)
+                said = block.text()
+                self.assertIn(t.condition(g["label"]), said)
                 self.assertIn(t.num(g["preset"]), said)
-                # where it comes from, as the file gives it less what only points into the project
-                self.assertIn(gen._public(g["source"]), said)
-                self.assertIn(g["kind"], said)
+                # the maintainer's provenance stays in the method file: a page cites only public sources
+                self.assertNotIn(gen._public(g["source"]), said)
+                self.assertIn(gen.KIND_WORDS.get(g["kind"], g["kind"]), said)    # "from the data", never "measured"
                 for alt in g.get("alternatives", []):
-                    self.assertIn(gen._public(alt["what"]), said)
+                    self.assertIn(gen._public(alt["what"]), said)       # what only points into the project is left out
                 if g.get("caveat"):
                     self.assertIn(gen._public(g["caveat"]), said)
-        self.assertIn("No source states a minimum size for working a surface", text)
+        self.assertIn("No source states a minimum diameter for working a surface", text)
         # no path into the project, no file name, no brackets, kg/m³ written out
         for word in ("docs/", "data/", "tools/", "AGENTS.md", ".toml", ".py", "kg/m3", "build/"):
             self.assertNotIn(word, text, word)
         self.assertIn("top of that one design's range, not a limit", text)
-        for words in ("160 m", "the smallest body any spacecraft has touched is Dimorphos",
-                      "$2.6 billion, 2012 dollars", "3.01 h", "1.82 h", "USGS Mineral Commodity Summaries 2026",
-                      "Horan et al. 2003", "Shepard et al. 2015", "7,500 kg/m³", "Rotation lightcurve"):
+        for words in ("160 m", "the smallest touched is Dimorphos",
+                      "3.01 h", "1.82 h", "USGS Mineral Commodity Summaries 2026",
+                      "Horan et al. 2003", "Shepard et al. 2015", "7,500 kg/m³", observation("lightcurve")):
             self.assertIn(words, text)
+        # the research's own citation grades are not printed
+        self.assertNotRegex(text, r"et al\. \d{4}, P\b|, P abstract|, S\.")
+        # the sources of what has flown are named, not given as ids
+        flown = main.find("ul", cls="srcs")[0].text()
+        for word in ("Asteroid Redirect Mission", "Keck study, 2012", "Hayabusa2"):
+            self.assertIn(word, flown)
         for rung in m.ladder["meta"]["order"]:
             self.assertEqual(len(main.find(id=f"rung-{rung}")), 1)
-        for anchor in ("thresholds", "m-surface", "m-capture", "ladder", "value", "observe", "density"):
+        # each topic is a section of its own, named in the rail (docs/design.md section 7)
+        self.assertEqual([a.text() for a in main.find("nav", cls="toc")[0].find("a")], [b for _, b in gen.METHOD_TOC])
+        for anchor in ("missions", "m-surface", "m-capture", "difficulty", "flown", "value", "observe", "density"):
             self.assertEqual(len(main.find(id=anchor)), 1, anchor)
         self.assertIn("https://pubs.usgs.gov/periodicals/mcs2026/mcs2026-platinum-group.pdf",
                       [a.attrs["href"] for a in main.find("a")])
@@ -1151,18 +1388,21 @@ class SiteTest(unittest.TestCase):
         led = m.ledger
         self.assertEqual(len(main.find(id="ledger")), 1)
         self.assertEqual(len(main.find("div", id="l-period-min_grade")), 1)
-        self.assertIn(gen._public(led["period"]["min_grade_source"]), said)
+        self.assertIn(led["period"]["min_grade_cite"], main.text())
+        self.assertNotIn(gen._public(led["period"]["min_grade_source"]), main.text())
         self.assertIn(t.num(led["push"]["detection_sigma"]), main.find("div", id="l-push-detection_sigma")[0].text())
-        self.assertIn("Lightcurve grade, lowest counted", said)            # a label for a visitor, not a key
-        self.assertEqual(said.count(gen._public(led["push"]["source"])), 1)  # a table's shared source, once
+        self.assertIn("Lowest grade counted", said)                         # a label for a visitor, not a key
+        self.assertNotIn(gen._public(led["push"]["source"]), main.text())          # provenance, not a citation
         self.assertIn(t.cap(led["fixed_tables"]["reason"]), said)
         for bad in led["known_bad"]:
             self.assertIn(gen._public(bad["why"]), said)
-        made = dataclasses.replace(m, ledger={"radar": {"min_snr": 7.5, "kind": "judgement", "source": "a note"},
-                                              "gone": [{"designation": "2099 TC3", "text": "It hit.", "evidence": "a file"}]})
+        made = dataclasses.replace(m, ledger={"radar": {"min_snr": 7.5, "kind": "judgement", "source": "a note", "cite": "Smith 2020"},
+                                              "gone": [{"designation": "2099 TC3", "text": "It hit.", "source": "a file"}]})
         text = parse(gen._ledger(made)).root.text(gap=" ")
-        for words in ("Radar, min snr", "7.5", "judgement", "a note", "Gone: 2099 TC3", "It hit.", "a file"):
+        for words in ("Radar, min snr", "7.5", "judgement", "Smith 2020", "Gone: 2099 TC3", "It hit."):
             self.assertIn(words, text)
+        for words in ("a note", "a file"):                                     # provenance is not printed
+            self.assertNotIn(words, text)
         with tempfile.TemporaryDirectory() as d:
             self.assertEqual(gen._ledger(types.SimpleNamespace(path=d)), "")
 
@@ -1184,6 +1424,12 @@ class StyleTest(unittest.TestCase):
         urls = re.findall(r"url\(([^)]*)\)", CSS)
         self.assertEqual([u for u in urls if not u.startswith('"data:image/svg+xml,')], ["fonts/b612-regular.woff2"])
         self.assertIn("font-display: swap", CSS)
+        # B612's parentheses look square: the face leaves them to the fallback (docs/design.md section 6)
+        (ranges,) = re.findall(r"unicode-range:\s*([^;]+);", CSS)
+        spans = [tuple(int(x, 16) for x in r.strip().removeprefix("U+").split("-")) for r in ranges.split(",")]
+        covered = lambda c: any(lo <= c <= (hi[0] if hi else lo) for lo, *hi in spans)
+        self.assertFalse(covered(0x28) or covered(0x29))
+        self.assertTrue(all(covered(ord(c)) for c in "Az09,.%–—’≤≥−σ²⁻"))
         self.assertIn('--sans: "B612", system-ui,', CSS)          # a system face while it loads, or if it never does
         self.assertEqual(set(re.findall(r"font-weight:\s*([^;}]+)", CSS)), {"400"})
         self.assertIn("font-synthesis: none", CSS)
@@ -1193,22 +1439,43 @@ class StyleTest(unittest.TestCase):
         for banned in ("box-shadow", "text-shadow", "@import", "blur("):
             self.assertNotIn(banned, CSS)
         self.assertEqual(set(re.findall(r"border-radius:\s*([^;]+);", CSS)), {"0"})
-        # the glow means measured: only the measured and pass marks and outlines carry it
-        self.assertEqual([x.strip() for x in re.findall(r"([^{}]+)\{[^}]*filter: var\(--glow\)", CSS)], [".g-measured, .g-pass"])
+        # the glow means measured: only the measured mark carries it; a verdict never does
+        self.assertEqual([x.strip() for x in re.findall(r"([^{}]+)\{[^}]*filter: var\(--glow\)", CSS)], [".g-measured"])
+        self.assertNotIn("halo", t.rock_mark())
 
     def test_motion_and_states(self):
         self.assertIn("@media (prefers-reduced-motion: reduce) { .turn { animation: none; } }", CSS)
+        # line style: dashed means a bound, and nothing else is dashed
         self.assertRegex(CSS, r"\.g-limit \{[^}]*stroke-dasharray")
-        self.assertRegex(CSS, r"\.g-unchecked, \.g-unknown \{[^}]*stroke-dasharray")
-        self.assertRegex(CSS, r"\.g-prior \{[^}]*fill='%238a8a8a'")                 # --ink-3
+        self.assertEqual(re.findall(r"([.#][\w-]+)[^{}]*\{[^}]*(?:stroke-dasharray|border-[a-z-]*: ?[^;]*dashed)", CSS),
+                         [".g-limit", ".rockfig"])
+        # an estimate's mark is half bright, the grey of --ink-2; not checked is drawn as an estimate
+        self.assertRegex(CSS, r"\.g-prior \{[^}]*fill='%23a8a8a8'")
         self.assertNotIn("animation-duration", CSS)     # the period comes from the page, uncapped
         self.assertIn("[hidden] { display: none !important; }", CSS)
 
-    def test_scale_of_type(self):
-        sizes = set(re.findall(r"font:\s*var\(--(t-[a-z]+)\)", CSS))
-        self.assertLessEqual(sizes, {"t-xs", "t-s", "t-m", "t-l", "t-xl", "t-serif"})
+    def test_five_type_roles(self):
+        """docs/design.md section 5: title, heading, body, label, small, and the body role in the serif for prose.
+        Every font declaration names one; nothing sets a size of its own."""
         steps = dict(re.findall(r"--(t-[a-z]+): ([^;]+);", CSS))
-        self.assertEqual(sorted(steps), ["t-l", "t-m", "t-s", "t-serif", "t-xl", "t-xs"])
+        self.assertEqual(steps, {"t-title": "32px/36px var(--sans)", "t-heading": "20px/28px var(--sans)",
+                                 "t-body": "16px/24px var(--sans)", "t-label": "14px/20px var(--sans)",
+                                 "t-small": "12px/16px var(--sans)", "t-prose": "16px/24px var(--serif)"})
+        fonts = re.findall(r"(?<![-\w])font:\s*([^;}]+)", CSS)
+        self.assertGreater(len(fonts), 20)
+        self.assertEqual({f.strip() for f in fonts if not re.fullmatch(r"var\(--t-[a-z]+\)", f.strip())}, {"inherit"})
+        self.assertIsNone(re.search(r"font-size|letter-spacing|line-height:\s*\d", CSS.replace("line-height: 20px", "")))
+
+    def test_two_text_inks(self):
+        """docs/design.md section 4: white for content, grey for apparatus. The ground colour only inside the
+        selected segment, and the edge colour only for disabled controls."""
+        colours = set(re.findall(r"(?<![-\w])color:\s*([^;}]+)", CSS))
+        self.assertEqual({c.strip() for c in colours}, {"var(--ink)", "var(--ink-2)", "var(--ground)", "var(--edge)", "inherit"})
+        self.assertEqual([x.strip() for x in re.findall(r"([^{}]+)\{[^}]*(?<![-\w])color:\s*var\(--ground\)", CSS)],
+                         [".seg input:checked + span"])
+        self.assertTrue(all("disabled" in sel for sel in re.findall(r"([^{}]+)\{[^}]*(?<![-\w])color:\s*var\(--edge\)", CSS)))
+        self.assertNotIn("--ink-3", CSS)
+        self.assertNotIn("8a8a8a", CSS)
 
     def test_nothing_round(self):
         self.assertIn("::-webkit-slider-thumb", CSS)
@@ -1228,13 +1495,13 @@ class FormatTest(unittest.TestCase):
         self.assertEqual(t.num(True), "")
 
     def test_pct_never_rounds_to_certainty(self):
-        self.assertEqual(t.pct(0.004), "under 1%")
-        self.assertEqual(t.pct(0.0049), "under 1%")
+        self.assertEqual(t.pct(0.004), "<1%")
+        self.assertEqual(t.pct(0.0049), "<1%")
         self.assertEqual(t.pct(0.005), "1%")           # 10 of 2,000 draws: it was printed as 0%
         self.assertEqual(t.pct(0.0051), "1%")
         self.assertEqual(t.pct(0.025), "3%")           # halves round up, not to the even digit
-        self.assertEqual(t.pct(0.997), "over 99%")
-        self.assertEqual(t.pct(0.995), "over 99%")
+        self.assertEqual(t.pct(0.997), ">99%")
+        self.assertEqual(t.pct(0.995), ">99%")
         self.assertEqual(t.pct(0.9949), "99%")
         self.assertEqual(t.pct(0), "0%")
         self.assertEqual(t.pct(1), "100%")
@@ -1242,14 +1509,14 @@ class FormatTest(unittest.TestCase):
         self.assertEqual(t.pct(0.29), "29%")
         for n in range(0, 2001):                       # every share 2,000 draws can give
             p = n / 2000
-            self.assertRegex(t.pct(p), r"^(under 1|over 99|\d+)%$")
+            self.assertRegex(t.pct(p), r"^(<1|>99|\d+)%$")
             if 0 < n < 2000:
                 self.assertNotIn(t.pct(p), ("0%", "100%"), n)
 
     def test_a_chance_from_draws_is_never_0_or_100(self):
-        self.assertEqual(t.chance(0), "under 1%")
-        self.assertEqual(t.chance(0.0), "under 1%")
-        self.assertEqual(t.chance(1), "over 99%")
+        self.assertEqual(t.chance(0), "<1%")
+        self.assertEqual(t.chance(0.0), "<1%")
+        self.assertEqual(t.chance(1), ">99%")
         self.assertEqual(t.chance(0.005), "1%")
         self.assertEqual(t.chance(0.41), "41%")
         self.assertEqual(t.chance(None), "")
@@ -1268,12 +1535,17 @@ class FormatTest(unittest.TestCase):
         self.assertEqual(t._seconds(36000), "36000s")
 
     def test_amount_puts_both_ends_in_one_scale(self):
-        self.assertEqual(t.amount(71000, 3.6e6, "t"), "0.071–3.6\u00a0million\u00a0t")
+        # docs/design.md section 6: "to" where the ends differ in their scale word, never a faked scale for the dash
+        self.assertEqual(t.amount(71000, 3.6e6, "t"), "71,000\u00a0t to 3.6\u00a0million\u00a0t")
         self.assertEqual(t.amount(5.8e7, 1.4e8, "t"), "58–140\u00a0million\u00a0t")
         self.assertEqual(t.amount(26, 190, "t"), "26–190\u00a0t")
-        self.assertEqual(t.amount(4e8, 2.1e9, "kg"), "0.4–2.1\u00a0billion\u00a0kg")
+        self.assertEqual(t.amount(4e8, 2.1e9, "kg"), "400\u00a0million\u00a0kg to 2.1\u00a0billion\u00a0kg")
+        self.assertEqual(t.estimate_span(0.83, 3.0, "m"), "0.83–3.0\u00a0m")     # two figures each end, as the table prints it
+        self.assertEqual(t.usd_range(31000, 39000), "$31–39\u00a0thousand")
+        self.assertEqual(t.usd_range(1.8e6, 1.9e9), "$1.8\u00a0million to $1.9\u00a0billion")
         self.assertEqual(t.span(23.88, 24.5, "mag"), "23.88–24.50\u00a0mag")      # both ends to the same decimals
         self.assertEqual(t.span(0.83, 3, "m", 2), "0.83–3\u00a0m")
+        self.assertEqual(t.span(0.84, 3.1, "m", 2), "0.84–3.1\u00a0m")      # an estimate keeps two figures each end
 
     def test_unreliable(self):
         self.assertTrue(t.unreliable("1"))
@@ -1292,7 +1564,7 @@ class FormatTest(unittest.TestCase):
 
     def test_timeline_starts_at_the_data_date(self):
         tl = parse(t.timeline("2027-02-12", "2027-07-15", "2026-11-24")).root
-        self.assertEqual(tl.find("i", cls="d0")[0].text(), "2026-11-24, data date")
+        self.assertEqual(tl.find("i", cls="d0")[0].text(), "Data date 2026-11-24")
         self.assertEqual(tl.find("i", cls="win")[0].text(), "Window 2027-02-12 to 2027-07-15")
         # a year mark too close to the data date's label goes unlabelled
         self.assertEqual([y.text() for y in tl.find("i", cls="yr") if "d0" not in y.classes], ["", "2028"])

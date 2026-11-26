@@ -227,7 +227,7 @@ class RecordBlock(unittest.TestCase):
         self.assertEqual(len(v["statements"]), len(v["statement_ids"]))
         self.assertEqual(v["statement_ids"][0], "metal_none")
         self.assertEqual(v["statement_ids"][-1], "water_market")
-        self.assertEqual(v["statements"][-1], "As of 21 November 2026 we found nobody buying water in orbit.")
+        self.assertEqual(v["statements"][-1], "As of 2026-11-21, we found nobody buying water in orbit.")
         for s in v["statements"]:
             self.assertNotIn("{", s)
             self.assertNotRegex(s.lower(), r"\b(worth|value|mean|median|expected)\b")
@@ -260,8 +260,9 @@ class RecordBlock(unittest.TestCase):
                                       surface=[fact("class", "S", "ssodnet")]), M).value
         guessed = model.run_one(make("v4", h=22.7, surface=[fact("class", "S", "ssodnet")]), M).value
         over = dict(zip(measured["statement_ids"], measured["statements"]))["metal_over"]
-        self.assertNotIn("3 times smaller", over)
-        self.assertIn("3 times smaller", dict(zip(guessed["statement_ids"], guessed["statements"]))["metal_over"])
+        self.assertNotIn("a third of what its brightness suggests", over)
+        self.assertIn("a third of what its brightness suggests",
+                      dict(zip(guessed["statement_ids"], guessed["statements"]))["metal_over"])
         # 27 times lighter in the low scenario when the size is a guess
         self.assertLess(guessed["metal"]["kg"]["q25"], measured["metal"]["kg"]["q25"] / 5)
         # the sentence stands alone: it says what the figure is a figure of
@@ -334,8 +335,8 @@ class RecordBlock(unittest.TestCase):
             self.assertEqual(ids[0], "none")
             self.assertEqual(ids[-1], "iron_rich")
             self.assertEqual(t["metal"]["rows"][0]["of100"],
-                             value.fmt_count(v["metal"]["p_nothing_lo"], v["metal"]["p_nothing_hi"]))
-            self.assertIn("As of 21 November 2026 we found nobody buying water in orbit.", t["notes"])
+                             value.cell_count(v["metal"]["p_nothing_lo"], v["metal"]["p_nothing_hi"]))
+            self.assertIn("As of 2026-11-21, we found nobody buying water in orbit.", t["notes"])
             for k in keys(t):
                 self.assertFalse(any(word in k.lower() for word in FORBIDDEN), k)
         # the cells follow the bands: 37 to 43 hold nothing, 1 to 6 iron-rich -> 37, 6, 51, 5, 1
@@ -362,12 +363,21 @@ class RecordBlock(unittest.TestCase):
         self.assertEqual(value.fmt_tonnes(4000.0, True, short=True), "4,000 t")
         self.assertEqual(value.fmt_tonnes(2.4e7, True, short=True), "24 million t")
         self.assertEqual(value.fmt_kg(400.0, True, short=True), "400 kg")
+        # a table cell: an en dash for a band and a shared unit, symbols at the ends (docs/design.md section 6)
+        self.assertEqual(value.cell_count(0.3665, 0.427), "37–43")
+        self.assertEqual(value.cell_count(0.40, 0.404), "40")
+        self.assertEqual(value.cell_count(0.0, 0.04), "≤4")
+        self.assertEqual(value.cell_count(0.99, 1.0), "≥99")
+        self.assertEqual(value.cell_count(0.001, 0.002), "<1")
+        self.assertEqual(value.cell_count(0.996, 0.999), ">99")
+        self.assertEqual(value.cell_range("160 t", "110,000 t"), "160–110,000 t")
+        self.assertEqual(value.cell_range("70 kg", "50 t"), "70 kg to 50 t")
         # every draw dry: 'all 100', and the reason as a note
         dry = model.run_one(make("u3", h=19.1, size=[diameter(340.0, 300.0, 380.0)],
                                  surface=[fact("albedo", 0.35, "jpl-sbdb", 0.3, 0.4)]), M).value
         self.assertEqual((dry["water"]["p_nothing_lo"], dry["water"]["p_nothing_hi"]), (1.0, 1.0))
-        self.assertEqual(dry["table"]["water"]["rows"], [{"id": "none", "label": "Hold none", "tonnes": None,
-                                                         "of100": "all 100"}])
+        self.assertEqual(dry["table"]["water"]["rows"], [{"id": "none", "label": "None", "tonnes": None,
+                                                         "of100": "100"}])
         self.assertEqual(dry["table"]["water"]["cells"], [{"id": "none", "label": "None", "n": 100}])
         self.assertIn(dict(zip(dry["statement_ids"], dry["statements"]))["water_none"], dry["table"]["notes"])
 

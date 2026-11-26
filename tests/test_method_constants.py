@@ -411,7 +411,7 @@ class Missions(unittest.TestCase):
         self.assertIn(f"{load('value.toml')['exports']['min_draws']:,} joint draws", untested)
         self.assertIn(f"within {decide['sigma']:g} of its one-sigma errors", self.m["rules"]["size"]["h_allowance"])
         self.assertIn(f"equal to a factor of {decide['no_range_factor']:g}", decide["draw"])
-        self.assertIn(f"under U {load('ledger.toml')['period']['min_grade']}.", load("ledger.toml")["period"]["ungraded_rule"])
+        self.assertIn(f"under {load('ledger.toml')['period']['min_grade']}.", load("ledger.toml")["period"]["ungraded_rule"])
 
     def test_period_rule(self):
         self.assertEqual(self.m["rules"]["period"]["min_grade"], 2)
@@ -460,7 +460,7 @@ class Observe(unittest.TestCase):
 
     def test_needs_labels(self):
         t = self.o["needs"]["lightcurve"]["tiers"]
-        self.assertEqual([x["label"] for x in t], ["small telescope", "2-metre class", "4-metre class"])
+        self.assertEqual([x["label"] for x in t], ["small telescope", "2 m class telescope", "4 m class telescope"])
         self.assertEqual([x["max_mag"] for x in t], [18.0, 20.0, 22.0])
         self.assertTrue(self.o["needs"]["lightcurve"]["fainter"])
         self.assertTrue(self.o["needs"]["size"]["fainter"])

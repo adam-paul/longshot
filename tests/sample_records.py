@@ -112,18 +112,18 @@ RECORDS = [
                  "class": {"S": 0.52, "C": 0.17, "X": 0.19, "other": 0.12}},
         missions={
             "surface": {"status": "fail", "p": 0.0, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 6"),
-                _gate("size", "40 m or more across", "fail", "prior", "under 1% at this brightness", 0.004),
-                _gate("spin", "turns slower than 2.2 h", "fail", "measured", "one turn in 92.52 s"),
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 6"),
+                _gate("size", "Diameter ≥ 40 m", "fail", "prior", "under 1% at this brightness", 0.004),
+                _gate("spin", "Spin period ≥ 2.2 h", "fail", "measured", "one turn in 92.52 s"),
             ]},
             "capture": {"status": "untested", "p": 0.41, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 6"),
-                _gate("size", "10 m or less across", "untested", "prior", "from brightness alone", 0.86),
-                _gate("mass", "light enough to move", "untested", "prior", "needs a size and a density", 0.48),
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 6"),
+                _gate("size", "Diameter ≤ 10 m", "untested", "prior", "from brightness alone", 0.86),
+                _gate("mass", "Mass ≤ 1,300 t", "untested", "prior", "needs a size and a density", 0.48),
             ]},
         },
         observe={"best": "size", "mission": "capture", "gate": "size", "gain": 0.52,
-                 "text": "A size. It settles the size gate and narrows the mass.",
+                 "text": 'Diameter or reflectivity measurement, to settle "Diameter ≤ 10 m" for whole-body capture.',
                  "window": {"start": "2027-02-10", "end": "2027-04-02", "peak_mag": 19.8,
                             "pointable": True, "as_of": DATA_DATE},
                  "needs": "2 m telescope, or radar at the close pass"},
@@ -170,16 +170,16 @@ RECORDS = [
                  "p_fast_2_2h": 0.31, "p_under_1h": 0.12, "p_under_10min": 0.02},
         missions={
             "surface": {"status": "untested", "p": 0.35, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 0"),
-                _gate("size", "40 m or more across", "pass", "measured", "65 m"),
-                _gate("spin", "turns slower than 2.2 h", "untested", "prior",
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 0"),
+                _gate("size", "Diameter ≥ 40 m", "pass", "measured", "65 m"),
+                _gate("spin", "Spin period ≥ 2.2 h", "untested", "prior",
                       "the one period on file is graded unreliable", 0.35),
             ]},
             "capture": {"status": "fail", "p": 0.0, "gates": [
-                _gate("size", "10 m or less across", "fail", "measured", "65 m"),
+                _gate("size", "Diameter ≤ 10 m", "fail", "measured", "65 m"),
             ]},
         },
-        observe={"best": "lightcurve", "gain": 0.35, "text": "A rotation period. It settles the spin gate.",
+        observe={"best": "lightcurve", "gain": 0.35, "text": 'Rotation lightcurve, to settle "Spin period ≥ 2.2 h" for surface work.',
                  "window": {"start": "2026-11-02", "end": "2027-01-18", "peak_mag": 21.6,
                             "pointable": False, "as_of": DATA_DATE},
                  "needs": "4 m telescope, two nights"},
@@ -219,12 +219,12 @@ RECORDS = [
                  "mass_t": {"q05": 3e5, "q25": 1e6, "q50": 2.4e6, "q75": 4.6e6, "q95": 9e6}},
         missions={
             "surface": {"status": "untested", "p": 0.48, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 1"),
-                _gate("size", "40 m or more across", "untested", "prior", "under 200 m is all that is known", 0.97),
-                _gate("spin", "turns slower than 2.2 h", "untested", "prior", "two periods on file disagree", 0.5),
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 1"),
+                _gate("size", "Diameter ≥ 40 m", "untested", "prior", "under 200 m is all that is known", 0.97),
+                _gate("spin", "Spin period ≥ 2.2 h", "untested", "prior", "two periods on file disagree", 0.5),
             ]},
             "capture": {"status": "fail", "p": 0.0, "gates": [
-                _gate("size", "10 m or less across", "fail", "prior", "under 1% at this brightness", 0.002),
+                _gate("size", "Diameter ≤ 10 m", "fail", "prior", "under 1% at this brightness", 0.002),
             ]},
         },
         observe={"best": "lightcurve", "gain": 0.48, "text": "A rotation period. It settles which of the two is right.",
@@ -263,12 +263,12 @@ RECORDS = [
                  "class": {"S": 0.52, "C": 0.17, "X": 0.19, "other": 0.12}},
         missions={
             "surface": {"status": "untested", "p": 0.57, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 4"),
-                _gate("size", "40 m or more across", "untested", "prior", "from brightness alone", 0.57),
-                _gate("spin", "turns slower than 2.2 h", "pass", "measured", "period on file"),
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 4"),
+                _gate("size", "Diameter ≥ 40 m", "untested", "prior", "from brightness alone", 0.57),
+                _gate("spin", "Spin period ≥ 2.2 h", "pass", "measured", "period on file"),
             ]},
             "capture": {"status": "fail", "p": 0.0, "gates": [
-                _gate("size", "10 m or less across", "fail", "prior", "under 1% at this brightness", 0.001),
+                _gate("size", "Diameter ≤ 10 m", "fail", "prior", "under 1% at this brightness", 0.001),
             ]},
         },
         observe=None,
@@ -316,12 +316,12 @@ RECORDS = [
                  "mass_t": {"q05": 7.1e7, "q25": 7.2e7, "q50": 7.3e7, "q75": 7.4e7, "q95": 7.5e7}},
         missions={
             "surface": {"status": "pass", "p": 1.0, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 0"),
-                _gate("size", "40 m or more across", "pass", "measured", "490 m"),
-                _gate("spin", "turns slower than 2.2 h", "pass", "measured", "one turn in 4.297 h"),
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 0"),
+                _gate("size", "Diameter ≥ 40 m", "pass", "measured", "490 m"),
+                _gate("spin", "Spin period ≥ 2.2 h", "pass", "measured", "one turn in 4.297 h"),
             ]},
             "capture": {"status": "fail", "p": 0.0, "gates": [
-                _gate("size", "10 m or less across", "fail", "measured", "490 m"),
+                _gate("size", "Diameter ≤ 10 m", "fail", "measured", "490 m"),
             ]},
         },
         observe=None,
@@ -357,10 +357,10 @@ RECORDS = [
         summary={},
         missions={
             "surface": {"status": "fail", "p": 0.0, "gates": [
-                _gate("findable", "orbit good enough to find again", "fail", "measured", "condition code 9, one day observed"),
+                _gate("findable", "Orbit condition code ≤ 5", "fail", "measured", "condition code 9, one day observed"),
             ]},
             "capture": {"status": "fail", "p": 0.0, "gates": [
-                _gate("findable", "orbit good enough to find again", "fail", "measured", "condition code 9, one day observed"),
+                _gate("findable", "Orbit condition code ≤ 5", "fail", "measured", "condition code 9, one day observed"),
             ]},
         },
         observe=None,
@@ -387,7 +387,7 @@ RECORDS = [
             "spin": Row("measured", [
                 Fact("period", 0.1784, 0.1782, 0.1786, "h", source="jpl-sbdb"),
             ]),
-            "surface": Row("prior", prior={**_q(0.30, 0.46, 0.65, 0.93, 1.45, "", _CLASS_BASIS + "; reflectivity from its measured size and H"),
+            "surface": Row("prior", prior={**_q(0.30, 0.46, 0.65, 0.93, 1.45, "", _CLASS_BASIS + "; reflectivity from its measured diameter and H"),
                                            "shares": dict(_SHARES["shares"])}),
             "push": Row("measured", [
                 Fact("drift, A2", -1.42e-13, -1.9e-13, -0.94e-13, "au/d^2", source="jpl-sbdb"),
@@ -400,12 +400,12 @@ RECORDS = [
                  "class": {"S": 0.52, "C": 0.17, "X": 0.19, "other": 0.12}},
         missions={
             "surface": {"status": "fail", "p": 0.0, "gates": [
-                _gate("size", "40 m or more across", "fail", "measured", "8 m"),
+                _gate("size", "Diameter ≥ 40 m", "fail", "measured", "8 m"),
             ]},
             "capture": {"status": "pass", "p": 1.0, "gates": [
-                _gate("findable", "orbit good enough to find again", "pass", "measured", "condition code 0"),
-                _gate("size", "10 m or less across", "pass", "measured", "8 m, range 6–10 m"),
-                _gate("mass", "light enough to move", "pass", "measured", "from radiation pressure and size"),
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "condition code 0"),
+                _gate("size", "Diameter ≤ 10 m", "pass", "measured", "8 m, range 6–10 m"),
+                _gate("mass", "Mass ≤ 1,300 t", "pass", "measured", "from radiation pressure and size"),
             ]},
         },
         observe=None,
@@ -444,13 +444,13 @@ RECORDS = [
                  "class": {"S": 0.52, "C": 0.17, "X": 0.19, "other": 0.12}},
         missions={
             "surface": {"status": "untested", "p": 0.03, "gates": [
-                _gate("findable", "orbit good enough to find again", "untested", "prior", "57 days observed", 0.6),
-                _gate("size", "40 m or more across", "untested", "prior", "from brightness alone", 0.04),
-                _gate("spin", "turns slower than 2.2 h", "pass", "measured", "slower than 4 h"),
+                _gate("findable", "Orbit condition code ≤ 5", "untested", "prior", "57 days observed", 0.6),
+                _gate("size", "Diameter ≥ 40 m", "untested", "prior", "from brightness alone", 0.04),
+                _gate("spin", "Spin period ≥ 2.2 h", "pass", "measured", "slower than 4 h"),
             ]},
             "capture": {"status": "untested", "p": 0.08, "gates": [
-                _gate("findable", "orbit good enough to find again", "untested", "prior", "57 days observed", 0.6),
-                _gate("size", "10 m or less across", "untested", "prior", "from brightness alone", 0.13),
+                _gate("findable", "Orbit condition code ≤ 5", "untested", "prior", "57 days observed", 0.6),
+                _gate("size", "Diameter ≤ 10 m", "untested", "prior", "from brightness alone", 0.13),
             ]},
         },
         observe={"best": "astrometry", "gain": 0.6, "text": "Positions over a second month. They settle whether it can be found again.",
@@ -495,7 +495,7 @@ RECORDS = [
             "spin": Row("unchecked", prior={"p_fast_2_2h": 0.94, "p_under_1h": 0.94, "p_under_10min": 0.93,
                                             "basis": "asteroids of H 28 and fainter"},
                         unchecked=["ssodnet", "pravec"],
-                        note="No SsODNet card has been fetched. Pravec's table is older than this object."),
+                        note="No SsODNet card has been fetched. Pravec's table is older than this asteroid."),
             "surface": Row("unchecked", prior={**_q(0.057, 0.18, 0.27, 0.37, 0.66, "", _CLASS_BASIS),
                                                "shares": dict(_SHARES["shares"])},
                            unchecked=["ssodnet"], note="The request to SsODNet failed on 2026-11-25 (timed out)."),
@@ -512,14 +512,14 @@ RECORDS = [
                  "class": {"S": 0.52, "C": 0.17, "X": 0.19, "other": 0.12}},
         missions={
             "surface": {"status": "untested", "p": 0.0, "gates": [
-                _gate("findable", "Orbit good enough to find again", "pass", "measured", "Orbit code 1, JPL's database.", 1.0),
-                _gate("size", "30 m or wider", "untested", "prior",
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "", 1.0),
+                _gate("size", "Diameter ≥ 30 m", "untested", "prior",
                       "Size not checked (SsODNet). From brightness, 0.84 to 3.1 m.", 0.0),
-                _gate("spin", "Turns once in 2.2 h or slower", "untested", "prior", "Period not checked (SsODNet).", 0.005),
+                _gate("spin", "Spin period ≥ 2.2 h", "untested", "prior", "Period not checked (SsODNet).", 0.005),
             ]},
             "capture": {"status": "untested", "p": 1.0, "gates": [
-                _gate("findable", "Orbit good enough to find again", "pass", "measured", "Orbit code 1, JPL's database.", 1.0),
-                _gate("size", "10 m or smaller", "untested", "prior",
+                _gate("findable", "Orbit condition code ≤ 5", "pass", "measured", "", 1.0),
+                _gate("size", "Diameter ≤ 10 m", "untested", "prior",
                       "Size not checked (SsODNet). From brightness, 0.84 to 3.1 m.", 1.0),
             ]},
         },
@@ -529,7 +529,7 @@ RECORDS = [
                "water": None, "basis": _PRICE,
                "statements": ["Of 100 like it, 31 to 36 hold no platinum-group metal in metal grains."]},
         ladder=_ladder(
-            ("measured", "Orbit code 1 from 94 days of tracking."),
+            ("measured", "Its orbit condition code, 1, meets the condition ≤ 5."),
             ("measured", "Cheapest round trip: 3.345 km/s in 362 days (JPL)."),
             ("prior", "0.84 to 3.1 m across, from brightness alone. Spin not checked (SsODNet)."),
             ("prior", "Of 100 like it, 31 to 36 hold no platinum-group metal in metal grains."),

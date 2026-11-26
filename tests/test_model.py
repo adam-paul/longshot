@@ -426,6 +426,24 @@ class JointDraws(unittest.TestCase):
             self.assertTrue(0.0 <= s[k] <= 1.0)
         self.assertEqual(set(s["class"]), set(priors.CLASSES))
 
+    def test_an_undecided_mass_rests_on_an_estimate_unless_its_density_is_measured(self):
+        """docs/design.md section 3: a mass is measured only when its diameter and its density both are. An undecided
+        mass condition says so in its basis: an honest page never calls a chance from a class density measured."""
+        r = run(make("m18", h=24.5, size=[diameter(18.0, 16.0, 20.0)]))
+        (g,) = [g for g in r.missions["capture"]["gates"] if g["id"] == "mass"]
+        self.assertEqual((g["status"], g["basis"]), ("untested", "prior"))
+        r = make("m18rho", h=24.5, size=[diameter(18.0, 16.0, 20.0)])
+        r.rows["push"] = Row("measured", [fact("A2", -4.6e-14, lo=-4.7e-14, hi=-4.5e-14),
+                                          fact("density", 2000.0, "jpl-sbdb", unit="kg/m^3")])
+        (g,) = [g for g in run(r).missions["capture"]["gates"] if g["id"] == "mass"]
+        self.assertEqual((g["status"], g["basis"]), ("untested", "measured"))
+        # across every hand-made case: an undecided condition marked measured rests on measured inputs only
+        for rec in (run(make(h=h, size=sz)) for h in (22.0, 26.0, 29.0) for sz in ((), [diameter(9.0, 8.0, 10.0)])):
+            for mi in rec.missions.values():
+                for g in mi["gates"]:
+                    if g["status"] == "untested" and g["basis"] == "measured":
+                        self.assertNotEqual(g["id"], "mass", rec.key)        # no density on file in these
+
     def test_mass_follows_size_and_density(self):
         d = draws.for_record(make(), M)
         lo, hi = priors.density_ends(M)
@@ -525,7 +543,7 @@ class Missions(unittest.TestCase):
         self.assertEqual((g["status"], g["basis"]), ("untested", "measured"))
         self.assertAlmostEqual(g["p"], 0.5, delta=0.02)
         self.assertEqual(r.missions["surface"]["p"], g["p"])
-        self.assertEqual(g["text"], "Within 2 sigma of 30 m.")
+        self.assertEqual(g["text"], "The measurement is within 2σ of 30 m, so it does not decide.")
 
     def test_one_sigma_is_not_the_whole_range(self):
         """missions.toml [rules.decide]: a gate is decided only when two sigma clears the line."""
@@ -543,8 +561,8 @@ class Missions(unittest.TestCase):
         self.assertEqual(size_gate(70.0)["status"], "pass")
         g = size_gate(55.0)
         self.assertEqual(g["status"], "untested")
-        self.assertEqual(g["text"], "No error stated; within a factor of 2 of 30 m.")
-        # 2016 RD34's case: 6 m with no range does not decide "10 m or smaller", nor the mass gate
+        self.assertEqual(g["text"], "The source gives no error, and the value is within a factor of 2 of 30 m.")
+        # 2016 RD34's case: 6 m with no range does not decide "Diameter ≤ 10 m", nor the mass gate
         capture = run(make(h=27.6, size=[diameter(6.0, source="jpl-sbdb")])).missions["capture"]
         self.assertEqual([g["status"] for g in capture["gates"]], ["pass", "untested", "untested"])
         self.assertEqual(capture["status"], "untested")
@@ -578,11 +596,12 @@ class Missions(unittest.TestCase):
         run(r)
         g = r.missions["surface"]["gates"][2]
         self.assertEqual((g["status"], g["basis"]), ("untested", "prior"))
-        self.assertEqual(g["text"], "Sources disagree across 2.2 hours, so no period decides.")
+        self.assertEqual(g["text"], "The sources' periods fall on both sides of 2.2 h, so none decides.")
         central = M.priors["spin"]["bands"]["20_22"]["under_2_2h"]["central"]
         self.assertAlmostEqual(g["p"], 1.0 - central, places=6)           # the prior for its brightness, not 100%
-        self.assertIn(conflict, r.ladder[2]["text"])                      # the rung names both periods
-        self.assertIn("Sources disagree on its spin", r.ladder[4]["text"])
+        self.assertNotIn(conflict, r.ladder[2]["text"])                   # the spin row names both periods, once
+        self.assertIn("Sources disagree on its period", r.ladder[2]["text"])
+        self.assertIn("sources disagree on it", r.ladder[4]["text"])
         self.assertNotIn("not measured", r.ladder[4]["text"])
         # a disagreement on one side of the line still decides: 1998 KY26, 5.35 against 10.7 minutes
         r = make("ky", h=25.6, occ=0, spin=[period(0.089193, "ssodnet", None), period(0.089193, "jpl-sbdb", None),
@@ -592,7 +611,7 @@ class Missions(unittest.TestCase):
         run(r)
         self.assertEqual(r.missions["surface"]["gates"][2]["status"], "fail")
         self.assertEqual(r.summary["p_under_10min"], 1.0)                 # the newer period: once in 5.35 minutes
-        self.assertIn("400 to 1,100 times its gravity", r.ladder[2]["text"])
+        self.assertIn("400–1,100 times gravity", r.ladder[2]["text"])
         self.assertIn("Sources disagree on the period.", r.ladder[2]["text"])
         # a stated range that crosses the line counts as being on both sides: 2013 YS2
         r = make("ys", h=21.0, spin=[period(3.95, "pravec", "2"), period(2.4, "ssodnet", None, 1.9, 2.9)])
@@ -631,39 +650,44 @@ class Missions(unittest.TestCase):
         self.assertEqual((g["status"], g["basis"]), ("untested", "prior"))
         central = M.priors["spin"]["bands"]["22_24"]["under_2_2h"]["central"]
         self.assertAlmostEqual(g["p"], 1.0 - central, places=6)           # the prior for H 22 to 24
-        self.assertEqual(g["text"], "The period on file is graded unreliable, so it does not decide.")
+        self.assertEqual(g["text"], "The only period on file is graded unreliable, so it does not decide.")
         self.assertAlmostEqual(r.missions["surface"]["p"], 1.0 - central, delta=0.005)
         for text in walk_strings([r.missions, r.ladder]):                 # the row prints the value; nothing repeats it
             self.assertNotIn("U 1+", text)
 
     def test_not_checked_is_never_called_not_measured(self):
+        """A source not checked is named once, in its row (docs/design.md section 3). The gates and the ladder
+        rest on the estimate: they never say "not measured", and they do not name the source again."""
         r = run(make(h=25.0, unchecked={"size": ["ssodnet", "spitzer"], "spin": ["ssodnet"]}))
+        self.assertEqual(r.rows["size"].unchecked, ["ssodnet", "spitzer"])     # the row keeps the sources
+        self.assertEqual(r.rows["spin"].unchecked, ["ssodnet"])
         for mission in MISSIONS:
             for g in r.missions[mission]["gates"]:
                 if g["id"] == "findable":
                     continue
-                self.assertIn("not checked", g["text"], g["id"])
-                self.assertIn("SsODNet", g["text"])
-                self.assertNotIn("not measured", g["text"].lower())
-        self.assertEqual(r.missions["surface"]["gates"][1]["text"], "Size not checked (SsODNet, the Spitzer table).")
-        self.assertEqual(r.missions["surface"]["gates"][2]["text"], "Period not checked (SsODNet).")
-        self.assertEqual(r.missions["capture"]["gates"][2]["text"], "Size not checked (SsODNet, the Spitzer table).")
-        # with every source checked the gate says nothing: the row above says "not measured"
+                self.assertEqual((g["status"], g["basis"]), ("untested", "prior"), g["id"])
+                self.assertEqual(g["text"], "", g["id"])
+        for text in walk_strings([r.missions, r.ladder, r.observe]):
+            self.assertNotIn("not measured", text.lower())
+            self.assertNotIn("not checked", text.lower())
+            self.assertNotIn("SsODNet", text)
+        self.assertEqual(r.observe["unchecked"], ["ssodnet"])                 # the entry can say where to look first
+        self.assertIn("estimated", r.ladder[2]["text"])
+        # with every source checked the gates say the same: nothing the row does not
         checked = run(make(h=25.0))
         self.assertEqual(checked.missions["surface"]["gates"][1]["text"], "")
-        for text in walk_strings([r.missions, r.ladder]):
-            self.assertNotIn("not measured", text.lower())
 
-    def test_the_last_rung_says_not_checked_when_a_spin_source_was_not_checked(self):
+    def test_the_last_rung_calls_an_unchecked_spin_estimated(self):
         # small, so the answer "depends on" the spin; big with a measured size, so it is set beside the sampled three
         small = run(make(h=25.0, unchecked={"spin": ["ssodnet"]})).ladder[4]["text"]
-        self.assertIn("Its spin is not checked (SsODNet), and the answer depends on it.", small)
+        self.assertIn("Whether it could be sampled also depends on its spin, which is estimated.", small)
         big = run(make(h=19.5, size=[diameter(500.0, 450.0, 550.0)], unchecked={"spin": ["ssodnet"]})).ladder[4]["text"]
-        self.assertIn("turn once in 4.3 to 12.1 hours. Its own spin is not checked (SsODNet).", big)
+        self.assertIn("turn once in 4.3–12.1 h. Its own spin is estimated.", big)
         for text in (small, big):
             self.assertNotIn("not measured", text)
-        # with every source checked the same rungs say not measured
-        self.assertIn("Its spin is not measured, and the answer depends on it.", run(make(h=25.0)).ladder[4]["text"])
+            self.assertNotIn("SsODNet", text)                             # the spin row names it, once
+        # with every source checked the same rungs say the same: an estimate either way
+        self.assertIn("Whether it could be sampled also depends on its spin, which is estimated.", run(make(h=25.0)).ladder[4]["text"])
 
     def test_no_h_gives_untested_with_no_probability(self):
         r = run(make(h=None, occ=2))
@@ -676,8 +700,8 @@ class Missions(unittest.TestCase):
         r = run(make(h=22.7, occ=2, size=[diameter(1126.0, 1060.0, 1192.0)]))
         g = r.missions["surface"]["gates"][1]
         self.assertEqual(g["status"], "untested")
-        self.assertIn("not used", g["text"])
-        self.assertEqual(len(r.rows["size"].conflicts), 1)
+        self.assertEqual(g["text"], "We do not use the diameter on file, because it does not fit the asteroid's brightness.")
+        self.assertEqual(len(r.rows["size"].conflicts), 1)                # the row gives the figures, once
         self.assertLess(r.summary["size_m"]["q95"], 400.0)                # the draws came from brightness
         run(r)
         self.assertEqual(len(r.rows["size"].conflicts), 1)                # running again adds nothing
@@ -689,14 +713,14 @@ class Missions(unittest.TestCase):
         self.assertEqual(r.missions["surface"]["gates"][1]["status"], "fail")
         r = run(make(h=24.0, size=[diameter(200.0, kind="upper")]))
         self.assertEqual(r.missions["surface"]["gates"][1]["status"], "untested")
-        self.assertEqual(r.missions["surface"]["gates"][1]["text"], "The limit on file does not decide.")
+        self.assertEqual(r.missions["surface"]["gates"][1]["text"], "The bound on file does not decide it.")
         # the review's two cases: a lower limit under the line (2017 BL6) and an upper limit over it (1999 NW2)
         for p_, kind in ((1.1, "lower"), (4.2, "upper")):
             g = run(make(h=24.0, spin=[period(p_, "lcdb", "2", kind=kind),
                                        Fact("period", p_, unit="h", source="jpl-sbdb", used=False)],
                          spin_state="limit")).missions["surface"]["gates"][2]
             self.assertEqual((g["status"], g["basis"]), ("untested", "prior"))
-            self.assertEqual(g["text"], "The limit on file does not decide.")
+            self.assertEqual(g["text"], "The bound on file does not decide it.")
         g = run(make(h=24.0, spin=[period(1.5, "lcdb", "2", kind="upper")])).missions["surface"]["gates"][2]
         self.assertEqual(g["status"], "fail")                             # at most 1.5 h is under 2.2 h
 
@@ -766,7 +790,7 @@ class Observe(unittest.TestCase):
         self.assertAlmostEqual(o["gain"], observe.gain(surface["p"], surface["gates"][2]["p"]), places=3)
         self.assertAlmostEqual(o["gain"], 0.93, delta=0.02)                # nearly a whole bit: a 35-in-100 guess
         self.assertEqual((o["tier"], o["unchecked"]), ("pointable", []))
-        self.assertEqual(o["needs"], "4-metre class")
+        self.assertEqual(o["needs"], "4 m class telescope")
         self.assertEqual(o["window"], {"start": "2026-11-27", "end": "2027-03-20", "peak_mag": 21.85,
                                        "pointable": True, "as_of": config.DATA_DATE})
         self.assertIn("Rotation lightcurve", o["text"])
@@ -797,12 +821,12 @@ class Observe(unittest.TestCase):
 
     def test_telescope_class_follows_peak_brightness(self):
         w = {"start": "2027-01-01", "end": "2027-02-01", "pointable": True, "as_of": config.DATA_DATE}
-        for mag, want in ((17.0, "small telescope"), (18.0, "small telescope"), (18.01, "2-metre class"),
-                          (20.0, "2-metre class"), (21.9, "4-metre class"),
-                          (22.5, "larger than 4-metre class")):
+        for mag, want in ((17.0, "small telescope"), (18.0, "small telescope"), (18.01, "2 m class telescope"),
+                          (20.0, "2 m class telescope"), (21.9, "4 m class telescope"),
+                          (22.5, "telescope larger than 4 m")):
             self.assertEqual(observe.needs(M, "lightcurve", {**w, "peak_mag": mag}), want, mag)
         self.assertEqual(observe.needs(M, "size", {**w, "peak_mag": 16.0}),
-                         "1-2 m polarimeter, or an infrared space telescope")
+                         "1–2 m polarimeter or infrared space telescope")
         self.assertEqual(observe.needs(M, "size", {**w, "peak_mag": 19.0}), "infrared space telescope")
         self.assertEqual(observe.needs(M, "lightcurve", {**w, "pointable": False, "peak_mag": 17.0}),
                          "a survey must find it again first")
@@ -837,14 +861,16 @@ class Observe(unittest.TestCase):
                          ["soon-big", "soon-small", "next-year", "far", "survey", "none"])
         self.assertEqual(observe.rank_key({"gain": 0.5, "window": None, "tier": "none"}, "k")[0], 2)
 
-    def test_the_observation_says_when_a_source_for_its_row_was_not_checked(self):
+    def test_the_observation_carries_the_sources_not_checked_for_its_row(self):
+        """observe.unchecked names them, so the entry can say where to look first; the text does not repeat them."""
         r = run(make(h=22.9, occ=0, unchecked={"spin": ["ssodnet"]}))
         o = r.observe
         self.assertEqual((o["best"], o["unchecked"]), ("lightcurve", ["ssodnet"]))
-        self.assertTrue(o["text"].endswith("Not checked: SsODNet."))
+        self.assertNotIn("SsODNet", o["text"])
+        self.assertNotIn("not measured", o["text"].lower())
         checked = run(make(h=22.9, occ=0)).observe
         self.assertEqual(checked["unchecked"], [])
-        self.assertNotIn("Not checked", checked["text"])
+        self.assertEqual(checked["text"], o["text"])
         # a survey-only window is its own tier
         survey = run(make(h=22.9, occ=5, window=("2030-05-01", "2030-05-09", 23.6, "survey-only"))).observe
         self.assertEqual(survey["tier"], "survey_only")
@@ -879,16 +905,18 @@ class Ladder(unittest.TestCase):
         self.check_shape(r)
         found, reached, workable, anything, back = r.ladder
         self.assertEqual(found["status"], "measured")
-        self.assertEqual(found["text"], "Orbit code 0: 5 or better, the line used here. JPL lists no window through 2045.")
-        self.assertTrue(reached["text"].startswith("3.517 km/s round trip. Launch date not on file."))
-        self.assertIn("Tianwen-2, at Kamoʻoalewa (18 ± 2 m, JWST)", reached["text"])      # all of it is under 100 m
+        self.assertEqual(found["text"], "Its orbit condition code, 0, meets the condition ≤ 5. "
+                                        "JPL lists no observing window through 2045.")
+        self.assertTrue(reached["text"].startswith("The cheapest round trip needs Δv 3.517 km/s. "
+                                                   "JPL's list gives no launch date for it."))
+        self.assertIn("Tianwen-2 reached Kamoʻoalewa (18 ± 2 m, measured by JWST)", reached["text"])   # all of it is under 100 m
         self.assertEqual(workable["status"], "prior")
-        self.assertEqual(workable["text"], "Of 100 like it, 94 turn faster than once in 2.2 hours.")
-        self.assertEqual((anything["status"], anything["text"]), ("prior", "Estimated from brightness alone."))
+        self.assertEqual(workable["text"], "Its spin is estimated. Of asteroids this bright, 94% turn faster than once in 2.2 h.")
+        self.assertEqual((anything["status"], anything["text"]), ("prior", "Estimated from its brightness alone."))
         self.assertEqual(back["status"], "prior")
         self.assertIn("Grams: not yet attempted.", back["text"])
-        self.assertIn("Its spin is not measured, and the answer depends on it.", back["text"])
-        self.assertTrue(back["text"].endswith("never built."))
+        self.assertIn("Whether it could be sampled also depends on its spin, which is estimated.", back["text"])
+        self.assertIn("never built.", back["text"])
 
     def test_a_rung_does_not_repeat_what_a_row_or_the_price_tag_says(self):
         """DESIGN.md section 5, and the review's count of sentences printed twice on every entry."""
@@ -911,73 +939,79 @@ class Ladder(unittest.TestCase):
     def test_the_orbit_rung_does_not_claim_findability_against_jpls_own_test(self):
         """137 list members pass 'code 5 or better' while JPL flags their window survey-recovery-only."""
         self.assertEqual({g["label"] for mi in MISSIONS for g in M.missions[mi]["gates"] if g["id"] == "findable"},
-                         {"Orbit code 5 or better"})
+                         {"Orbit condition code ≤ 5"})
         pointable = run(make(window=("2026-11-27", "2027-03-20", 21.85, "pointable")))
-        self.assertEqual(pointable.ladder[0]["text"], "Orbit code 1: 5 or better, the line used here.")
+        self.assertEqual(pointable.ladder[0]["text"], "Its orbit condition code, 1, meets the condition ≤ 5.")
         self.assertEqual(pointable.missions["surface"]["gates"][0]["text"], "")
         survey = run(make(occ=5, window=("2030-05-01", "2030-05-09", 23.6, "survey-only")))
-        self.assertEqual(survey.ladder[0]["text"],
-                         "Orbit code 5: 5 or better, the line used here. JPL finds its position too uncertain to point at.")
+        self.assertEqual(survey.ladder[0]["text"], "Its orbit condition code, 5, meets the condition ≤ 5. "
+                                                   "JPL finds its position too uncertain to point at.")
+        # said once, on the rung that asks whether it can be found again; the tracking row shows the window
         for mission in MISSIONS:
             g = survey.missions[mission]["gates"][0]
-            self.assertEqual((g["status"], g["text"]), ("pass", "JPL finds its position too uncertain to point at."))
+            self.assertEqual((g["status"], g["text"]), ("pass", ""))
         for r in (pointable, survey):
             for text in walk_strings([r.ladder, r.missions]):
                 self.assertNotIn("open now", text)
-                self.assertNotIn("good enough to find again", text)
+                self.assertNotIn("good enough to find", text)
+                self.assertNotIn("can be found again", text)
 
     def test_orbit_code_states(self):
-        self.assertIn("worse than 5", run(make(occ=8)).ladder[0]["text"])
+        self.assertIn("Its orbit condition code, 8, fails the condition ≤ 5", run(make(occ=8)).ladder[0]["text"])
         none = run(make(occ=None)).ladder[0]
         self.assertEqual(none["status"], "unknown")
-        self.assertEqual(none["text"], "No orbit code on file.")
+        self.assertEqual(none["text"], "JPL lists no orbit condition code for it.")
 
     def test_spin_sentences(self):
         def workable(**kw):
             return run(make(h=24.31, **kw)).ladder[2]["text"]
-        self.assertEqual(workable(spin=[period(12.132)]), "Slower than the 3.0 hours at which even light rock "
-                         "(1,200 kg/m³) would lose loose material from its equator.")
-        self.assertTrue(workable(spin=[period(2.3478)]).startswith("Inside the 1.8 to 3.0 hours"))
+        self.assertEqual(workable(spin=[period(12.132)]), "It turns more slowly than once in 3.0 h. Up to that spin, gravity "
+                         "holds loose material at the equator even for light rock (1,200 kg/m³).")
+        self.assertTrue(workable(spin=[period(2.3478)]).startswith("It turns once in 1.8–3.0 h."))
         # ladder.toml's own examples: 15 to 40 for 27.9 minutes, 5,000 to 14,000 for 92.5 seconds
-        self.assertIn("At its equator the outward pull is 15 to 40 times its gravity",
+        self.assertIn("At its equator, outward pull is 15–40 times gravity",
                       workable(spin=[period(27.9 / 60)]))
-        self.assertIn("At its equator the outward pull is 5,000 to 14,000 times", workable(spin=[period(92.5 / 3600)]))
+        self.assertIn("At its equator, outward pull is 5,000–14,000 times", workable(spin=[period(92.5 / 3600)]))
+        # not checked and not measured read the same: an estimate. The spin row names the source, once
         self.assertEqual(workable(unchecked={"spin": ["ssodnet"]}),
-                         "Spin not checked (SsODNet). Of 100 like it, 80 turn faster than once in 2.2 hours.")
+                         "Its spin is estimated. Of asteroids this bright, 80% turn faster than once in 2.2 h.")
+        self.assertEqual(workable(), "Its spin is estimated. Of asteroids this bright, 80% turn faster than once in 2.2 h.")
         self.assertEqual(workable(spin=[period(10.0, "pravec", "1")], spin_state="prior"),
-                         "The period on file is graded unreliable. Of 100 like it, 80 turn faster than once in 2.2 hours.")
+                         "Its only period is graded unreliable, so its spin is estimated. Of asteroids this bright, "
+                         "80% turn faster than once in 2.2 h.")
         self.assertTrue(workable(spin=[period(1.5, "ssodnet", None, kind="lower")]).startswith(
-            "Spin known only as a limit. Of 100 like it, "))
+            "A source gives only a bound on its spin. Of asteroids this bright, "))
 
     def test_status_follows_what_is_measured(self):
         r = run(make(h=20.0, occ=0, size=[diameter(340.0, 320.0, 360.0)], spin=[period(30.56)],
                      surface=[fact("class", "S", "ssodnet")]))
         self.check_shape(r)
         self.assertEqual(r.ladder[2]["status"], "measured")
-        self.assertEqual(r.ladder[3]["text"], "Estimated from its class or reflectivity, and its brightness.")
+        self.assertEqual(r.ladder[3]["text"], "Estimated from its measured class or reflectivity, and its brightness.")
         self.assertEqual(r.ladder[4]["status"], "measured")
-        self.assertIn("Grams: done three times, by space agencies, on asteroids of this size and spin", r.ladder[4]["text"])
+        self.assertIn("Grams: done three times, by space agencies, on asteroids of this diameter and spin", r.ladder[4]["text"])
         self.assertNotIn("under 100 m", r.ladder[1]["text"])
         limit = run(make(h=24.0, size=[diameter(30.0, kind="upper")])).ladder[2]
         self.assertEqual(limit["status"], "prior")
+        # a surface source not checked: the surface row names it; the rung says what the estimate rests on
         unchecked = run(make(h=24.0, unchecked={"surface": ["ssodnet", "spitzer"]})).ladder[3]["text"]
-        self.assertEqual(unchecked, "Estimated from brightness alone. Surface not checked (SsODNet, the Spitzer table).")
+        self.assertEqual(unchecked, "Estimated from its brightness alone.")
         # a measured size with no class or reflectivity: the estimate rests on the size, not on brightness
         sized = run(make(h=24.0, size=[diameter(40.0, 30.0, 50.0)])).ladder[3]["text"]
-        self.assertEqual(sized, "Estimated from its size. Nothing on file says what it is made of.")
+        self.assertEqual(sized, "Estimated from its measured diameter. Its composition is estimated.")
         sized = run(make(h=24.0, size=[diameter(40.0, 30.0, 50.0)], unchecked={"surface": ["ssodnet"]})).ladder[3]["text"]
-        self.assertEqual(sized, "Estimated from its size. Surface not checked (SsODNet).")
+        self.assertEqual(sized, "Estimated from its measured diameter. Its composition is estimated.")
 
     def test_last_rung_by_size_and_spin(self):
         def back(**kw):
             return run(make(**kw)).ladder[4]["text"]
         big = [diameter(500.0, 480.0, 520.0)]
-        self.assertIn("on asteroids of this size that turn once in 4.3 to 12.1 hours. Its own spin is not measured.",
+        self.assertIn("on asteroids of this diameter that turn once in 4.3–12.1 h. Its own spin is estimated.",
                       back(h=19.5, size=big))
         self.assertIn("not yet attempted on an asteroid that turns this fast", back(h=19.5, size=big, spin=[period(3.0)]))
-        self.assertIn("on asteroids 330 to 900 m across, and not yet attempted on a smaller one. "
-                      "Its size range spans that line.", back(h=20.5, size=[diameter(300.0, 250.0, 350.0)]))
-        self.assertIn("Grams: not yet attempted at this size.", back(h=21.5, size=[diameter(200.0, 190.0, 210.0)]))
+        self.assertIn("on asteroids 330–900 m across, and not yet attempted on a smaller one. "
+                      "Its diameter range spans 330 m.", back(h=20.5, size=[diameter(300.0, 250.0, 350.0)]))
+        self.assertIn("Grams: not yet attempted at this diameter.", back(h=21.5, size=[diameter(200.0, 190.0, 210.0)]))
         self.assertIn("no spacecraft that has approached an asteroid turning this fast",
                       back(h=28.0, spin=[period(0.05)]))
         small = back(h=28.0, spin=[period(5.0)])
@@ -993,14 +1027,14 @@ class Ladder(unittest.TestCase):
         run(bennu)
         self.check_shape(bennu)
         self.assertEqual(bennu.ladder[3]["status"], "measured")
-        self.assertEqual(bennu.ladder[3]["text"], "The sample holds 0.84 to 0.95% hydrogen and 4.5 to 4.7% carbon "
+        self.assertEqual(bennu.ladder[3]["text"], "The sample holds 0.84–0.95% hydrogen and 4.5–4.7% carbon "
                          "by weight (Lauretta et al. 2024).")
-        self.assertIn("Grams: done. 121.6 g returned from this asteroid (OSIRIS-REx, 2023) for $1.02 to 1.16 billion",
+        self.assertIn("Grams: done. 121.6 g returned from this asteroid (OSIRIS-REx, 2023), for $1.02–1.16 billion",
                       bennu.ladder[4]["text"])
         # the price tag gives way to the sample: no odds on water from its class beside the sample's own result
         self.assertEqual(bennu.value["statement_ids"], ["sample_water_at_most", "water_market"])
         self.assertEqual(bennu.value["statements"][0], "If the whole body matches the returned sample, and all its "
-                         "hydrogen is in water, it holds at most 8 million tonnes of water.")
+                         "hydrogen is in water, it holds at most 8 million t of water.")
         for text in bennu.value["statements"]:
             self.assertNotIn("Of 100 like it", text)
             self.assertNotIn("S/Q", text)
@@ -1012,14 +1046,14 @@ class Ladder(unittest.TestCase):
                          surface=[fact("class", "Cb", "ssodnet")]))
         self.assertEqual(ryugu.value["statement_ids"], ["sample_water", "water_market"])
         self.assertRegex(ryugu.value["statements"][0],
-                         r"^If the whole body matches the returned sample, it holds \d+ million to \d+ million tonnes of water\.$")
+                         r"^If the whole body matches the returned sample, it holds \d+ million to \d+ million t of water\.$")
         self.assertEqual(ryugu.ladder[3]["text"], "The sample holds 6.84 ± 0.34% water by weight (Yokoyama et al. 2023).")
         itokawa = run(make(h=19.26, occ=0, designation="1998 SF36", name="Itokawa", number=25143,
                            size=[diameter(326.0, 315.0, 337.0)], spin=[period(12.132)],
                            surface=[fact("class", "S", "ssodnet")]))
-        self.assertEqual(itokawa.ladder[3]["text"], "Sampled.")
+        self.assertEqual(itokawa.ladder[3]["text"], "A spacecraft sampled it. We have no analysis of the sample on file.")
         self.assertEqual(itokawa.value["statements"],
-                         ["No analysis of the returned sample is on file here, so no figure is given."])
+                         ["We have no analysis of the returned sample on file, so we give no figure."])
         for text in walk_strings(itokawa.value["statements"]):
             self.assertNotIn("$", text)                  # no dollar floor from its class beside a returned sample
         kamo = run(make(h=24.31, occ=0, designation="2016 HO3", name="Kamoʻoalewa", number=469219,
@@ -1036,14 +1070,18 @@ class Ladder(unittest.TestCase):
         r = run(make(h=None, occ=9, arc=1, window=None, unchecked={"size": ["ssodnet"], "spin": ["ssodnet"]}))
         self.check_shape(r)
         self.assertEqual([x["status"] for x in r.ladder], ["measured", "measured", "unknown", "unknown", "unknown"])
-        self.assertEqual(r.ladder[2]["text"], "Spin not checked (SsODNet).")
+        # the spin row names the source not checked; the rung says why there is no estimate
+        self.assertEqual(r.ladder[2]["text"], "JPL lists no brightness for it, so we cannot estimate its diameter or spin.")
         plain = run(make(h=None, occ=9, arc=1, window=None))
-        self.assertEqual(plain.ladder[2]["text"], "No size or spin share: JPL lists no brightness for it.")
+        self.assertEqual(plain.ladder[2]["text"], r.ladder[2]["text"])
 
     def test_number_words(self):
-        self.assertEqual(missions.period_words(7.633), "7.63 hours")
-        self.assertEqual(missions.period_words(0.465), "27.9 minutes")
-        self.assertEqual(missions.period_words(92.5 / 3600), "92.5 seconds")
+        self.assertEqual(missions.period_words(7.633), "7.63 h")
+        self.assertEqual(missions.period_words(0.465), "27.9 min")
+        self.assertEqual(missions.period_words(92.5 / 3600), "92.5 s")
+        self.assertEqual(ladder.count_words(0.8), "80%")
+        self.assertEqual(ladder.count_words(0.004), "<1%")
+        self.assertEqual(ladder.count_words(0.996), ">99%")
         self.assertEqual(missions.figures(18.2), "18")
         self.assertEqual(missions.figures(484.0), "480")
         self.assertEqual(missions.figures(4.47), "4.5")
@@ -1103,7 +1141,7 @@ class Predictions(unittest.TestCase):
             row = M.priors["spin"]["bands"][p["band"]][s]
             self.assertEqual((p["p"], p["p_low"], p["p_high"]), (row["central"], row["low"], row["high"]))
         size = {p["band"]: p for p in by[("rule", "size")]}
-        self.assertRegex(size["26_28"]["statement"], r"of H 27 that gets a measured size is \d[\d.]* to \d+ m across\.")
+        self.assertRegex(size["26_28"]["statement"], r"^A newly measured reachable asteroid of H 27 is \d[\d.]*–\d+ m in diameter\.$")
         self.assertEqual(size["26_28"]["p"], 0.9)
 
     def test_named_cases(self):
@@ -1111,11 +1149,11 @@ class Predictions(unittest.TestCase):
         self.assertEqual(set(cases), {"case-apophis-density", "case-kamooalewa-density", "case-2015bm510-size"})
         apo = cases["case-apophis-density"]
         self.assertEqual((apo["key"], apo["designation"], apo["p"]), ("apo", "Apophis", 0.9))
-        self.assertRegex(apo["statement"], r"^has a bulk density of 1,[78]00 to 3,[23]00 kg/m³\.$")   # class S: 1,700 to 3,400
+        self.assertRegex(apo["statement"], r"^has a bulk density of 1,[78]00–3,[23]00 kg/m³\.$")   # class S: 1,700 to 3,400
         self.assertEqual(apo["settle_from"], "2029")
         bm = cases["case-2015bm510-size"]
         self.assertEqual(bm["key"], "bm")
-        self.assertRegex(bm["statement"], r"^is \d+ to \d+ m across\.$")
+        self.assertRegex(bm["statement"], r"^is \d+–\d+ m in diameter\.$")
         self.assertEqual(bm["settle_from"], "2028-04")
         kamo = cases["case-kamooalewa-density"]                 # not among the records given
         self.assertIsNone(kamo["key"])

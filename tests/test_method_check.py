@@ -228,15 +228,15 @@ class Fixed(unittest.TestCase):
             self.assertTrue(v["mix"][name]["basis"].startswith("a judgement, not a bound"), name)
             self.assertTrue(all(isinstance(x, float) for k, x in v["mix"][name].items() if k != "basis"), "a mix table holds shares and its basis only")
         iron = next(s for s in v["statement"] if s["id"] == "iron_rich")
-        self.assertIn("rest on an assumed mix of metals in irons", iron["template"])
+        self.assertIn("an assumed mix of metals", iron["template"])
         self.assertNotIn("bounded", self.doc_value.split("## 12.")[0])
         self.assertIn("Neither is done", self.doc_value)
         self.assertIn("applied in part", self.doc_value)
 
     def test_z_class_is_not_called_differentiated(self):
         basis = self.m["value"]["kinds"]["other"]["basis"]
-        self.assertIn("D, T, Z 0.13", basis)
-        self.assertIn("V, A 0.43", basis)
+        self.assertIn("13% are D, T or Z: dark and primitive.", basis)
+        self.assertIn("43% are V or A: melted, so nothing counts.", basis)
 
     def test_colour_label_disagreement_is_quoted_as_measured(self):
         self.assertNotIn("a third of colour-based C labels", self.text["value"])
@@ -262,7 +262,7 @@ class Fixed(unittest.TestCase):
         by_kind = {s["window"]: s["text"] for s in rung["suffix"]}
         self.assertEqual(sorted(by_kind), ["none", "pointable", "survey_only"])
         self.assertIn("too uncertain to point at", by_kind["survey_only"])
-        self.assertIn("no window through 2045", by_kind["none"])
+        self.assertIn("no observing window through 2045", by_kind["none"])
         # the window and its date are in the tracking row; the rung adds a sentence only when JPL's own test
         # says the code is not enough, and says nothing when a telescope can be pointed at it
         self.assertEqual(by_kind["pointable"], "")
@@ -271,12 +271,12 @@ class Fixed(unittest.TestCase):
             self.assertNotIn("now", text.lower().split())
         for mission in ("surface", "capture"):
             gate = next(g for g in self.m["missions"][mission]["gates"] if g["id"] == "findable")
-            self.assertEqual(gate["label"], "Orbit code 5 or better")           # the label names the test
+            self.assertEqual(gate["label"], "Orbit condition code ≤ 5")               # the label names the test
             self.assertNotIn("find again", gate["label"])
 
     def test_water_sentence_is_dated(self):
         st = next(s for s in self.m["value"]["statement"] if s["id"] == "water_market")
-        self.assertEqual(st["template"], "As of 21 November 2026 we found nobody buying water in orbit.")
+        self.assertEqual(st["template"], "As of 2026-11-21, we found nobody buying water in orbit.")
 
     def test_tianwen_period_in_both_units(self):
         tw = next(f for f in self.m["ladder"]["fact"] if f["id"] == "tianwen_2")
