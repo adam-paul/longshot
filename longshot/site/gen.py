@@ -286,8 +286,8 @@ def size_cell(rec, sources) -> str:
     return f'<td class="num sz"><span>{mark}{t.esc(text)}</span></td>'
 
 
-OBSERVE_COLS = ("Rank", "Asteroid", "Δv (km/s)", "Diameter (m)", "Telescope", "Window opens", "Window closes",
-                "Peak brightness (mag)", "Not checked")
+OBSERVE_COLS = ("Rank", "Asteroid", "Δv (km/s)", "Diameter (m)", "Measure", "Mission", "Condition", "Telescope",
+                "Window opens", "Window closes", "Peak brightness (mag)", "Not checked")
 MAG = '<abbr title="magnitude in visible light, as JPL predicts it: a lower number is brighter">mag</abbr>'
 
 
@@ -296,24 +296,19 @@ def observe_page(recs, sources, assets, data_date, method, observations=None, ta
     tiers = {}
     for r in ranked:
         tiers[r["observe"].get("tier")] = tiers.get(r["observe"].get("tier"), 0) + 1
-    rows, tier, run = [], object(), None
+    rows, tier = [], object()
     for i, r in enumerate(ranked, 1):
         o = r["observe"]
         if o.get("tier") != tier:
-            tier, run = o.get("tier"), None
+            tier = o.get("tier")
             if tier in TIER_HEADS:
-                rows.append(f'<tr class="tier"><th colspan="9" scope="rowgroup">{TIER_HEADS[tier]}'
+                rows.append(f'<tr class="tier"><th colspan="{len(OBSERVE_COLS)}" scope="rowgroup">{TIER_HEADS[tier]}'
                             f'<span>{t.count(tiers[tier])} asteroids</span></th></tr>')
-        gate, mission = t.settles(r)
-        what = t.obs_name(observations, o.get("best"))
-        said = (what, gate, mission) if gate and what else (None, o.get("text"), None)
-        if said != run:
-            run = said
-            if said[0]:
-                rows.append(f'<tr class="run"><th colspan="9" scope="rowgroup"><span class="k">Observation</span>{t.esc(said[0])}'
-                            f'<span class="k">Decides</span>{t.esc(said[1])}, for {t.esc(said[2])}</th></tr>')
-            else:
-                rows.append(f'<tr class="run"><th colspan="9" scope="rowgroup">{t.esc(said[1])}</th></tr>')
+        measure, mission, cond = t.measure_and_condition(r)
+        if not measure:         # no condition named: the observation's own name, and its text as the condition
+            measure = t.obs_name(observations, o.get("best")) or o.get("label") or "none named"
+            cond = o.get("text") or "none named"
+            mission = t.MISSION_LABELS.get(o.get("mission"), "") or "none named"
         w = o.get("window") or {}
         start, end = (t.date(w["start"]), t.date(w["end"])) if w.get("start") and w.get("end") else ("", "")
         peak = f'{w["peak_mag"]:.1f}' if t.is_num(w.get("peak_mag")) else ""
@@ -328,8 +323,9 @@ def observe_page(recs, sources, assets, data_date, method, observations=None, ta
         rows.append(
             f'<tr><td class="num rank">{i}</td><td class="ast"><a href="../a/{r["key"]}.html">{t.esc(r["designation"])}</a>{name}</td>'
             f'<td class="num">{f"{dv:.3f}" if dv is not None else ""}</td>{size_cell(r, sources)}'
-            f'<td>{scope}</td><td class="num">{start}</td><td class="num">{end}</td>'
-            f'<td class="num">{peak}</td><td class="chk">{check}</td></tr>')
+            f'<td>{t.esc(measure)}</td><td>{t.esc(mission)}</td><td>{t.esc(cond)}</td>'
+            f'<td class="tel">{scope}</td><td class="num">{start}</td><td class="num">{end}</td>'
+            f'<td class="num">{peak}</td><td class="chk">{f"<span>{check}</span>" if check else ""}</td></tr>')
     head = "<tr>" + "".join(f'<th scope="col"{NUM if c in NUM_COLS else ""}>{c.replace("(mag)", f"({MAG})")}</th>' for c in OBSERVE_COLS) + "</tr>"
     table = (f'<table class="ltbl obs"><caption class="vh">Asteroids with an unclear verdict, ranked by how much one '
              f'observation would change it</caption><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table>'
@@ -340,7 +336,7 @@ def observe_page(recs, sources, assets, data_date, method, observations=None, ta
         f'<div><dt>Ranked</dt><dd>{t.count(len(ranked))} asteroids with an unclear verdict</dd></div>'
         + (f'<div><dt>Order</dt><dd>{t.esc(t.cap(order))}</dd></div>' if order else "")
         + '</dl></div>'
-        f'<p class="cap">For each asteroid, the observation that would most change its verdicts. {t.esc(OBSERVE_DV)} '
+        f'<p class="cap">For each asteroid: what to measure, and the mission condition the result would settle. {t.esc(OBSERVE_DV)} '
         'Diameter: the measured value, or the 90% range of the estimate; "on entry" where the source allows its value '
         'only on the asteroid\'s own page.</p>'
         f'{t.define(table)}</main>')

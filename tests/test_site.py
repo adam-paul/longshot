@@ -1142,7 +1142,7 @@ class SiteTest(unittest.TestCase):
 
     def test_observe_list(self):
         root = self.trees["list/observe.html"].root
-        rows = [tr for tr in root.find("tbody")[0].find("tr") if not tr.classes & {"tier", "run"}]
+        rows = [tr for tr in root.find("tbody")[0].find("tr") if "tier" not in tr.classes]
         want = [r.designation for r in observe.ranked([r for r in sample.RECORDS if r.observe])]
         self.assertEqual(sorted(want), ["2099 AA37", "2099 HT", "2099 NJ", "2099 OB5"])
         self.assertEqual([tr.find("a")[0].text() for tr in rows], want)
@@ -1159,10 +1159,14 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(first["Telescope"], "Small telescope, a few nights")
         self.assertEqual(first["Δv (km/s)"], "4.580")                   # to the metre per second, as everywhere
         self.assertEqual(cells["2099 NJ"]["Window opens"], "none listed")  # a missing value is its state, never blank
-        # what one observation settles is said once for each run of rows that share it, not on every row
-        runs = [tr for tr in root.find("tbody")[0].find("tr") if "run" in tr.classes]
-        self.assertEqual(len(runs), 4)
-        self.assertEqual(" ".join(runs[1].text(gap=" ").split()), f"Observation {observation('size')} Decides Diameter ≤ 10 m, for whole-body capture")
+        # each row says what to measure, for which mission, and the condition the result is compared with;
+        # the only heading rows are the window kinds
+        self.assertEqual([tr for tr in root.find("tbody")[0].find("tr") if "run" in tr.classes], [])
+        said = [(c["Measure"], c["Mission"], c["Condition"]) for c in cells.values()]
+        self.assertIn(("Diameter", "Whole-body capture", "≤ 10 m"), said)
+        for measure, mission, cond in said:
+            self.assertTrue(measure and mission and cond)
+            self.assertNotIn(mission.lower(), cond.lower())     # the mission has its own column
         # the list is in the method's order and has no script: its headings are plain
         self.assertEqual(root.find("thead")[0].find("button"), [])
         self.assertEqual(root.find("script"), [])
