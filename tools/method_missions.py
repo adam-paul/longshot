@@ -74,14 +74,13 @@ def facts(record, m):
                              else f"{x.value:g} m, no error stated, {src(x.fact)}")
     if inp.period is not None:
         f = inp.period.fact
-        shown = inp.period_shown or f
+        shown = f
         grade = f"U {shown.quality}" if draws.grade_digit(shown.quality) is not None else "no grade on file"
         out["period"] = inp.period.value
         out["period_words"] = f"{shown.value:g} h, {grade}, {src(shown)}"
     elif inp.period_unreliable is not None:
         f = inp.period_unreliable
-        out["period_words"] = (f"{f.value:g} h on file, graded unreliable (U {f.quality}, {src(f)}); it does not decide"
-                               if inp.period_unreliable_public else "a period on file, graded unreliable")
+        out["period_words"] = f"{f.value:g} h on file, graded unreliable (U {f.quality}, {src(f)}); it does not decide"
     if inp.cls_fact is not None:
         out["cls_words"] = (f"{inp.cls_fact.value} ({inp.cls_fact.quality}, {src(inp.cls_fact)}); "
                             f"wrong side of S/Q in {inp.cls_error:g} of draws")

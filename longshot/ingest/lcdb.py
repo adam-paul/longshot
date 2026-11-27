@@ -1,8 +1,5 @@
 """The Asteroid Lightcurve Database (LCDB) summary table: period, amplitude and the U grade.
 
-Licence class "inference": a value may feed a derived value and is shown only
-as a pointer unless another source gives the same value (docs/mvp.md section 3).
-
 Column positions are from the release's readme.pdf, section 4.1.3, and are
 checked against the header line. The readme's rule (section 4.1.6): only U of
 2- or better should be used for rotation-rate work.
@@ -112,7 +109,6 @@ def source() -> Source:
         name="Asteroid Lightcurve Database (LCDB)",
         edition=_parsed()[0],
         retrieved=research_retrieved(),
-        licence="inference",
         citation="Warner, Harris and Pravec 2009, Icarus 202, 134; LCDB release of " + _parsed()[0],
         url="https://minplanobs.org/mpinfo/php/lcdb.php",
     )

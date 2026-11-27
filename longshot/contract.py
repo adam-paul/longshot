@@ -208,8 +208,6 @@ def problems(record: ObjectRecord, source_ids: set[str]) -> list[str]:
             bad("summary.class is not {S, C, X, other}")
         if not _ordered(summary.get("reflectivity")):
             bad("summary.reflectivity is not five ordered quantiles above zero")
-        if "size_open_m" in summary and not _ordered(summary["size_open_m"], ("q05", "q50", "q95")):
-            bad("summary.size_open_m is not three ordered quantiles above zero")
         if summary.get("mass_basis") not in MASS_BASES:
             bad(f"summary.mass_basis is {summary.get('mass_basis')!r}")
         bad_period = period_problem(record, summary.get("period", "missing"), source_ids)

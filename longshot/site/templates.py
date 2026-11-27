@@ -107,12 +107,6 @@ def spin_lines(thresholds_h) -> tuple:
 
 
 SPIN_SHARES = spin_lines((2.2, 1.0, 1 / 6))     # gen.write_site sets it from the method files
-LICENCE_WORDS = {
-    "open": "Shown in full",
-    "single": "Single values, with citation",
-    "inference": "Feeds estimates; its values are not shown",
-}
-POINTER = "Not shown"          # a Data row whose source's licence keeps its value off the page (section 3, Not shown)
 GATE_BASIS = {"measured": "measured", "prior": "estimated"}
 GATE_ROW = {"findable": "tracking", "size": "size", "spin": "spin", "mass": "size"}
 
@@ -476,25 +470,6 @@ def u(unit: str) -> str:
 
 # ---------------------------------------------------------------- sources
 
-def licence_of(sources: dict, sid: str):
-    s = sources.get(sid)
-    return s.get("licence") if s else None
-
-
-def public(fact: dict, sources: dict) -> dict | None:
-    """The fact as the page may print it, or None when it may only be pointed to.
-
-    The licence rule (docs/mvp.md section 3): a value or grade from an "inference" source is
-    never printed under that source's name. Where another source states the same value, that
-    source's own line shows it.
-    """
-    return None if licence_of(sources, fact.get("source", "")) == "inference" else fact
-
-
-def displayable(fact: dict, sources: dict) -> bool:
-    return public(fact, sources) is not None
-
-
 def source_name(sources: dict, sid: str) -> str:
     """A source's name as interface copy: 'Asteroid Lightcurve Database, LCDB' (unparen)."""
     s = sources.get(sid)
@@ -622,23 +597,22 @@ def _from_quantiles(q: dict, k: float) -> dict | None:
             "state": "prior", "kind": "value", "source": "", "quality": None}
 
 
-def _size_facts(rec: dict, sources: dict, only=None):
-    """(the size row's state, its usable diameters or bounds the page may print), adopted first."""
+def _size_facts(rec: dict, sources: dict):
+    """(the size row's state, its usable diameters or bounds), adopted first."""
     row = rec["rows"].get("size", {})
     facts = row.get("facts", [])
     state = row.get("state")
     kinds = {"measured": ("value",), "limit": ("upper", "lower")}.get(state, ())
     return state, [f for f in facts
                    if f.get("kind", "value") in kinds and is_num(f.get("value")) and used(f)
-                   and _metres(f) and f["value"] > 0 and displayable(f, sources)
-                   and (only is None or licence_of(sources, f.get("source", "")) == only)]
+                   and _metres(f) and f["value"] > 0]
 
 
 def size_of(rec: dict, sources: dict) -> dict | None:
     """The size to draw: {lo, mid, hi (metres; lo and hi may be None), state, kind, source, quality}.
 
-    The row's state decides. Measured: the first diameter value the page may print
-    (the ledger puts the adopted one first). Limit: the first bound. Otherwise the
+    The row's state decides. Measured: the first diameter value (the ledger puts the
+    adopted one first). Limit: the first bound. Otherwise the
     summary's quantiles, then the row's prior. None when nothing gives a size.
     """
     state, found = _size_facts(rec, sources)
@@ -649,30 +623,6 @@ def size_of(rec: dict, sources: dict) -> dict | None:
         return _from_quantiles(q, 1.0)
     q = rec["rows"].get("size", {}).get("prior") or {}
     return _from_quantiles(q, _metres(q))
-
-
-def open_size_of(rec: dict, sources: dict) -> dict | None:
-    """The size a page that lists many asteroids may print: open and derived values only.
-
-    The rule of the field file (docs/mvp.md section 5), so a list and the field give one size.
-    Not measured: the range from open values alone (summary.size_open_m) where the record
-    carries one, else the entry's own range. Measured from an open source: that value.
-    Measured from a source licensed for single values: JPL's diameter where it has one, else
-    summary.size_open_m with `withheld` set, since the entry's own value was left out.
-    """
-    own = size_of(rec, sources)
-    if own is None:
-        return None
-    derived = _from_quantiles((rec.get("summary") or {}).get("size_open_m") or {}, 1.0)
-    if own["state"] == "prior":
-        return {**(derived or own), "withheld": False}
-    if licence_of(sources, own["source"]) == "open":
-        return {**own, "withheld": False}
-    state, found = _size_facts(rec, sources, only="open")
-    if found:
-        return {**_from_fact(found[0], state), "withheld": False}
-    out = derived or {"mid": None, "lo": None, "hi": None, "kind": "value", "source": ""}
-    return {**out, "state": own["state"], "withheld": True}
 
 
 def used(f: dict) -> bool:
@@ -690,15 +640,11 @@ def not_checked(row: dict, sources: dict) -> str:
     return ", ".join(source_name(sources, s) for s in row.get("unchecked") or [])
 
 
-OPEN_PERIOD_SOURCE = "jpl-sbdb"        # the one period the field file may carry (longshot/export.py)
-
-
 def shown_period(rec: dict, sources: dict) -> tuple[dict | None, str]:
-    """(the period fact the page shows and turns the rock by, reason). The fact is set only when the
-    spin row is measured, its sources do not disagree, and a period the page may print agrees with
-    the adopted one (the row's first, within the ledger's tolerance). JPL's period is taken where it is
-    one of those, so the entry turns at the rate the field turns at. Otherwise the reason says why not:
-    and never "no spin period on file" while a source for the row was not checked."""
+    """(the period fact the page shows and turns the rock by, reason). The fact is the period the spin row
+    rests on (its first used one), set only when the row is measured and its sources do not disagree, so the
+    entry turns at the rate the field turns at. Otherwise the reason says why not: and never "no spin period
+    on file" while a source for the row was not checked."""
     row = rec["rows"].get("spin", {})
     on_file = [f for f in row.get("facts", []) if _is_period(f)]
     periods = [f for f in on_file if used(f)]
@@ -709,12 +655,7 @@ def shown_period(rec: dict, sources: dict) -> tuple[dict | None, str]:
         return None, "no spin period good enough to use" if on_file else "no spin period on file"
     if row.get("conflicts"):
         return None, "sources disagree on the spin period"
-    seconds = lambda f: f["value"] * TIME_S[f["unit"]]
-    adopted = seconds(periods[0])
-    agree = [f for f in periods if displayable(f, sources) and not ledger_mod.periods_differ(adopted, seconds(f))]
-    if not agree:
-        return None, POINTER
-    return _first(agree, lambda f: f.get("source") == OPEN_PERIOD_SOURCE) or agree[0], ""
+    return periods[0], ""
 
 
 def period_of(rec: dict, sources: dict) -> tuple[float | None, str]:
@@ -944,7 +885,6 @@ def gauge(row_id: str, row: dict, sources: dict, gates=()) -> str:
     counted = row.get("state") in ("measured", "limit")
     lead = True
     for f in row.get("facts", []):
-        f = public(f, sources)
         k = _axis_factor(row_id, f) if f else None
         if k is None or not is_num(f.get("value")):
             continue
@@ -1060,22 +1000,14 @@ def _ref(ref) -> str:
 
 def facts_table(row_id: str, facts: list, sources: dict, counted: bool = False) -> str:
     """The row's facts, one line each: label, value, 1σ range, grade and note, source, in the ledger's order, so
-    the first used line is the one the row rests on. A value the licence rule holds back is left out, unless the
-    row rests on it (`counted` and the first used line): then a pointer stands in its place, and the Sources
-    table says why. A source every line shares is printed once, under."""
-    rests_on = next((f for f in facts if used(f)), None) if counted else None
-    facts = [f for f in facts if (displayable(f, sources) or f is rests_on) and f.get("label") not in HIDDEN_FACTS]
-    held = [f for f in facts if not displayable(f, sources)]
+    the first used line is the one the row rests on. A source every line shares is printed once, under."""
+    facts = [f for f in facts if f.get("label") not in HIDDEN_FACTS]
     cites = {(f.get("source", ""), f.get("ref")) for f in facts}
     once = len(cites) == 1 and len(facts) > 1
     lines = []
     for f in facts:
         name = cap(label(row_id, f.get("label")))
         cite = source_link(sources, f.get("source", "")) + (f", {esc(_ref(f['ref']))}" if f.get("ref") else "")
-        if f in held:
-            lines.append(f'<tr class="ptr"><th scope="row">{esc(name)}</th><td class="v">{POINTER}</td>'
-                         f'<td class="r"></td><td class="q"></td><td class="s">{"" if once else source_link(sources, f.get("source", ""))}</td></tr>')
-            continue
         val, rng, extra = _value(row_id, f)
         if extra:
             name += f", {extra}"
@@ -1524,26 +1456,29 @@ def used_sources(rec: dict) -> list[str]:
     return seen + sorted(extra - set(seen))
 
 
-def source_row(sid: str, sources: dict, unchecked: bool = False) -> str:
-    """One source as a table row: name and citation, edition, fetched, what is shown here."""
+def source_row(sid: str, sources: dict, unchecked: bool = False, cite: bool = True, here: bool = False) -> str:
+    """One source as a table row: name (with its citation on Method), edition, fetched, and on an entry whether it
+    was checked for this asteroid."""
     s = sources.get(sid)
     if not s:
         return f'<tr id="src-{esc(sid)}"><th scope="row">{esc(sid)}</th><td colspan="3">Not in the source list</td></tr>'
     name = esc(source_name(sources, sid))
     if s.get("url"):
         name = f'<a href="{esc(s["url"])}" rel="noopener">{name}</a>'
-    use = esc(LICENCE_WORDS.get(s.get("licence"), s.get("licence")))
-    if unchecked:
-        use = f"{NOT_CHECKED} for this asteroid"
-    return (f'<tr id="src-{esc(sid)}"><th scope="row">{name}<p class="gtext">{esc(plain(public_text(s.get("citation"))))}</p></th>'
+    citation = f'<p class="gtext">{esc(plain(public_text(s.get("citation"))))}</p>' if cite else ""
+    status = (f'<td data-l="This asteroid">{NOT_CHECKED if unchecked else "Checked"}</td>') if here else ""
+    return (f'<tr id="src-{esc(sid)}"><th scope="row">{name}{citation}</th>'
             f'<td class="num" data-l="Edition">{date(s["edition"]) if s.get("edition") else ""}</td>'
-            f'<td class="num" data-l="Fetched">{fetched(s)}</td><td data-l="Shown here">{use}</td></tr>')
+            f'<td class="num" data-l="Fetched">{fetched(s)}</td>{status}</tr>')
 
 
-def sources_table(ids: list, sources: dict, unchecked=()) -> str:
-    rows = "".join(source_row(sid, sources, sid in unchecked) for sid in ids)
+def sources_table(ids: list, sources: dict, unchecked=(), entry: bool = False) -> str:
+    """Every source with its citation (Method), or an entry's sources with whether each was checked for it; an
+    entry carries no citations: they are on Method."""
+    rows = "".join(source_row(sid, sources, sid in unchecked, cite=not entry, here=entry) for sid in ids)
+    here = '<th scope="col">This asteroid</th>' if entry else ""
     return ('<table class="tbl sources"><thead><tr><th scope="col">Source</th><th scope="col" class="num">Edition</th>'
-            '<th scope="col" class="num">Fetched</th><th scope="col">Shown here</th></tr></thead>'
+            f'<th scope="col" class="num">Fetched</th>{here}</tr></thead>'
             f'<tbody>{rows}</tbody></table>')
 
 
@@ -1579,14 +1514,6 @@ def _class_word(c: str) -> str:
     if group in CLASS_WORDS:
         return CLASS_WORDS[group]
     return OTHER_CLASS_WORDS.get(str(c).strip()[:1].upper(), "Other type")
-
-
-def _held(sources: dict, sid: str) -> str:
-    """The detail beside a value on file that the page may not print: whose it is."""
-    return f"in {source_name(sources, sid)}" if sid else "in a source whose values are not shown"
-
-
-NOT_SHOWN = "Not shown"         # a measurement on file whose source's licence keeps it off the page
 
 
 def cited(sources: dict, f: dict) -> str:
@@ -1628,30 +1555,24 @@ def summary_items(rec: dict, sources: dict, observations: dict | None = None) ->
             items.append(("Diameter", f'{num(s["mid"] * k, 3)} {u(unit)}', rng + who, sstate))
         else:
             items.append(("Diameter", f'{BOUND_SIGN.get(s["kind"], "")}{num(s["mid"] * k, 3)} {u(unit)}', who, sstate))
-    elif sstate in ("measured", "limit"):
-        first = _first(srow.get("facts", []), lambda f: used(f) and _metres(f) and is_num(f.get("value")))
-        items.append(("Diameter", NOT_SHOWN, _held(sources, (first or {}).get("source", "")), sstate))
     elif s and s["lo"]:
         k, unit = scale_for("size", "", "m", s["hi"])
         items.append(("Diameter", estimate_span(s["lo"] * k, s["hi"] * k) + f" {u(unit)}", ESTIMATE_RANGE, sstate))
     else:
         items.append(("Diameter", "None", "no brightness on file", None))
-    # spin: the period the row rests on, as a source the page may print gives it
+    # spin: the period the row rests on
     prow = rows.get("spin") or {}
     pstate = prow.get("state", "unchecked")
     f, why = shown_period(rec, sources)
-    rests_on = ((summ.get("period") or {}).get("rests_on")
-                or (_first(prow.get("facts", []), lambda f: used(f) and _is_period(dict(f, kind="value"))) or {}).get("source", ""))
     adopted = _first(prow.get("facts", []), lambda f: used(f) and _is_period(f))
     if f:
         k, unit = scale_for("spin", "", f["unit"], f["value"])
         items.append(("Spin", f'{num(f["value"] * k)} {u(unit)}', f"time for one turn, {cited(sources, f)}", pstate))
-    elif pstate == "measured" and prow.get("conflicts") and adopted and displayable(adopted, sources):
-        # the period the ledger uses first, then each other period the page may print that disagrees with it
-        # ("250 h or 2.02 h"); a period whose source's values are not shown is named in the Data section's line
+    elif pstate == "measured" and prow.get("conflicts") and adopted:
+        # the period the ledger uses first, then each other period that disagrees with it ("250 h or 2.02 h")
         sec = lambda g: g["value"] * TIME_S[g["unit"]]
         said, shown = [], []
-        for g in [adopted] + [g for g in prow.get("facts", []) if used(g) and _is_period(g) and displayable(g, sources)]:
+        for g in [adopted] + [g for g in prow.get("facts", []) if used(g) and _is_period(g)]:
             if all(ledger_mod.periods_differ(sec(g), x) for x in shown):
                 shown.append(sec(g))
                 k, unit = scale_for("spin", "", g["unit"], g["value"])
@@ -1659,23 +1580,17 @@ def summary_items(rec: dict, sources: dict, observations: dict | None = None) ->
         who = f", {cited(sources, adopted)}" if len(said) == 1 else ""
         items.append(("Spin", " or ".join(said), f"time for one turn{who}; sources disagree", pstate))
     elif pstate == "measured":
-        items.append(("Spin", NOT_SHOWN, _held(sources, rests_on) if why == POINTER or prow.get("conflicts") else why, pstate))
+        raise ValueError(f"{rec.get('designation')}: a measured spin row with no period to show ({why})")
     elif pstate == "limit":
         bound = _first(prow.get("facts", []), lambda f: f.get("kind") in ("upper", "lower") and used(f)
                        and _is_period(dict(f, kind="value")))
-        # the bound itself, or, where its source's values are not shown, the same number from a source that repeats
-        # it without the sign (ledger.toml [period].copy_of_a_limit): the number is that source's to print
-        b = bound if bound and displayable(bound, sources) else None
-        copy = None if b or not bound else _first(prow.get("facts", []), lambda f: not used(f) and _is_period(f)
-                                                  and displayable(f, sources) and f["value"] * TIME_S[f["unit"]]
-                                                  == bound["value"] * TIME_S[bound["unit"]])
-        shown = b or copy
+        shown = bound
         if shown:
             k, unit = scale_for("spin", "", shown["unit"], shown["value"])
             items.append(("Spin", f'{BOUND_SIGN.get(bound["kind"], "")}{num(shown["value"] * k)} {u(unit)}',
                           f"time for one turn, a bound; {cited(sources, shown)}", pstate))
         else:
-            items.append(("Spin", NOT_SHOWN, _held(sources, rests_on), pstate))
+            raise ValueError(f"{rec.get('designation')}: a spin bound with no period")
     else:
         p = (prow.get("prior") or {}).get("p_fast_2_2h", summ.get("p_fast_2_2h"))
         if is_num(p):
@@ -1685,16 +1600,13 @@ def summary_items(rec: dict, sources: dict, observations: dict | None = None) ->
     # composition: the class (or reflectivity) the surface row rests on, or the shares at this brightness
     crow = rows.get("surface") or {}
     cstate = crow.get("state", "unchecked")
-    pick = lambda pred: _first(crow.get("facts", []), lambda f: used(f) and displayable(f, sources) and pred(f))
+    pick = lambda pred: _first(crow.get("facts", []), lambda f: used(f) and pred(f))
     cls = pick(lambda f: f.get("label") == "class" and isinstance(f.get("value"), str))
     alb = pick(lambda f: _ALBEDO.search(f.get("label") or "") and is_num(f.get("value")))
     # Composition is its class. A measured reflectivity alone does not give one: it narrows the estimate, which is
     # shown as an estimate; the reflectivity itself is in the Data section.
     if cstate in ("measured", "limit") and cls:
         items.append(("Composition", esc(_class_word(cls["value"])), cited(sources, cls), cstate))
-    elif cstate in ("measured", "limit") and not alb and _first(crow.get("facts", []), lambda f: used(f) and f.get("label") == "class"):
-        first = _first(crow.get("facts", []), lambda f: used(f))
-        items.append(("Composition", NOT_SHOWN, _held(sources, (first or {}).get("source", "")), cstate))
     else:
         measured_alb = cstate in ("measured", "limit")
         if measured_alb:
@@ -1818,7 +1730,7 @@ def entry(rec: dict, sources: dict, observations: dict | None = None, gates: dic
         f'</section>'
         + define(_sections(toc, heads, [body for (a, _), body in zip(TOC, (
             rows, ladder(rec.get("ladder") or []), value(rec), observe(rec, observations, sources) if rec.get("observe") else "",
-            missions(rec), sources_table(used_sources(rec), sources, unchecked))) if a != "settle" or rec.get("observe")]))
+            missions(rec), sources_table(used_sources(rec), sources, unchecked, entry=True))) if a != "settle" or rec.get("observe")]))
         + '</main>'
     )
 

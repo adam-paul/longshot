@@ -48,7 +48,7 @@ The build needs `data/research/` unpacked (Read first, above) and `data/snapshot
 - The stack is decided (`DESIGN.md` section 8): pre-built files, hand-written WebGL2, plain JavaScript and CSS, Python standard library. Ask before adding any dependency, in Python or JavaScript, and before choosing a host.
 - Python goes through uv (`uv add`, lockfile committed), never `pip` or `uv pip install`, on a uv-managed interpreter (`uv venv --python 3.12`); the system Python cannot build environments reliably. The pipeline's package list is empty: standard library only. Say up front when something needs sudo.
 - Nothing in `longshot/` opens an outbound connection (`serve` and the browser check only serve local files). The one fetcher is `tools/fetch_ssodnet_cards.py`, run by hand. The prototype needs no JPL call: `data/snapshots/2026-11-24/` holds the reachable list with its observing windows (`nhats.json`) and JPL's table of every near-Earth object (`sbdb_neo.json`). JPL allows one request at a time and requires a contact address in the User-Agent; none is set yet, so make no automated JPL call until one is.
-- Data stays out of git. Never republish an upstream table; `docs/plan.md` Appendix B has the licence classes.
+- Data stays out of git: the repository holds no upstream table. Any value from any source may appear on the site and in its data files; every source is cited once, with the citation it asks for, in the Sources section of the method page.
 - Thresholds and bars are the numbers in `docs/plan.md` section 1.4 and Appendix A. They are proposals until Adam freezes them. After that, never change one, or the protocol, to pass a gate.
 - Every number shown traces to a script output.
 - Commit only when asked.

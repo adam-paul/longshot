@@ -106,7 +106,6 @@ def source() -> Source:
         name="Ondřejov NEO Photometric Program",
         edition=edition(),
         retrieved=iso_date(path.name) or "",
-        licence="single",
         citation='Pravec et al., "Prepublished" periods of asteroids, Ondřejov NEO Photometric Program '
                  "(unrefereed; no terms stated)",
         url="http://space.asu.cas.cz/~ppravec/newres.txt",

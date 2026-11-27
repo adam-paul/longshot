@@ -37,7 +37,7 @@ GLYPH_CSS = "\n".join("  " + line for line in (STATIC / "style.css").read_text(e
 COLUMNS = (
     ("dv", "f32"),
     ("size_q50", "f32"), ("size_q05", "f32"), ("size_q95", "f32"),
-    ("period_s", "f32"), ("state", "u8"), ("size_open", "u8"),
+    ("period_s", "f32"), ("state", "u8"),
     ("p_surface", "u8"), ("p_capture", "u8"),
     ("status_surface", "u8"), ("status_capture", "u8"),
     ("pct_surface", "u8"), ("pct_capture", "u8"), ("named", "u8"),
@@ -167,10 +167,6 @@ def check(manifest_path):
             problems.append(f"pct_{mission} must be 0 for a fail and 100 for a pass")
     if not all(v in (0, 1) for v in cols["named"]):
         problems.append("named must be 0 or 1")
-    if not all(v in (0, 1) for v in cols["size_open"]):
-        problems.append("size_open must be 0 or 1")
-    elif not all(v for v, s in zip(cols["size_open"], cols["state"]) if s & 3 < LIMIT):
-        problems.append("size_open is 0 for a rock whose size is not measured: nothing is withheld there")
     return problems
 
 
@@ -254,7 +250,6 @@ def synthesize(n, seed="longshot-synthetic"):
         row = {
             "dv": dv, "size_q50": q50, "size_q05": q05, "size_q95": q95,
             "period_s": period, "state": state,
-            "size_open": int(size_state != MEASURED or i % 2 == 0),     # half the measured sizes may not be carried
             "p_surface": p_surface, "p_capture": p_capture,
             "status_surface": s_surface, "status_capture": s_capture,
             "pct_surface": pct_surface, "pct_capture": pct_capture, "named": int(name is not None),

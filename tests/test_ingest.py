@@ -15,7 +15,7 @@ from unittest import mock
 from longshot import config, ids, ingest, sources
 from longshot.ingest import _common, lcdb, nhats, pravec, sbdb, spitzer, ssodnet
 from longshot.ingest._common import IngestError
-from longshot.types import LICENCES, ROWS
+from longshot.types import ROWS
 from tests.fixtures import research_cards_only
 
 ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -110,7 +110,6 @@ class LoadedCase(unittest.TestCase):
                 self.assertRegex(s.edition, ISO)
                 self.assertRegex(s.retrieved, ISO)
                 self.assertLessEqual(s.edition, s.retrieved)
-                self.assertIn(s.licence, LICENCES)
                 self.assertTrue(s.name and s.citation)
                 self.assertTrue(s.url.startswith("http") or sid in SUPPLEMENTARY)
         s = self.sources
@@ -122,9 +121,6 @@ class LoadedCase(unittest.TestCase):
         self.assertEqual(s["pravec"].retrieved, "2026-11-24")      # from the file name
         self.assertEqual(s["lcdb"].edition, "2023-10-01")          # "GENERATED: Oct 01, 2023"
         self.assertEqual(s["spitzer"].edition, "2019-11-30")       # the latest midtime
-        self.assertEqual({sid: x.licence for sid, x in s.items()},
-                         {"jpl-nhats": "open", "jpl-sbdb": "open", "ssodnet": "single", "pravec": "single",
-                          "lcdb": "inference", "spitzer": "single", "curated": "single"})
         self.assertEqual(s["curated"].edition, "2026-11-25")       # registry/curated.toml, its own edition line
 
     # -- nhats ---------------------------------------------------------

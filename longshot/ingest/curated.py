@@ -3,8 +3,7 @@
 A cited value that no database on disk holds (the JWST size of Kamoʻoalewa, the
 period of 2022 OB5) is entered there by hand, with its citation and the file
 and passage under docs/research where it was checked at the primary source.
-Each becomes an ordinary claim. Licence class "single": shown on the object's
-own page with its citation, never in a bulk file.
+Each becomes an ordinary claim; the entry names the paper beside the value.
 
 The list is not a catalogue that was looked up: it only adds claims. It writes
 a coverage record where it has a value and none elsewhere, and the ledger never
@@ -85,8 +84,7 @@ def source() -> Source:
         name="Published papers",
         edition=edition,
         retrieved=edition,
-        licence="single",
-        citation="single values from published papers, each cited where it is shown",
+        citation="values entered by hand from published papers; an entry names the paper beside each value",
         url="",
     )
 

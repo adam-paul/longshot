@@ -54,22 +54,22 @@ tests/
 
 ## 3. Inputs (all local)
 
-| Source id | What | Path | Licence class |
-|---|---|---|---|
-| `jpl-nhats` | reachable list: delta-v, H, orbit code, next observing window | `data/snapshots/2026-11-24/nhats.json` | open |
-| `jpl-sbdb` | every near-Earth object: orbit, tracking, H, and the physical and push values JPL holds | `data/snapshots/2026-11-24/sbdb_neo.json` | open |
-| `ssodnet` | literature cards, one per asteroid | `data/research/dl/coverage-exact/cards/*.json` (fetched 21 November) and `data/sources/ssodnet/cards/*.json` with `journal.jsonl` (fetched since) | single |
-| `pravec` | rotation periods with quality grades | `data/sources/pravec/newres-2026-11-24.txt` | single |
-| `lcdb` | rotation periods with quality grades (release 2023-10-01) | `data/research/dl/coverage-exact/lcdb/` | inference |
-| `spitzer` | sizes and reflectivities for about 2,100 near-Earth asteroids (edition 2019-11-30) | `data/research/dl/coverage-exact/spitzer/spitzerneos.csv` | single |
-| `curated` | measurements no database on disk holds, entered by hand | `registry/curated.toml` | single |
+| Source id | What | Path |
+|---|---|---|
+| `jpl-nhats` | reachable list: delta-v, H, orbit code, next observing window | `data/snapshots/2026-11-24/nhats.json` |
+| `jpl-sbdb` | every near-Earth object: orbit, tracking, H, and the physical and push values JPL holds | `data/snapshots/2026-11-24/sbdb_neo.json` |
+| `ssodnet` | literature cards, one per asteroid | `data/research/dl/coverage-exact/cards/*.json` (fetched 21 November) and `data/sources/ssodnet/cards/*.json` with `journal.jsonl` (fetched since) |
+| `pravec` | rotation periods with quality grades | `data/sources/pravec/newres-2026-11-24.txt` |
+| `lcdb` | rotation periods with quality grades (release 2023-10-01) | `data/research/dl/coverage-exact/lcdb/` |
+| `spitzer` | sizes and reflectivities for about 2,100 near-Earth asteroids (edition 2019-11-30) | `data/research/dl/coverage-exact/spitzer/spitzerneos.csv` |
+| `curated` | measurements no database on disk holds, entered by hand | `registry/curated.toml` |
 
 - A build reads whatever cards are on disk when it runs. An asteroid with no card, one SsODNet answered 404 for, or one whose request failed is `unchecked` for that source. `tools/fetch_ssodnet_cards.py` is the one script that opens a network connection; it is run by hand, never by the build.
 - **Fixed tables.** `pravec`, `lcdb` and `spitzer` are `unchecked` for an asteroid first observed after their edition date, with the reason "older than this asteroid" (`method/v0_1/ledger.toml [fixed_tables]`).
 - **Hand-entered values.** Each claim in `registry/curated.toml` names its citation and quotes, word for word, the passage of a file under `docs/research` that verified it. A test checks the passage is there.
 - `.sha256` files beside the Pravec and lightcurve-database tables pin their bytes (`tools/checksum_tables.py --check`).
 
-Licence classes: `open` may go in the bulk field file and on pages that list many asteroids; `single` may be shown on the object's own page with its citation; `inference` may feed a derived value and is never printed under that source's name: its line reads "Not shown". Where another source states the same value, that source's line shows it.
+Any value from any source may appear on any page and in the field file. Every source is cited once, with the citation it asks for, in the Sources section of `method.html`; an entry names the source beside each value and lists its sources with their dates, without citations.
 
 ## 4. Records
 
@@ -106,8 +106,7 @@ rows: { reach|tracking|size|spin|surface|push: {
   prior, surface row: { q05..q95 of reflectivity, unit: "", shares{S, C, X, other}, basis }
 summary: { size_m{q05..q95}, mass_t{q05..q95}, p_fast_2_2h, p_under_1h, p_under_10min, class{S,C,X,other},
            reflectivity{q05..q95}, h, band, draws, mass_basis (density|class),
-           period{value, unit, lo, hi, kind, source, ref, quality, rests_on, conflict} | null,
-           size_open_m{q05,q50,q95}? }
+           period{value, unit, lo, hi, kind, source, ref, quality, rests_on, conflict} | null }
 missions: { surface|capture: { status (pass|fail|untested), p, gates[] } }
   gate: { id, label, status (pass|fail|untested), p, basis (measured|prior), text }
 observe: { best, mission, gate, gain, text, needs, tier (pointable|survey_only|none), unchecked[],
@@ -127,8 +126,7 @@ gone: { date, text, evidence } | null
 
 - A prior is written on the size, spin and surface rows when their state is `prior` or `unchecked`.
 - An asteroid with no `H` on file (6 today) has no size: `summary` and `value` are `{}`, the row priors are null, both missions fail on the orbit gate, and the ladder says what is missing.
-- `summary.size_open_m` is the size range from `open` values alone. It is written only where a value from a source that is not `open` went into the record's own size (section 5).
-- `summary.period` is the period the spin row rests on, its first used period (a bound where the row is a limit), as an entry may print it: that fact where its source may be printed; else a used period from a printable source that agrees with it within the ledger's tolerance, JPL's first; else `value` is null and `rests_on` names the source, and the page says "Not shown". `null` where the spin row is neither measured nor a limit. `conflict` is true where the row's sources disagree. `summary.mass_basis` says what the mass range was drawn from besides the size: a bulk density on file, or the class's density range.
+- `summary.period` is the period the spin row rests on, its first used period (a bound where the row is a limit), whichever source gives it; `rests_on` names that source. `null` where the spin row is neither measured nor a limit. `conflict` is true where the row's sources disagree. `summary.mass_basis` says what the mass range was drawn from besides the size: a bulk density on file, or the class's density range.
 - `value.table` is the price tag as the entry lays it out: for metal and for water, the 100 cells (`n` adding to 100, the chance of nothing first, the cells the low and high scenarios disagree on as "or" cells, zero counts left out) and the rows beside them, then the notes the rows do not say. Every figure is one the statements print, rounded the same way, with "t" for tonnes. It is absent where `value.sample` is set: the statements are then the price tag. Its words are in `value.toml [table]`.
 - `observe.label`, `mission_label` and `gate_label` are the names of the observation, the mission and the gate; `gate_p` the gate's chance now.
 - **Gates.** A measurement decides a gate only when it clears the threshold by two of its stated one-sigma errors, or by a factor of 2 where no error is stated. Otherwise the gate is `untested`, with `p` the share of the object's draws that pass. An untested `p` is never 0 or 1: with n draws it is held between 1/n and 1 - 1/n, and prints as "<1%" or ">99%". A gate's `text` may be empty: it says only what the status and the row do not, so it names no source that was not checked and does not repeat the row's conflict or JPL's pointing flag. The record keeps the statuses `pass`, `fail` and `untested`; a page shows them as fits, ruled out and unclear (docs/design.md section 3).
@@ -147,10 +145,9 @@ gone: { date, text, evidence } | null
 Manifest: `{ schema: 1, data_date, method, n, file, columns: [ {name, type, offset} ], keys_file, counts: {...}, unplaced: [...] }`. `file` and `keys_file` are relative to the manifest. `<hash>` is the first 12 hex characters of the file's SHA-256. Rows are sorted by key.
 
 - **Who is in it.** Every reachable asteroid that has a size to be placed by. One with no `H` on file is left out of the field and keys files, listed in `unplaced` and counted in `counts.not_placed`; it still has a page, search finds it, and the table view lists it. So `n + counts.not_placed` is the number of entry pages.
-- **Sizes.** `dv`, `size_q05`, `size_q50` and `size_q95` are finite and above zero, with q05 <= q50 <= q95. They come from `open` inputs alone: the record's `summary.size_open_m` where it has one, else `summary.size_m`. Where the measured size comes from a source that is not `open` (SsODNet, Spitzer, the hand-entered list), the columns hold the draw about JPL's diameter if it has one, else the range from brightness. The `state` bits still say measured, and the entry shows the measured size with its citation. The list pages print a size by the same rule (`export.OPEN_SIZES_ONLY`).
-- **`size_open`.** 1 where the size columns hold the size the size row rests on, or a measured size from an `open` source. 0 where the row is measured and the columns hold the range from brightness in its place; the tip and the table then say the diameter is measured and give no range; the entry gives it. Always 1 where the size is not measured.
+- **Sizes.** `dv`, `size_q05`, `size_q50` and `size_q95` are finite and above zero, with q05 <= q50 <= q95. They are the record's `summary.size_m`; a measured diameter (or bound) is plotted at its value (`size_q50`), from whichever source gives it. The list pages print the same size.
 - **`state`.** Size in bits 0-1, spin in 2-3, surface in 4-5, push in 6-7.
-- **`period_s`.** JPL's period, and only when the spin row is measured, its sources do not disagree, and it rests on the same period (within the ledger's tolerance). The entry turns its rock at the same rate. 0 for a body that no longer exists.
+- **`period_s`.** The period the spin row rests on, from whichever source gives it, and only when the row is measured and its sources do not disagree. The entry turns its rock at the same rate. 0 for a body that no longer exists.
 - **`p_*`.** 255 for a pass, 0 for a fail, 1 to 254 for untested. For drawing and sorting.
 - **`pct_*`.** The whole percentage the entry prints for the mission's chance, for the table view: 1 to 99, halves rounded up; 0 for a fail, and for an untested chance that prints as "<1%"; 100 for a pass, and for ">99%". The status column says which. `p_*` is not read back into a percentage: in steps of 1/255 it prints a different whole percent for 186 of the 3,973 untested chances of 2026-11-24, about one in 21. The rounding is the entry's (`templates.chance`).
 - **`named`.** 1 where the asteroid has a name.
@@ -161,10 +158,9 @@ Manifest: `{ schema: 1, data_date, method, n, file, columns: [ {name, type, offs
 | Column | Type | Meaning |
 |---|---|---|
 | `dv` | f32 | delta-v, km/s |
-| `size_q50`, `size_q05`, `size_q95` | f32 | size in metres, from open values |
-| `period_s` | f32 | rotation period in seconds from an `open` source, 0 if none |
+| `size_q50`, `size_q05`, `size_q95` | f32 | size in metres; a measured one at its value |
+| `period_s` | f32 | rotation period in seconds, 0 if none |
 | `state` | u8 | two bits per row for size, spin, surface, push: 0 unchecked, 1 prior, 2 limit, 3 measured |
-| `size_open` | u8 | 1 if the size columns hold the size the row rests on, 0 if a stand-in |
 | `p_surface`, `p_capture` | u8 | probability of passing every gate, 0–255 |
 | `status_surface`, `status_capture` | u8 | 0 fail, 1 untested, 2 pass |
 | `pct_surface`, `pct_capture` | u8 | the chance as the entry prints it, whole percent, 0–100 |
@@ -197,7 +193,7 @@ dist/
 - **Front page.** `form#controls`: View (`view`: chart, table), Mission (`m`: any, surface, capture), the delta-v ceiling (`dv`, from the data's lowest delta-v to its highest, to a tenth of a km/s), and Find (`q`). Above the figure, `#legend`: one `ul.legend` line whose items are `li[data-k=shown|measured|estimated|fits|ruled|loose]`, each a count with its words (a leading count is `span.n.lead`); the generator writes the first paint and `app.js` rewrites it on every change. Beside it the zoom group (−, +, Reset), with no zoom factor shown. `figure#plot` holds the canvas, the axes the app draws as HTML (`#axes`) and the tip. `section#table` is the table view in the same box: the asteroids the strip selects (under the ceiling, matching the search, and with a mission chosen not failing it), 50 a page, every heading a sort button. `aside#readout` holds, as the generator writes it, the named asteroids with their Δv; the coverage counts are on Method; selecting a rock replaces that with the entry's `section#summary`, and Close restores it. A link to an entry anywhere on the page selects in place unless the click is modified. Without WebGL2 the page says so, opens on the table, and disables Chart and the zoom group.
 - **Entry.** `<main id="entry" data-key>`: `section#summary` (the heading, the number, designation and first observation, the rock figure and one summary list of Diameter, Spin, Composition, Mass, Δv, then under a Missions heading Surface work and Whole-body capture, then Best next observation, each a label, a value, a detail and a state; a body that is gone opens the list with a Gone row. Mass says what it rests on: the size and the class's density range, or the size and the density on file (`summary.mass_basis`). Best next observation says why nothing is ranked without repeating the missions' results, and a window JPL does not list is said once), then Data (a scale per row with the mission conditions drawn on it, then its facts), Difficulty, Metal and water (`value.table`; `value.statements` where a returned sample replaces the class odds), Best next observation, Missions and Sources. Entry styles select `.entry`, never `main`.
 - An entry's heading is the asteroid's name where it has one, else its designation.
-- `list/observe.html` has no script: it is in rank order. A list that many asteroids share prints no size from a source that is not `open`: such a row reads the open range, with its state mark.
+- `list/observe.html` has no script: it is in rank order. Each row's diameter is the entry's, with its state mark.
 
 - The generator writes every page complete. JavaScript sorts, filters, draws and navigates; it computes no probability. The table's chances are the field file's `pct_*`.
 - State is in the URL: `?a=<key>&m=<mission>&dv=<max>&q=<text>&view=table&sort=[-]<column>&page=<n>`; `sort` and `page` only in the table view. Zoom is not kept. The back button works.

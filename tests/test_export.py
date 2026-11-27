@@ -30,7 +30,7 @@ SIZES = {"f32": 4, "u8": 1, "u16": 2, "i32": 4, "u32": 4}
 CODES = {"f32": "f", "u8": "B", "u16": "H", "i32": "i", "u32": "I"}
 FORBIDDEN = ("mean", "median", "expected")
 # The columns the app reads. The nine others docs/mvp.md section 5 first listed were never read (45% of the file).
-USED = ("dv", "size_q50", "size_q05", "size_q95", "period_s", "state", "size_open", "p_surface", "p_capture",
+USED = ("dv", "size_q50", "size_q05", "size_q95", "period_s", "state", "p_surface", "p_capture",
         "status_surface", "status_capture", "pct_surface", "pct_capture", "named", "seed")
 DROPPED = ("h", "occ", "findable", "win_start", "win_end", "win_mag", "pointable", "metal_p_nothing", "metal_usd_q75")
 
@@ -199,7 +199,7 @@ class Export(unittest.TestCase):
             for name in DROPPED:
                 self.assertIsNone(re.search(rf"(?:cols\.|['\"]){name}\b", text), f"{script} reads {name}")
         n = self.manifest["n"]
-        self.assertEqual(len(self.blob), n * (5 * 4 + 9 * 1) + (-n * 9 % 4) + n * 2)
+        self.assertEqual(len(self.blob), n * (5 * 4 + 8 * 1) + (-n * 8 % 4) + n * 2)
 
     def test_objects_that_are_not_drawn_are_listed_for_search(self):
         # a keys-file row, then the delta-v: the table view lists it
@@ -270,61 +270,30 @@ class Export(unittest.TestCase):
         self.assertEqual(self.col("state", "a1"), 3 | 3 << 2 | 3 << 4 | 1 << 6)
         self.assertEqual(self.col("state", "f7"), 0 | 0 << 2 | 0 << 4 | 1 << 6)
 
-    def test_period_is_jpls_and_only_when_the_row_rests_on_it(self):
-        self.assertEqual(self.col("period_s", "a1"), f32(3.725 * 3600))     # JPL states the adopted period
-        self.assertEqual(self.col("period_s", "b2"), 0.0)                   # measured, but only in Pravec's table
-        self.assertEqual(self.col("period_s", "d5"), 0.0)                   # JPL's 10 h is graded unreliable elsewhere
-        self.assertEqual(self.col("period_s", "e6"), 0.0)                   # JPL disagrees with the adopted period
+    def test_period_is_the_one_the_row_rests_on(self):
+        self.assertEqual(self.col("period_s", "a1"), f32(3.725 * 3600))     # the lightcurve database's, which JPL repeats
+        self.assertEqual(self.col("period_s", "b2"), f32(5.5 * 3600))       # Pravec's table alone
+        self.assertEqual(self.col("period_s", "e6"), f32(0.1784 * 3600))    # the first in use, whoever gives it
+        self.assertEqual(self.col("period_s", "d5"), 0.0)                   # graded unreliable: not measured
         self.assertEqual(self.col("period_s", "m3"), 0.0)
         # sources in use disagree: the entry says "not turning", so the field does not turn it either
         self.assertEqual(self.col("period_s", "g8"), 0.0)
         # a body that no longer exists does not turn
-        self.assertGreater(export.open_period_s(self.by["a1"]), 0.0)
+        self.assertGreater(export.period_s(self.by["a1"]), 0.0)
         gone = dataclasses.replace(self.by["a1"], gone={"date": "2099-01-01", "text": "It hit.", "evidence": "x"})
-        self.assertEqual(export.open_period_s(gone), 0.0)
-        self.assertEqual(self.manifest["counts"]["with_period"], 1)
+        self.assertEqual(export.period_s(gone), 0.0)
+        self.assertEqual(self.manifest["counts"]["with_period"], 3)
 
-    def test_sizes_come_from_open_or_derived_values_only(self):
-        # a JPL size: the record's own range, 5th to 95th of draws about the measured value
-        own = self.by["a1"].summary["size_m"]
-        self.assertEqual([self.col(c, "a1") for c in ("size_q05", "size_q50", "size_q95")],
-                         [f32(own[q]) for q in ("q05", "q50", "q95")])
-        self.assertAlmostEqual(self.col("size_q50", "a1"), 400.0, delta=1.0)
-        # an SsODNet size with no JPL one: the range from brightness alone, not the 60 m on the entry
-        self.assertAlmostEqual(self.by["b2"].summary["size_m"]["q50"], 60.0, delta=0.5)
-        self.assertGreater(self.col("size_q95", "b2"), 100.0)
-        self.assertLess(self.col("size_q05", "b2"), 50.0)
-        alone = model.run_one(make("b2", h=22.7, spin=[period(5.5, "pravec", "3")]), M).summary["size_m"]
-        self.assertEqual(self.col("size_q50", "b2"), f32(alone["q50"]))       # the same record without that size
-        # an SsODNet size beside JPL's: the draw about JPL's 170 m, not the entry's 150 m
-        self.assertAlmostEqual(self.by["c4"].summary["size_m"]["q50"], 150.0, delta=0.5)
-        self.assertAlmostEqual(self.col("size_q50", "c4"), 170.0, delta=0.5)
-        self.assertLess(self.col("size_q05", "c4"), 150.0)
-        self.assertGreater(self.col("size_q95", "c4"), 190.0)
+    def test_sizes_are_the_records_own_and_a_measured_one_is_plotted_at_its_value(self):
         for key in self.row:
+            own = self.by[key].summary["size_m"]
+            self.assertEqual([self.col(c, key) for c in ("size_q05", "size_q95")], [f32(own["q05"]), f32(own["q95"])], key)
+            measured = export.measured_m(self.by[key])
+            self.assertEqual(self.col("size_q50", key), f32(measured if measured is not None else own["q50"]), key)
             self.assertTrue(0 < self.col("size_q05", key) <= self.col("size_q50", key) <= self.col("size_q95", key))
-        # the state bits still say the size is measured; size_open says whether the columns hold a measured size
+        # an SsODNet diameter with no JPL one is in the field like any other
         self.assertEqual(self.col("state", "b2") & 3, 3)
-        self.assertEqual(self.col("size_open", "b2"), 0)                     # the range from brightness stands in
-        self.assertEqual(self.col("size_open", "c4"), 1)                     # JPL's own diameter
-        for key in self.row:
-            if self.col("state", key) & 3 < 2:
-                self.assertEqual(self.col("size_open", key), 1, key)
-
-    def test_a_size_drawn_from_a_class_that_is_not_open_is_not_in_the_field(self):
-        """The size range of an unmeasured asteroid is conditioned on its class. An SsODNet class is not open."""
-        labelled = model.run_one(make("s1", h=24.0, surface=[fact("class", "C", "ssodnet", quality="Bus Spec VIS")]), M)
-        plain = model.run_one(make("s2", h=24.0), M)
-        self.assertGreater(labelled.summary["size_m"]["q50"], 1.2 * plain.summary["size_m"]["q50"])     # darker, so larger
-        got = export.field_size(labelled)
-        self.assertEqual(labelled.summary["size_open_m"], got)
-        self.assertEqual(export.size_open(labelled), 1)                      # not measured: nothing is withheld
-        self.assertEqual(got, {q: plain.summary["size_m"][q] for q in ("q05", "q50", "q95")})
-        # JPL's own class is open, and may condition the size
-        jpl = model.run_one(make("s3", h=24.0, surface=[fact("class", "C", "jpl-sbdb", quality="SMASSII")]), M)
-        self.assertIsNone(export.open_view(jpl))
-        self.assertNotIn("size_open_m", jpl.summary)
-        self.assertEqual(export.field_size(jpl)["q50"], jpl.summary["size_m"]["q50"])
+        self.assertAlmostEqual(self.col("size_q50", "b2"), 60.0, delta=0.5)
 
     def test_mission_columns(self):
         status = {"fail": 0, "untested": 1, "pass": 2}
@@ -429,19 +398,16 @@ class TableAndReadout(unittest.TestCase):
         self.assertEqual(export.readout(recs, M), {"named": export.named(recs)})
 
     def test_the_period_an_entry_shows(self):
-        # JPL agrees with the lightcurve database the row rests on: JPL's is shown, the row rests on the database
+        # the period the row rests on, from whichever source gives it
         p = self.by["a1"].summary["period"]
-        self.assertEqual((p["value"], p["source"], p["rests_on"], p["kind"]), (3.725, "jpl-sbdb", "lcdb", "value"))
+        self.assertEqual((p["value"], p["source"], p["rests_on"], p["kind"]), (3.725, "lcdb", "lcdb", "value"))
         self.assertEqual(self.by["b2"].summary["period"]["source"], "pravec")
         self.assertIsNone(self.by["m3"].summary["period"])                     # not measured
         self.assertIsNone(self.by["d5"].summary["period"])                     # on file, graded unreliable
         self.assertTrue(self.by["g8"].summary["period"]["conflict"])
-        # the lightcurve database alone: on file, not shown
+        # the lightcurve database alone: printed like any other
         alone = model.run_one(make("p1", h=22.0, spin=[period(6.0, "lcdb", "3")]), M).summary["period"]
-        self.assertEqual((alone["value"], alone["source"], alone["rests_on"]), (None, None, "lcdb"))
-        # a source that disagrees beyond the tolerance does not stand in
-        far = model.run_one(make("p2", h=22.0, spin=[period(6.0, "lcdb", "3"), period(9.0, "jpl-sbdb", None)]), M)
-        self.assertIsNone(far.summary["period"]["value"])
+        self.assertEqual((alone["value"], alone["source"], alone["rests_on"]), (6.0, "lcdb", "lcdb"))
         # a limit: the bound the row rests on
         bound = model.run_one(make("p3", h=22.0, spin=[period(2.0, "pravec", "2", kind="lower")]), M).summary["period"]
         self.assertEqual((bound["kind"], bound["value"]), ("lower", 2.0))

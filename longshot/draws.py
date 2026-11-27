@@ -34,11 +34,8 @@ from longshot import priors
 from longshot.method import Method
 from longshot.types import Fact, ObjectRecord, Row
 
-# How a source is named inside a sentence, and its licence class (docs/mvp.md section 3). "inference" may feed a
-# derived value; a sentence never prints such a source's own value or grade. tests/test_model.py checks the
-# licence table against longshot.sources when the data is on disk.
+# How a source is named inside a sentence.
 SPOKEN = ledger_mod.SPOKEN
-LICENCE = ledger_mod.LICENCE
 LENGTH_M = {"m": 1.0, "km": 1000.0}
 TIME_H = {"h": 1.0, "min": 1.0 / 60.0, "s": 1.0 / 3600.0, "d": 24.0}
 
@@ -83,56 +80,6 @@ def _same(a, b) -> bool:
     if is_num(a) and is_num(b):
         return priors.sig(float(a), 4) == priors.sig(float(b), 4)
     return a == b
-
-
-def printable(fact: Fact | None, row: Row | None) -> bool:
-    """May a sentence print this fact's value? Not when its source is inference-only and nothing else states it."""
-    if fact is None:
-        return False
-    licence = LICENCE.get(fact.source, "inference")
-    if licence != "inference":
-        return True
-    for o in (row.facts if row is not None else ()):
-        if o is fact or LICENCE.get(o.source, "inference") == "inference":
-            continue
-        if (o.label or "").casefold() == (fact.label or "").casefold() and o.unit == fact.unit \
-                and o.kind == fact.kind and _same(o.value, fact.value):
-            return True
-    return False
-
-
-def stand_in(fact: Fact, row: Row, lines_h) -> Fact | None:
-    """A fact that may be printed in place of an inference-only period: the same measurement from another source.
-
-    It must come from an open or single-value source, carry no grade under 2, lie within 1% of the period the
-    row rests on, and fall on the same side of every line the method draws (lines_h, in hours).
-    """
-    if fact.unit not in TIME_H or not is_num(fact.value):
-        return None
-    a = fact.value * TIME_H[fact.unit]
-    for o in row.facts:
-        if o is fact or LICENCE.get(o.source, "inference") == "inference" or o.kind != fact.kind:
-            continue
-        if (o.label or "").casefold() != (fact.label or "").casefold() or o.unit not in TIME_H or not is_num(o.value):
-            continue
-        if grade_digit(o.quality) is not None and grade_digit(o.quality) < 2:
-            continue
-        b = o.value * TIME_H[o.unit]
-        if a > 0 and abs(b - a) <= 0.01 * a and all((a >= line) == (b >= line) for line in lines_h):
-            return o
-    return None
-
-
-def period_lines(m: Method) -> list[float]:
-    """Every period, in hours, at which a status or a sentence changes."""
-    lines = list(m.priors["spin"]["thresholds_h"])
-    lines += [g["preset"] for mission in m.missions["order"] for g in m.missions[mission]["gates"]
-              if g["quantity"] == "period_h"]
-    lad = m.ladder
-    lines += [lad["spin_limit"]["light_rock_limit_h"], lad["spin_limit"]["dense_rock_limit_h"],
-              lad["thresholds"]["sampled_min_period_h"], lad["thresholds"]["very_fast_period_min"] / 60.0,
-              2.0, 2.0 / 60.0]                   # and where the words change from hours to minutes to seconds
-    return lines
 
 
 def grade_digit(quality: str | None) -> int | None:
@@ -235,13 +182,6 @@ class Inputs:
     period_unreliable: Fact | None = None   # the best-graded period on file when none decides
     period_bound: Measured | None = None    # the spin row is a limit
     period_bound_ignored: bool = False
-    # The fact a sentence may print for the period: the one the row rests on, or, when that comes from an
-    # inference-only source, the same measurement from another source. None: point to the source, print no number.
-    period_shown: Fact | None = None
-    # False when the value comes from an inference-only source and no other source states it.
-    period_unreliable_public: bool = True
-    period_bound_public: bool = True
-    size_bound_public: bool = True
 
     @property
     def size_measured(self) -> bool:
@@ -301,7 +241,6 @@ def inputs(record: ObjectRecord, m: Method) -> Inputs:
                   and f.kind in ("upper", "lower") and is_num(f.value) and f.value > 0 and f.unit in LENGTH_M), None)
         if f is not None:
             inp.size_bound = _measured(f, LENGTH_M[f.unit])
-            inp.size_bound_public = printable(f, size_row)
 
     inp.sampled = any(f.get("kind") == "sample_return" and _names(record) & set(f.get("objects", []))
                       for f in m.ladder["fact"])
@@ -351,20 +290,14 @@ def inputs(record: ObjectRecord, m: Method) -> Inputs:
         elif spin.state == "measured" and first is not None \
                 and (grade_digit(first.quality) is None or grade_digit(first.quality) >= min_grade):
             inp.period = _measured(first, TIME_H[first.unit])
-            # an inference-only source's own number is never printed: the same measurement from another source is
-            inp.period_shown = (first if LICENCE.get(first.source, "inference") != "inference"
-                                else stand_in(first, spin, period_lines(m)))
         else:
             if spin.state == "limit":
                 b = next((f for f in periods if f.kind in ("upper", "lower") and f.used), None)
                 if b is not None:
                     inp.period_bound = _measured(b, TIME_H[b.unit])
-                    inp.period_bound_public = printable(b, spin)
             low = [f for f in values if grade_digit(f.quality) is not None and grade_digit(f.quality) < min_grade]
             if low:
-                shown = [f for f in low if LICENCE.get(f.source, "inference") != "inference"]
-                inp.period_unreliable = max(shown or low, key=lambda f: _grade_rank(f.quality))
-                inp.period_unreliable_public = bool(shown)
+                inp.period_unreliable = max(low, key=lambda f: _grade_rank(f.quality))
     return inp
 
 
@@ -548,7 +481,6 @@ def rejected_size_sentence(inp: Inputs, m: Method) -> str | None:
             f"{priors.sig(pv, 2):g}; it is not used.")
 
 
-PRINTED_PERIOD_FIRST = "jpl-sbdb"       # the period the field turns a rock by (longshot/export.py)
 
 
 def _period_fact(f: Fact, kinds=("value",)) -> bool:
@@ -557,14 +489,10 @@ def _period_fact(f: Fact, kinds=("value",)) -> bool:
 
 
 def shown_period(record: ObjectRecord) -> dict | None:
-    """The period the spin row rests on, as an entry may print it: summary.period.
+    """The period the spin row rests on, as an entry prints it: summary.period.
 
     The row rests on its first used period (a value where the row is measured, a bound where it is a limit).
-    That fact is shown where its source may be printed. Where it may not (the lightcurve database's licence is
-    "inference"), a used period from a source that may be printed and that agrees with it within the ledger's
-    tolerance is shown in its place, JPL's first; where there is none, `value` is null and `rests_on` names
-    the source the row rests on, so the page says it is on file and not shown. None where the spin row is
-    neither measured nor a limit.
+    None where the spin row is neither measured nor a limit.
 
     {value, unit, lo, hi, kind, source, ref, quality, rests_on, conflict}
     """
@@ -576,16 +504,8 @@ def shown_period(record: ObjectRecord) -> dict | None:
     if not periods:
         return None
     rest = periods[0]
-    printable = lambda f: LICENCE.get(f.source) != "inference"
-    shown = rest if printable(rest) else None
-    if shown is None:
-        hours = rest.value * TIME_H[rest.unit]
-        agree = [f for f in periods[1:] if printable(f) and f.kind == rest.kind
-                 and not ledger_mod.periods_differ(hours, f.value * TIME_H[f.unit])]
-        shown = next((f for f in agree if f.source == PRINTED_PERIOD_FIRST), agree[0] if agree else None)
-    pick = (lambda k: getattr(shown, k)) if shown is not None else (lambda k: None)
-    return {"value": pick("value"), "unit": pick("unit"), "lo": pick("lo"), "hi": pick("hi"), "kind": rest.kind,
-            "source": pick("source"), "ref": pick("ref"), "quality": pick("quality"),
+    return {"value": rest.value, "unit": rest.unit, "lo": rest.lo, "hi": rest.hi, "kind": rest.kind,
+            "source": rest.source, "ref": rest.ref, "quality": rest.quality,
             "rests_on": rest.source, "conflict": bool(row.conflicts)}
 
 

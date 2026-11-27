@@ -59,7 +59,7 @@ class FieldFormat(unittest.TestCase):
 
     def test_contract_table_is_parsed(self):
         cols = contract_columns()
-        self.assertEqual(len(cols), 15)
+        self.assertEqual(len(cols), 14)
         self.assertEqual(cols[0], ("dv", "f32"))
         self.assertEqual(cols[-1], ("seed", "u16"))
 
@@ -112,9 +112,10 @@ class FieldFormat(unittest.TestCase):
             offset += n * SIZES[c["type"]]
         self.assertEqual(len(blob), offset)
         self.assertEqual(offset, n * sum(SIZES[kind] for _, kind in synth.COLUMNS))
-        # With an odd n and a one-byte column first, every wider column starts off its boundary (seed too: nine
-        # one-byte columns come before it); the reader must not care.
-        odd = sorted(((name, kind, values[:7]) for name, kind, values in self.columns), key=lambda c: c[0] != "state")
+        # With an odd n, a one-byte column first and one after seed, every wider column starts off its boundary
+        # (seed too: seven one-byte columns come before it); the reader must not care.
+        odd = sorted(((name, kind, values[:7]) for name, kind, values in self.columns),
+                     key=lambda c: 0 if c[0] == "state" else 2 if c[0] == "named" else 1)
         with tempfile.TemporaryDirectory() as tmp:
             synth.write_field(tmp, odd, self.keys[:7], "2026-11-24", "synthetic", align=1)
             manifest, cols, _ = synth.read_field(Path(tmp) / "field.json")
@@ -183,12 +184,6 @@ class FieldFormat(unittest.TestCase):
             synth.write_field(tmp, zero, self.keys, "2026-11-24", "synthetic")
             self.assertIn("size_q50 must be finite and above zero", " ".join(synth.check(tmp / "field.json")))
 
-            # size_open may be 0 only where a measured size is withheld
-            guess = next(i for i, s in enumerate(dict((n, v) for n, _, v in self.columns)["state"]) if s & 3 < 2)
-            shut = [(n, k, [0 if i == guess else x for i, x in enumerate(v)] if n == "size_open" else v) for n, k, v in self.columns]
-            synth.write_field(tmp, shut, self.keys, "2026-11-24", "synthetic")
-            self.assertIn("size_open is 0 for a rock whose size is not measured", " ".join(synth.check(tmp / "field.json")))
-
     def test_unplaced_rows_are_listed_and_counted(self):
         loose = synth.unplaced()
         with tempfile.TemporaryDirectory() as tmp:
@@ -218,8 +213,6 @@ class SyntheticField(unittest.TestCase):
         self.assertLess(min(periods), 600)
         self.assertGreater(max(periods), 20 * 3600)
         self.assertTrue(all(v in (0, 1, 2) for v in c["status_surface"] + c["status_capture"]))
-        measured = [o for o, s in zip(c["size_open"], c["state"]) if s & 3 == 3]
-        self.assertEqual(set(measured), {0, 1})                                      # some measured sizes are withheld, some carried
 
     def test_state_is_two_bits_a_row_size_lowest(self):
         c = self.cols
@@ -310,7 +303,7 @@ class Scripts(unittest.TestCase):
         asked |= set(re.findall(r"a_[a-z]+: '([a-z0-9_]+)'", field)) - {"mask", "ly", "status_", "p_"}
         asked |= {prefix + m for prefix in re.findall(r"'((?:status|p|pct)_)' \+", app + field) for m in ("surface", "capture")}
         self.assertTrue({"dv", "size_q50", "size_q05", "size_q95", "period_s", "state", "seed", "status_surface", "p_capture",
-                         "pct_surface", "size_open", "named"} <= asked, asked)
+                         "pct_surface", "named"} <= asked, asked)
         self.assertEqual(asked - names, set())
         self.assertEqual(names - asked, set())                           # and the file carries no column nothing reads
 
@@ -321,10 +314,8 @@ class Scripts(unittest.TestCase):
         self.assertNotRegex(field, r"max\(size, spin\)|\(a_state >> 2\)")
         self.assertNotRegex(app, r"Math\.max\(bits & 3, bits >> 2 & 3\)|cols\.state\[\w+\] >> 2")
         self.assertIn("const sizeState = r => cols.state[r] & 3;", app)
-        # measured on the front page only where the field file carries the measured value (size_open): a value it may not
-        # carry is shown as the estimate the file holds, and the field draws that rock with the estimated mark
-        self.assertIn("const measured = r => sizeState(r) >= 2 && !!cols.size_open[r];", app)
-        self.assertIn("if ((drawn[r] & 3) >= 2 && !cols.size_open[r]) drawn[r] = (drawn[r] & ~3) | 1;", app)
+        # measured on the front page where the size row is measured or a bound, from whichever source gives it
+        self.assertIn("const measured = r => sizeState(r) >= 2;", app)
         # the tip: a measured diameter is its value; a range is only ever an estimate's 90% range, and says so
         self.assertIn("const size = measured(i) ? `${metres(cols.size_q50[i])} m ${k(sizeState(i) === 2 ? 'measured, a bound' : 'measured')}`", app)
         self.assertIn(": `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} m ${k('90% range, estimated')}`;", app)

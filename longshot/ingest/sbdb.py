@@ -62,7 +62,6 @@ def source() -> Source:
         name="JPL Small-Body Database",
         edition=config.SNAPSHOT.name,
         retrieved=config.SNAPSHOT.name,
-        licence="open",
         citation="NASA/JPL Solar System Dynamics, Small-Body Database",
         url="https://ssd.jpl.nasa.gov/tools/sbdb_query.html",
     )

@@ -164,7 +164,7 @@ Decided on 2026-11-24. Adam asked for "the most performant website possible give
 
 - **Delivery.** Pre-built files, no server. Nothing needs computing per request, so everything is computed ahead of time. The interface is graphical and stateful in the browser; "static" describes only how the files reach it.
 - **The field.** Hand-written WebGL2: every rock in one instanced draw call, rotation computed in the shader.
-- **Field data.** One small binary file of typed columns, loaded straight into GPU buffers. It carries only JPL values and our own derived ones.
+- **Field data.** One small binary file of typed columns, loaded straight into GPU buffers.
 - **Entries.** One pre-rendered HTML page per asteroid. The app fetches the same page to fill its side panel.
 - **Client code.** Plain JavaScript modules and GLSL. No framework, no bundler, no three.js.
 - **State.** The URL, plus browser storage for small conveniences. No accounts.
@@ -180,7 +180,9 @@ Open:
 Constraints from the data sources:
 
 - JPL forbids embedding its interface in a site, so the site ships its own copy.
-- Several sources may be shown one value at a time with a citation but not redistributed in bulk, so those values appear only on an asteroid's own page. `docs/plan.md` Appendix B has the classes.
+- Any value from any source may appear on any page and in the site's data files. Every source is cited once, with the citation it asks for, in the Sources section of the method page; an entry names the source beside each value.
+
+> we can use any value and just have citations on the site somewhere. They don't need to be cited inline.
 
 ## 9. Prototype
 

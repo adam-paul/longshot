@@ -277,11 +277,9 @@ DRAWS = """(() => { const f = longshot.field, gl = f.gl, real = gl.drawArraysIns
 # rocks a mission leaves unclear, one under 1% and one over 40% (surface work), for the check that no chance is drawn.
 KINDS = """(() => { const f = longshot.field, c = f.cols;
   const find = t => { for (let i = 0; i < f.n; i++) if (t(c.state[i] & 3, i)) return i; return -1; };
-  // measured and bound: plotted at the value the field file carries (size_open); withheld: a measured value it may
-  // not carry, which the front page shows as the estimate it holds (docs/design.md section 6)
-  return { measured: find((s, i) => s === 3 && c.size_open[i]), bound: find((s, i) => s === 2 && c.size_open[i]),
-           prior: find(s => s === 1), unchecked: find(s => s === 0),
-           withheld: find((s, i) => s >= 2 && !c.size_open[i]), held: find((s, i) => s === 3 && c.size_open[i]),
+  // measured and bound: plotted at the measured value
+  return { measured: find(s => s === 3), bound: find(s => s === 2),
+           prior: find(s => s === 1), unchecked: find(s => s === 0), held: find(s => s === 3),
            pass: find((s, i) => c.status_surface[i] === 2), fail: find((s, i) => c.status_surface[i] === 0),
            low: find((s, i) => s < 2 && c.status_surface[i] === 1 && c.pct_surface[i] === 0),
            high: find((s, i) => s < 2 && c.status_surface[i] === 1 && c.pct_surface[i] >= 40) }; })()"""
@@ -461,7 +459,7 @@ def run(args):
                 out["ruled"] += 1
                 continue
             out["shown"] += 1
-            out["measured" if columns["state"][i] & 3 >= 2 and columns["size_open"][i] else "estimated"] += 1
+            out["measured" if columns["state"][i] & 3 >= 2 else "estimated"] += 1
             if status == 2:
                 out["fits"] += 1
         for row in loose:
@@ -516,17 +514,10 @@ def run(args):
             and ("prior" not in marks or (abs(u1["top"] - marks["prior"]["top"]) <= 12 and abs(u8["top"] - marks["prior_zoomed"]["top"]) <= 12)))
 
     # ---- the tip says what the field file may say, in the surface's words
-    tips = report["tips"] = {k: browser.js(TIP % i) for k, i in kinds.items() if i >= 0 and k in ("measured", "withheld", "held", "prior", "unchecked")}
-    if "withheld" in tips:
-        # the front page shows what the field file holds: a measured value it may not carry is its estimate, drawn,
-        # tipped and counted as one; the readout and the entry give the measurement
-        marks["withheld"] = solo(kinds["withheld"])
-        checks["a measured size the field file does not hold is shown as the estimate it holds"] = (
-            bool(re.search(r"Diameter [\d.,]+–[\d.,]+ m 90% range, estimated", tips["withheld"])) and "measured" not in tips["withheld"]
-            and 130 < marks["withheld"]["top"] <= 172 and marks["withheld"]["lit"] <= 16)
+    tips = report["tips"] = {k: browser.js(TIP % i) for k, i in kinds.items() if i >= 0 and k in ("measured", "held", "prior", "unchecked")}
     if "held" in tips:
         # a measurement is its value alone, never a 90% range beside the measured word (its ±1σ is on the entry)
-        checks["a measured size the field file holds is printed as its value, with no range"] = (
+        checks["a measured size is printed as its value, with no range"] = (
             bool(re.search(r"Diameter [\d.,]+ m measured", tips["held"])) and "90% range" not in tips["held"])
     for kind in ("prior", "unchecked"):
         if kind in tips:
@@ -691,10 +682,9 @@ def run(args):
         checks["a click on a rock puts its entry's summary in the readout"] = opened and keys[i][1] in browser.js("document.querySelector('#readout').textContent")
         settle()
         tags = browser.js("[...document.querySelectorAll('#axes .ax-tag')].map(e => e.textContent)")
-        # the tags are on the axes, in the axes' units; the diameter's only where it is the one the readout gives
-        carried = columns["state"][i] & 3 < 2 or bool(columns["size_open"][i])
+        # the tags are on the axes, in the axes' units
         checks["the selected rock gets a crosshair and its tags on the axes, over no tick label"] = (
-            browser.js("longshot.field.sel") == i and len(tags) == (2 if carried else 1) and f"{columns['dv'][i]:.3f}" in tags
+            browser.js("longshot.field.sel") == i and len(tags) == 2 and f"{columns['dv'][i]:.3f}" in tags
             and not any("km/s" in t or " m" in t for t in tags) and not browser.js(OVERLAPS))
         report["tags"] = tags
         report["overlaps"] = browser.js(OVERLAPS)

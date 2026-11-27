@@ -11,11 +11,9 @@ assets       site-root-relative URLs: {"style", "app", "field_manifest"}, and op
 predictions  the site's own frozen predictions, see PREDICTION_FIELDS
 tables       the method files (longshot.method.Method); read from method/v0_1 when not given
 
-The generator computes no probability. It counts, sorts, formats and applies the
-licence rule (templates.displayable, templates.open_size_of). Two orders and one switch
-have their home elsewhere and are taken from there: the order of list/observe.html
-(observe.ranked), and whether a page that lists many asteroids may print a size from a
-source that is not open (export.OPEN_SIZES_ONLY, the field file's rule).
+The generator computes no probability. It counts, sorts and formats. The order of
+list/observe.html has its home elsewhere and is taken from there (observe.ranked).
+Every source is cited once, on method.html; an entry names the source beside each value.
 
 Pages: index.html (the field, with the named asteroids and the counts for readers without
 scripts), a/<key>.html, list/observe.html, record.html, method.html. The two missions are a
@@ -139,11 +137,8 @@ def _observable(recs: list) -> list:
 
 
 def plotted_measured(r: dict) -> bool:
-    """Whether the front page shows this asteroid's diameter as measured: the size row is measured or a bound,
-    and the field file may carry the value (export.size_open). Otherwise it shows the estimate the file holds."""
-    if (r["rows"].get("size") or {}).get("state") not in ("measured", "limit"):
-        return False
-    return bool(export_mod.size_open(_record(r)))
+    """Whether the front page shows this asteroid's diameter as measured: the size row is measured or a bound."""
+    return (r["rows"].get("size") or {}).get("state") in ("measured", "limit")
 
 
 def legend(recs: list) -> str:
@@ -268,17 +263,13 @@ def entry_page(rec, sources, assets, data_date, method, observations=None, gates
 # ---------------------------------------------------------------- what to observe next
 
 def size_cell(rec, sources) -> str:
-    """A list prints only what the field file may carry (templates.open_size_of) while export.OPEN_SIZES_ONLY
-    is set: a diameter from a source licensed for single values is on the asteroid's own page, with its
-    citation, and the list says so. The row's state leads, as its mark, so an estimate never reads as a
+    """The diameter the entry shows. The row's state leads, as its mark, so an estimate never reads as a
     measurement, and a measured mark never stands beside an estimate's range."""
-    s = t.open_size_of(rec, sources) if export_mod.OPEN_SIZES_ONLY else t.size_of(rec, sources)
+    s = t.size_of(rec, sources)
     state = (rec["rows"].get("size") or {}).get("state", "unchecked")
     mark = t.glyph(state, t.SURFACE_WORDS.get(state, state))
     if not s:
         return '<td class="num sz"><span>none: no brightness on file</span></td>'
-    if s["mid"] is None or s.get("withheld"):
-        return f'<td class="num sz"><span>{mark}on entry</span></td>'
     if s["state"] in ("measured", "limit"):
         text = t.BOUND_SIGN.get(s["kind"], "") + t.num(s["mid"], 3)
     else:

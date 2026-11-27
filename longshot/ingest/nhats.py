@@ -52,7 +52,6 @@ def source() -> Source:
         name="JPL NHATS",
         edition=config.SNAPSHOT.name,
         retrieved=config.SNAPSHOT.name,
-        licence="open",
         citation="NASA/JPL Center for Near-Earth Object Studies, "
                  "Near-Earth Object Human Space Flight Accessible Targets Study (NHATS)",
         url="https://cneos.jpl.nasa.gov/nhats/",

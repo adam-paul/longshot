@@ -2,16 +2,13 @@
 
     records = model.run(ledger.build())
 
-Last, summary.size_open_m: the size range from open values alone, where it differs
-(export.open_size).
-
 Each stage is also a function of its own (draws.apply, missions.apply,
 observe.apply, value.apply, ladder.apply), taking and returning records. run
 does the same work but draws once per object and hands the draws to every stage.
 """
 from __future__ import annotations
 
-from longshot import draws, export, ladder, missions, observe, value
+from longshot import draws, ladder, missions, observe, value
 from longshot import method as method_mod
 from longshot.method import Method
 from longshot.types import ObjectRecord
@@ -26,10 +23,6 @@ def run_one(record: ObjectRecord, m: Method | None = None) -> ObjectRecord:
     d = draws.for_record(record, m)
     for stage in STAGES:
         stage(record, d, m)
-    # the size a bulk file or a list may carry, where the record's own used a value that may not be redistributed
-    size = export.open_size(record, m)
-    if size is not None:
-        record.summary["size_open_m"] = size
     return record
 
 

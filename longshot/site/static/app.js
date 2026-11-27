@@ -50,11 +50,8 @@ const G = Object.fromEntries(Object.entries({ measured: 'measured', bound: 'limi
   .map(([mark, c]) => [mark, `<i class="g g-${c}" aria-hidden="true"></i>`]));
 // The size row's two-bit state: 3 measured, 2 a bound, 1 not measured, 0 not checked. On the surface a bound is
 // measured (a source gives it) and both of the others are estimated: which source was not checked is on the entry.
-// The front page shows what the field file holds: a measured diameter it may not carry (size_open 0, its source's
-// licence) is plotted, listed and counted as the estimate it holds instead. The readout and the entry give the
-// measurement (docs/design.md section 6).
 const sizeState = r => cols.state[r] & 3;
-const measured = r => sizeState(r) >= 2 && !!cols.size_open[r];
+const measured = r => sizeState(r) >= 2;
 const glyphOf = r => G[!measured(r) ? 'estimated' : sizeState(r) === 3 ? 'measured' : 'bound'];
 
 // ---- rows: the rocks, then the asteroids with no rock ------------------------------------------
@@ -96,10 +93,7 @@ async function start() {
   listen();
   const gl = canvas && glContext(canvas);
   if (gl) {
-    // the field draws a rock by the state the front page shows (measured above)
-    const drawn = cols.state.slice();
-    for (let r = 0; r < n; r++) if ((drawn[r] & 3) >= 2 && !cols.size_open[r]) drawn[r] = (drawn[r] & ~3) | 1;
-    field = new Field(canvas, gl, { ...cols, state: drawn }, n, { view: drawAxes, hover, pick: i => i >= 0 ? keys && select(keys[i][0], false) : S.a && select('', false) });
+    field = new Field(canvas, gl, cols, n, { view: drawAxes, hover, pick: i => i >= 0 ? keys && select(keys[i][0], false) : S.a && select('', false) });
     document.documentElement.classList.add('has-field');
   } else {
     note('This browser has no WebGL2, so the chart is not drawn. The table lists every asteroid.');

@@ -39,7 +39,6 @@ TAG_RE = re.compile(r"<[^>]+>")
 FIGURE_RE = re.compile(r'<figure class="rockfig[^"]*">.*?</figure>', re.S)
 NUM_RE = re.compile(r"([−-]?\d[\d,]*(?:\.\d+)?)(?: × 10([⁻⁰¹²³⁴⁵⁶⁷⁸⁹]+))?")
 SUPERSCRIPT = str.maketrans("⁻⁰¹²³⁴⁵⁶⁷⁸⁹", "-0123456789")
-POINTER = t.POINTER
 # A sentence under the rows that calls a row "not measured". It must not appear when a source for that row was not checked.
 SAYS_NOT_MEASURED = {
     "size": re.compile(r"no measured size|size (is )?not measured|no (diameter|size) on file", re.I),
@@ -245,14 +244,10 @@ class BuildCase(unittest.TestCase):
                         self.assertEqual([l for l in lines if printed_as(l, row_name, label)], [], f"{where}: {label}")
                     for fact in want["facts"]:
                         mine = [l for l in lines if printed_as(l, row_name, fact["label"]) and l["source"] == fact["source"]]
-                        if not mine and fact["source"] == "lcdb":
-                            continue    # held back by the licence rule and not what the row rests on: Sources names it
                         self.assertTrue(mine, f"{where}: no {fact['label']} line from {fact['source']}; have {lines}")
                         hit = self.matching(mine, fact)
                         self.assertIsNotNone(hit, f"{where}: {fact['label']} = {fact['value']} from {fact['source']} "
                                                   f"({fact['where']}) is not on the page; lines {mine}")
-                        if hit["v"] == POINTER:
-                            continue                      # held back by the licence rule: no figure to compare
                         if fact.get("quality"):
                             self.assertIn(html.unescape(t.plain(t.grade(row_name, fact["quality"]))), hit["g"],
                                           f"{where}: {fact['label']} grade")
@@ -272,8 +267,6 @@ class BuildCase(unittest.TestCase):
     def matching(self, lines: list[dict], fact: dict) -> dict | None:
         value = fact["value"]
         for line in lines:
-            if line["v"] == POINTER and fact["source"] == "lcdb":
-                return line                               # the lightcurve database's values are pointers unless another source agrees
             if isinstance(value, str):
                 if line["v"] == t.VALUE_WORDS.get(value, value):      # a value printed in words ('pointable': 'yes')
                     return line

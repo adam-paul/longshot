@@ -366,11 +366,8 @@ class JointDraws(unittest.TestCase):
                    spin_state="prior")
         inp = draws.inputs(low, M)
         self.assertIsNone(inp.period)
-        # the fact a sentence may name is never the inference-only source's own, whatever its grade
-        self.assertEqual((inp.period_unreliable.source, inp.period_unreliable.quality), ("pravec", "1"))
-        self.assertTrue(inp.period_unreliable_public)
-        alone = draws.inputs(make(h=22.9, spin=[period(10.0, "lcdb", "1+")], spin_state="prior"), M)
-        self.assertFalse(alone.period_unreliable_public)                  # only the inference source has it
+        # the best-graded of the periods graded unreliable is the one a sentence names
+        self.assertEqual((inp.period_unreliable.source, inp.period_unreliable.quality), ("lcdb", "1+"))
         central = M.priors["spin"]["bands"]["22_24"]["under_2_2h"]["central"]
         self.assertEqual(run(low).summary["p_fast_2_2h"], central)        # the prior for H 22 to 24 stands
 
@@ -606,8 +603,8 @@ class Missions(unittest.TestCase):
         # a disagreement on one side of the line still decides: 1998 KY26, 5.35 against 10.7 minutes
         r = make("ky", h=25.6, occ=0, spin=[period(0.089193, "ssodnet", None), period(0.089193, "jpl-sbdb", None),
                                            period(0.1784, "lcdb", "3")])
-        r.rows["spin"].conflicts = ["0.08919 h (SsODNet; JPL's database) against a different period on file in "
-                                    "the lightcurve database, not shown here."]
+        r.rows["spin"].conflicts = ["5.352 min (SsODNet; JPL's database) against 10.7 min "
+                                    "(the lightcurve database, grade 3)."]
         run(r)
         self.assertEqual(r.missions["surface"]["gates"][2]["status"], "fail")
         self.assertEqual(r.summary["p_under_10min"], 1.0)                 # the newer period: once in 5.35 minutes
@@ -724,50 +721,18 @@ class Missions(unittest.TestCase):
         g = run(make(h=24.0, spin=[period(1.5, "lcdb", "2", kind="upper")])).missions["surface"]["gates"][2]
         self.assertEqual(g["status"], "fail")                             # at most 1.5 h is under 2.2 h
 
-    def test_inference_only_values_are_pointed_to_not_printed(self):
+    def test_a_lightcurve_database_period_is_used_and_printed_like_any_other(self):
         r = run(make(h=21.0, occ=0, spin=[period(7.3391, "lcdb", "3")]))
-        g = r.missions["surface"]["gates"][2]
-        self.assertEqual(g["status"], "pass")                             # it may feed a derived value
-        for text in walk_strings([r.missions, r.ladder, r.observe]):
-            self.assertNotIn("7.3", text)
-            self.assertNotIn("U 3", text)                                 # nor its grade
-        # even where another source states the same value, no sentence names the lightcurve database's grade
-        same = run(make(h=21.0, occ=0, spin=[period(7.3391, "lcdb", "3"), period(7.3391, "jpl-sbdb", None)]))
-        for text in walk_strings([same.missions, same.ladder, same.observe]):
-            self.assertNotIn("U 3", text)
-            self.assertNotIn("the lightcurve database", text)
-        self.assertEqual(draws.inputs(same, M).period_shown.source, "jpl-sbdb")
-        # a period graded unreliable there alone: the gate says so and gives neither the number nor the grade
-        low = run(make(h=22.9, occ=0, spin=[period(10.0, "lcdb", "1+")], spin_state="prior"))
-        for text in walk_strings([low.missions, low.ladder]):
-            self.assertNotIn("10 hours", text)
-            self.assertNotIn("1+", text)
+        self.assertEqual(r.missions["surface"]["gates"][2]["status"], "pass")
+        self.assertEqual((r.summary["period"]["value"], r.summary["period"]["source"]), (7.3391, "lcdb"))
 
-    def test_the_same_measurement_from_another_source_stands_in_for_an_inference_only_one(self):
-        # Bennu: 4.2968 h in the lightcurve database, 4.296057 h on the literature card
-        r = make(h=20.21, occ=0, spin=[period(4.2968, "lcdb", "3"),
-                                       period(4.296057, "ssodnet", None, ref="Barnouin+2019 (2019NatGe..12..247B)")])
-        self.assertEqual(draws.inputs(r, M).period_shown.source, "ssodnet")
-        self.assertEqual(run(r).missions["surface"]["gates"][2]["status"], "pass")
-        # not when the other source gives a different period
-        inp = draws.inputs(make(h=25.91, occ=2, spin=[period(0.1784, "lcdb", "3"), period(0.089193, "jpl-sbdb", None)]), M)
-        self.assertIsNone(inp.period_shown)
-        # nor one graded unreliable, nor one across a line the method draws
-        inp = draws.inputs(make(spin=[period(2.21, "lcdb", "3"), period(2.19, "ssodnet", None)]), M)
-        self.assertIsNone(inp.period_shown)
-        inp = draws.inputs(make(spin=[period(5.0, "lcdb", "3"), period(5.02, "pravec", "1")]), M)
-        self.assertIsNone(inp.period_shown)
-        inp = draws.inputs(make(spin=[period(5.0, "lcdb", "3"), period(5.02, "pravec", "2")]), M)
-        self.assertEqual(inp.period_shown.source, "pravec")
-
-    def test_licence_table_matches_the_source_list(self):
+    def test_every_source_has_a_spoken_name(self):
         try:
             from longshot import sources
             listed = sources.load()
         except Exception as err:        # the data is not on disk
             self.skipTest(f"source list not available: {err!r}")
-        self.assertEqual({k: s.licence for k, s in listed.items()}, draws.LICENCE)
-        self.assertEqual(set(draws.SPOKEN), set(draws.LICENCE))
+        self.assertEqual(set(listed), set(draws.SPOKEN))
 
 
 class Observe(unittest.TestCase):

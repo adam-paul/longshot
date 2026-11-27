@@ -64,7 +64,6 @@ def source() -> Source:
         name="Spitzer NEO surveys",
         edition=edition(),
         retrieved=research_retrieved(),
-        licence="single",
         citation=CITATION,
         url="https://github.com/mommermi/spitzerneos",
     )

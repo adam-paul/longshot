@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import dataclasses
+import html
 import math
 import re
 import tempfile
@@ -12,7 +13,6 @@ import unittest
 from html.parser import HTMLParser
 from pathlib import Path
 import types
-from unittest import mock
 
 from longshot import export, method, observe, predictions
 from longshot.site import gen, templates as t
@@ -495,18 +495,17 @@ class SiteTest(unittest.TestCase):
         # an estimated spin: the chance with what it is the chance of, in the value; the time for one turn its detail
         self.assertEqual(self.summary("s0000009")["Spin"][0].text(), "94% under 2.2 h")
         self.assertEqual(self.summary("s0000009")["Spin"][1].text(), "time for one turn")
-        # a measured row nobody may print says so, and names in full whose value it is: never "On file"
-        self.assertEqual(self.summary("s0000004")["Spin"][0].text(), "Not shown")
-        self.assertEqual(self.summary("s0000004")["Spin"][1].text(), f"in {t.source_name(srcs(), 'lcdb')}")
+        # the lightcurve database's period prints like any other, with its source: never "On file"
+        self.assertEqual(self.summary("s0000004")["Spin"][0].text(), "5.432 h")
+        self.assertEqual(self.summary("s0000004")["Spin"][1].text(), f"time for one turn, {t.source_name(srcs(), 'lcdb')}")
         self.assertFalse(any(v[0].text() == "On file" for r in sample.RECORDS for v in self.summary(r.key).values()))
-        # sources disagree: each period a page may print, the one the ledger uses first, and that the sources disagree;
-        # with one period printable, whose it is
+        # sources disagree: each period, the one the ledger uses first, and that the sources disagree
         self.assertEqual(self.summary("s0000003")["Spin"][0].text(), "2.02 h or 72.72 s")
         self.assertEqual(self.summary("s0000003")["Spin"][1].text(), "time for one turn; sources disagree")
         one = dataclasses.asdict(sample.RECORDS[2])
-        one["rows"]["spin"]["facts"][1]["source"] = "lcdb"           # the other period's source is not shown
+        one["rows"]["spin"]["facts"][1]["source"] = "lcdb"           # whichever source gives it, every period prints
         (spin,) = [i for i in t.summary_items(one, srcs()) if i[0] == "Spin"]
-        self.assertEqual(tuple(re.sub(r"<[^>]+>", "", x) for x in spin[1:3]), ("2.02 h", "time for one turn, SsODNet; sources disagree"))
+        self.assertEqual(tuple(re.sub(r"<[^>]+>", "", x) for x in spin[1:3]), ("2.02 h or 72.72 s", "time for one turn; sources disagree"))
         # the missions' verdicts are said once, under Missions: here only why nothing is ranked
         self.assertEqual(self.summary("s0000005")["Best next observation"][1].text(), "both verdicts rest on measurements")
         # no brightness: nothing to estimate from, and no state is claimed
@@ -703,69 +702,29 @@ class SiteTest(unittest.TestCase):
         self.assertIn("Drift, A2, 10⁻¹³ au/d²", page)
         self.assertIn("≤ 2.1", page)                     # a bound, written with its sign
 
-    def test_inference_values_are_pointers(self):
-        # D: the only period is in the lightcurve database.
+    def test_lightcurve_database_values_print_like_any_other(self):
+        # D: the only period is in the lightcurve database: printed, with its grade, and the rock turns at it
         d = self.pages["a/s0000004.html"]
-        spin = self.rows("s0000004")["spin"]
-        self.assertNotIn("5.432", d)
-        self.assertNotIn("2+", spin.text())
-        self.assertNotIn("animation-duration", d)
-        self.assertIn(t.POINTER, spin.text())
-        self.assertIn(sample.SOURCES["lcdb"].name, spin.text())
-        self.assertEqual(spin.find("i", cls="pt"), [])
-        # E: the database's value differs from JPL's, so only JPL's is printed.
-        e = self.pages["a/s0000005.html"]
-        self.assertNotIn("4.29", e.replace("4.297", ""))
-        self.assertIn("4.297 h", self.rows("s0000005")["spin"].text())
-        self.assertIn("animation-duration:15470s", e)
-        # B: JPL gives the same value. JPL's line shows it; the database's is still a pointer, with no grade.
+        spin = self.rows("s0000004")["spin"].text()
+        self.assertIn("5.432", spin)
+        self.assertIn("2+", spin)
+        self.assertIn(sample.SOURCES["lcdb"].name, spin)
+        self.assertIn("animation-duration", d)
+        # E: its value differs from JPL's: both print, each under its own source
+        e = self.rows("s0000005")["spin"].text()
+        self.assertIn("4.297 h", e)
+        self.assertIn("4.29 h", e)
+        # B: graded unreliable there: the period prints with its grade, and the row stays estimated
         b = self.rows("s0000002")["spin"].text()
-        self.assertEqual(len(re.findall(r"10\s*h", b)), 2)   # JPL's fact and the scale's tick
-        self.assertNotIn("U 1+", b)
-        self.assertNotIn("1+", b)
-        # the database's line is not what the row rests on (the row is estimated), so it is left out, not pointed to
-        self.assertNotIn(t.POINTER, b)
-        # and the source's own line says so
-        self.assertIn("its values are not shown", self.pages["a/s0000002.html"])
-
-    def test_inference_rule_over_every_sample_fact(self):
-        hidden = 0
-        for r in sample.RECORDS:
-            text = self.entry(r.key).text()
-            for row_id, row in r.rows.items():
-                facts = [dataclasses.asdict(f) for f in row.facts]
-                for f in facts:
-                    if t.displayable(f, srcs()):
-                        continue
-                    hidden += 1
-                    self.assertEqual(sample.SOURCES[f["source"]].licence, "inference")
-                    if any(o["value"] == f["value"] and t.displayable(o, srcs()) for o in facts):
-                        continue                    # another source states it, and shows it under its own name
-                    k, unit = t.scale_for(row_id, f["label"], f["unit"], f["value"])
-                    shown = re.compile(r"(?<![\d.,])" + re.escape(t.num(f["value"] * k)) + r"(?!\d)")
-                    self.assertIsNone(shown.search(text), (r.key, row_id))
-        self.assertGreaterEqual(hidden, 2)
-
-    def test_an_inference_value_is_a_pointer_whatever_another_source_states(self):
-        held = {"label": "amplitude", "value": 0.43, "lo": 0.07, "hi": 0.43, "unit": "mag", "source": "lcdb", "quality": "2+"}
-        same = {"label": "amplitude", "value": 0.43, "lo": 0.07, "hi": 0.43, "unit": "mag", "source": "pravec"}
-        self.assertIsNone(t.public(held, srcs()))
-        self.assertEqual(t.public(same, srcs()), same)
-        html = t.facts_table("spin", [held, same], srcs(), counted=True)      # the row rests on the held value
-        self.assertEqual(html.count("0.43"), 2)                 # the value and its range, once, under Pravec's name
-        self.assertNotIn("2+", html)
-        self.assertEqual(html.count(t.POINTER), 1)
-        rows = parse(html).root.find("tr")
-        self.assertEqual([("ptr" in tr.classes) for tr in rows], [True, False])     # in the ledger's order: the row rests on the first
+        self.assertIn("grade 1+, unreliable", b)
+        self.assertNotIn("Not shown", d + self.pages["a/s0000002.html"])
 
     def test_every_fact_names_its_source_and_a_shared_source_is_printed_once(self):
         for r in sample.RECORDS:
             for row_id, n in self.rows(r.key).items():
                 facts = [dataclasses.asdict(f) for f in r.rows[row_id].facts]
-                # every fact the page may print, and a pointer for a held one only where the row rests on it
-                counted = r.rows[row_id].state in ("measured", "limit")
-                rests = next((f for f in facts if t.used(f)), None) if counted else None
-                facts = [f for f in facts if (t.displayable(f, srcs()) or f is rests) and f.get("label") not in t.HIDDEN_FACTS]
+                # every fact, from whichever source
+                facts = [f for f in facts if f.get("label") not in t.HIDDEN_FACTS]
                 tables = [tb for tb in n.find("table", cls="facts") if "est" not in tb.classes]
                 lines = [tr for tb in tables for tr in tb.find("tr")]
                 self.assertEqual(len(lines), len(facts), (r.key, row_id))
@@ -851,7 +810,7 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(self.entry("s0000005").find("g", cls="turn")[0].attrs["style"], "animation-duration:15470s")
         # no usable period, no animation: graded too low, sources disagree, held back, only a bound, not checked
         for key, why in (("s0000002", "no spin period good enough to use"), ("s0000003", "sources disagree on the spin period"),
-                         ("s0000004", t.POINTER), ("s0000008", "no spin period on file"),
+                         ("s0000008", "no spin period on file"),
                          ("s0000009", "spin period not checked: SsODNet, Ondřejov photometry table")):
             fig = self.entry(key).find("figure")[0]
             self.assertEqual(fig.find("g", cls="turn"), [], key)
@@ -966,11 +925,15 @@ class SiteTest(unittest.TestCase):
                 s = sample.SOURCES[sid]
                 text = main.find("tr", id=f"src-{sid}")[0].text()
                 self.assertIn(s.edition, text)
-                self.assertIn(s.citation, text)
-            # a source the record never reached for any row says so, with the ring
+                self.assertNotIn(s.citation, text)              # citations are on Method, once
+            # a source the record never reached for any row says so
             for sid in listed - set(r.sources):
                 if any(sid in row.unchecked for row in r.rows.values()):
-                    self.assertIn("Not checked for this asteroid", main.find("tr", id=f"src-{sid}")[0].text())
+                    self.assertIn("Not checked", main.find("tr", id=f"src-{sid}")[0].text())
+        # Method cites every source
+        method = self.pages["method.html"]
+        for s in sample.SOURCES.values():
+            self.assertIn(s.citation, html.unescape(method))
 
     def test_a_source_fetched_over_several_days_says_so(self):
         one = {"retrieved": "2026-11-21"}
@@ -1174,38 +1137,22 @@ class SiteTest(unittest.TestCase):
         (tier,) = [tr for tr in page.find("tr") if "tier" in tr.classes]
         self.assertEqual(tier.text(gap=" "), f"{gen.TIER_HEADS['pointable']} 4 asteroids")
 
-    def test_lists_print_no_size_from_a_source_that_is_not_open(self):
-        """docs/mvp.md section 3: a value from a "single" source is shown on the asteroid's own page, with its
-        citation. A list follows the field file's rule instead: JPL's diameter, else the range from brightness."""
-        self.assertTrue(export.OPEN_SIZES_ONLY)
-        withheld = 0
+    def test_lists_print_the_entrys_diameter(self):
+        """A list prints the diameter the entry shows, from whichever source, after its state mark."""
         def cell(r):        # the mark's state in words, as a reader that does not see it hears it, then the text
             root = parse(gen.size_cell(dataclasses.asdict(r), srcs())).root
             return ", ".join(x for x in ([g.attrs.get("aria-label") for g in root.find("i", cls="g")] + [root.text()]) if x)
-        for r in sample.RECORDS:
-            own = t.size_of(dataclasses.asdict(r), srcs())
-            if own and own["state"] != "prior" and sample.SOURCES[own["source"]].licence != "open":
-                withheld += 1
-                self.assertNotIn(t.num(own["mid"], 3), cell(r).replace(t.num(own["mid"], 2), ""), r.designation)
-        self.assertGreaterEqual(withheld, 3)
         by = {r.designation: cell(r) for r in sample.RECORDS}
-        self.assertEqual(by["2099 AA37"], "Measured, on entry")                 # nothing open on the record
-        self.assertEqual(by["2099 RQ36"], "Measured, 492")                      # JPL's own diameter
-        # the field file's range is an estimate: it never stands beside the measured mark
-        self.assertEqual(by["2099 KY26"], "Measured, on entry")
-        self.assertEqual(by["2099 NJ"], "Measured, on entry")                  # a bound is measured
+        self.assertEqual(by["2099 AA37"], "Measured, 65")                       # SsODNet's, as on the entry
+        self.assertEqual(by["2099 RQ36"], "Measured, 490")
+        self.assertEqual(by["2099 KY26"], "Measured, 8")
+        self.assertEqual(by["2099 NJ"], "Measured, ≤ 200")                      # a bound is measured
         self.assertEqual(by["2099 OB5"], "Estimated, 3.1–13")                   # our own range: as on the entry
         self.assertEqual(by["2099 CW266"], "none: no brightness on file")
-        page = self.pages["list/observe.html"]
-        for sid, s in sample.SOURCES.items():
-            if s.licence != "open":
-                self.assertNotIn(f">{s.name}<", page)
-        # the entry still shows the measured value, with its citation
-        self.assertIn("65 m", self.rows("s0000002")["size"].text())
-        self.assertIn("Example and Other 2098", self.rows("s0000002")["size"].text())
-        # one switch for the field file and the lists
-        with mock.patch.object(export, "OPEN_SIZES_ONLY", False):
-            self.assertIn(">65<", gen.size_cell(dataclasses.asdict(self.by_key["s0000002"]), srcs()) + "<")
+        for r in sample.RECORDS:
+            own = t.size_of(dataclasses.asdict(r), srcs())
+            if own and own["state"] != "prior":
+                self.assertIn(t.num(own["mid"], 3), cell(r), r.designation)
 
     def test_observe_order_is_the_methods(self):
         """Equal gains are common (1,736 of 1,956 rows shared one). The order printed, and so each rank, is

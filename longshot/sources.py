@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import functools
 
-from longshot.types import LICENCES, Source
+from longshot.types import Source
 
 
 @functools.lru_cache(maxsize=1)
@@ -21,7 +21,7 @@ def load() -> dict[str, Source]:
     out: dict[str, Source] = {}
     for source_id, module in ingest.modules().items():
         s = module.source()
-        if s.id != source_id or s.licence not in LICENCES:
+        if s.id != source_id:
             raise ValueError(f"source record for {source_id} is malformed")
         out[source_id] = s
     return out

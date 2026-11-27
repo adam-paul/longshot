@@ -174,7 +174,6 @@ From `DESIGN.md`:
 - **Section 7, "Nobody buys water in orbit."** The page says "As of 21 November 2026 we found nobody buying water in orbit", after `verify-capability.md` objection 14.
 - **Section 7, corrections first.** `verify-value-inputs.md` objection 8 is applied in part: the iron-rich row still prints dollars, from two metal mixes chosen by judgement. A note under the price tables says so.
 - **Section 8, browser storage.** None is used. All state is in the URL.
-- **Section 8, "it carries only JPL values and our own derived ones".** Kept. So 116 rocks whose size is measured only by SsODNet, Spitzer or the hand-entered list are placed by brightness, and their tip reads "size measured: see entry".
 
 From `docs/mvp.md` as it stood before the review (sections 9 and 10 there list each change):
 
@@ -207,7 +206,6 @@ The review raised 108 findings. These are open; the rest are fixed and tested, o
 - **Only headless Chromium was tested.** No Firefox, no Safari, no real touch screen; pinch zoom is untested on a device.
 - **The model takes 43 s** in one process. It could be split across cores.
 - **Entries total 205 MB** (40 MB gzipped), 28 kB each at the median.
-- **Lightcurve-database values** are never printed: 304 spin rows carry a line that reads "on file, not shown here".
 - **Apophis's spin row** holds 27.385 h (SsODNet) and 30.56 h (the lightcurve database and JPL), both used, with no conflict recorded. The entry prints 30.56 h. A 10% disagreement between two used facts should probably be a conflict, or the ledger should say why not.
 - **The data date is JPL's**, 24 November. SsODNet cards fetched on the 25th are in the build; the source line gives "fetched 2026-11-21 to 2026-11-25".
 - **The record freezes nothing.** Every prediction is provisional, and 25 of 51 have no settle date; each says why.
@@ -227,6 +225,5 @@ The review raised 108 findings. These are open; the rest are fixed and tested, o
 9. **Iron-rich dollars.** Keep, or kilograms only until Cannon et al. 2023's table is read.
 10. **The water sentence** and the reworded first ladder rung: accept, or restore the wording of `DESIGN.md`.
 11. **Kamoʻoalewa's 27.9-minute period** was entered by hand beyond the brief; `verify-capability.md` row 18 confirms it.
-12. **Sizes in the field file and the lists** follow the licence rule (`OPEN_SIZES_ONLY`). Confirmed in the review; listed because 116 measured rocks are placed by brightness.
-13. **Freeze the method**, so the record's predictions can be dated.
-14. Still open from `DESIGN.md` section 10: the name, the host, a contact address for JPL.
+12. **Freeze the method**, so the record's predictions can be dated.
+13. Still open from `DESIGN.md` section 10: the name, the host, a contact address for JPL.

@@ -175,7 +175,6 @@ def source() -> Source:
         name="SsODNet",
         edition=max((c["edition"] for c in cards), default=""),
         retrieved=days[-1] if days else "",
-        licence="single",
         citation="Berthier et al. 2023, A&A 671, A151 (SsODNet ssoCard); each value carries its own reference",
         url="https://ssp.imcce.fr/webservices/ssodnet/",
         retrieved_from=days[0] if len(days) > 1 else "",

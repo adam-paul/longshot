@@ -10,7 +10,6 @@ from typing import Any
 
 ROWS = ("reach", "tracking", "size", "spin", "surface", "push")
 STATES = ("measured", "limit", "prior", "unchecked")
-LICENCES = ("open", "single", "inference")
 MISSIONS = ("surface", "capture")
 LADDER = ("found_again", "reached", "workable", "anything_in_it", "brought_back")
 
@@ -21,7 +20,6 @@ class Source:
     name: str          # as shown on a page
     edition: str       # the date of the upstream data, ISO
     retrieved: str     # the date we fetched it, ISO; the last day where the fetch ran over several
-    licence: str       # one of LICENCES
     citation: str
     url: str
     retrieved_from: str = ""   # the first day of a fetch that ran over several, ISO; else empty

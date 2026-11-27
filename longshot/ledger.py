@@ -47,10 +47,6 @@ ROW_SOURCES: dict[str, tuple[str, ...]] = {
 # A source that only adds claims. It is a short hand-entered list, not a catalogue that was looked up, so it
 # never makes a row "not checked" (longshot/ingest/curated.py).
 SUPPLEMENTARY = frozenset({"curated"})
-# Licence class by source (docs/mvp.md section 3). A value from an "inference" source is not printed in a
-# sentence unless another source states it. tests/test_model.py checks this table against longshot.sources.
-LICENCE = {"jpl-nhats": "open", "jpl-sbdb": "open", "ssodnet": "single", "pravec": "single", "lcdb": "inference",
-           "spitzer": "single", "curated": "single"}
 
 COMPUTED = "Computed"
 
@@ -459,13 +455,13 @@ def _newer(c: Claim, ungraded: list[Claim], against: list[Claim], editions: dict
 
 
 def _period_who(c: Claim) -> str:
-    """A source as a conflict sentence names it. An inference-only source is named without its grade."""
+    """A source as a conflict sentence names it, with its grade where it has one."""
     extra = []
     if c.source == "ssodnet" and c.ref:
         extra.append(c.ref.split(" (")[0].split(";")[0])
     elif c.source == "curated" and c.ref:
         extra.append(c.ref.split(",")[0])
-    if grade_rank(c.quality) is not None and LICENCE.get(c.source) != "inference":
+    if grade_rank(c.quality) is not None:
         extra.append(f"grade {c.quality}")
     return ", ".join([SPOKEN[c.source]] + extra)
 
@@ -482,8 +478,7 @@ def _period_words(hours: float) -> str:
 def period_conflict(in_play: list[Claim]) -> str | None:
     """One sentence for all the periods in play: '250 h (A; B; C) against 2.02 h (D)'.
 
-    Values within the tolerance of the first of a group join it. A group held only by an inference-only source
-    prints no number (docs/mvp.md section 3).
+    Values within the tolerance of the first of a group join it.
     """
     groups: list[list[Claim]] = []
     for c in in_play:
@@ -497,12 +492,8 @@ def period_conflict(in_play: list[Claim]) -> str | None:
         return None
     parts = []
     for g in groups:
-        shown = next((c for c in g if LICENCE.get(c.source) != "inference"), None)
         who = "; ".join(dict.fromkeys(_period_who(c) for c in g))
-        if shown is None:
-            parts.append(f"a different period on file in {SPOKEN[g[0].source]}, not shown here")
-        else:
-            parts.append(f"{_period_words(shown.value)} ({who})")
+        parts.append(f"{_period_words(g[0].value)} ({who})")
     return _cap(" against ".join(parts)) + "."
 
 

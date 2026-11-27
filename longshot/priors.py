@@ -186,8 +186,7 @@ def size_basis(m: Method, inp) -> str:
                      f"H {size['extrapolated_fainter_than_h']:g} or fainter")
     if inp.size_bound is not None and not inp.size_bound_ignored:
         word = "at most" if inp.size_bound.kind == "upper" else "at least"
-        text += (f"; {word} {inp.size_bound.value:g} m from the limit on file" if inp.size_bound_public
-                 else "; cut at the limit on file")
+        text += f"; {word} {inp.size_bound.value:g} m from the limit on file"
     return text
 
 
@@ -204,8 +203,7 @@ def spin_basis(m: Method, inp) -> str:
         text = f"asteroids of H {words}: {row.get('central_from', 'the central share')}"
     if inp.period_bound is not None and not inp.period_bound_ignored:
         word = "at most" if inp.period_bound.kind == "upper" else "at least"
-        text += (f"; {word} {inp.period_bound.value:g} h from the limit on file" if inp.period_bound_public
-                 else "; cut at the limit on file")
+        text += f"; {word} {inp.period_bound.value:g} h from the limit on file"
     return text
 
 

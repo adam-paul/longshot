@@ -211,24 +211,21 @@ class StateRulesCase(unittest.TestCase):
         self.assertEqual([f.used for f in row.facts], [True, False])
         self.assertIn("differs from the graded one", row.note)          # the page says why it is not used
 
-    def test_a_conflict_sentence_never_prints_an_inference_only_value(self):
-        """docs/mvp.md section 3: the lightcurve database's own number and grade stay off the page."""
+    def test_a_conflict_sentence_prints_every_period_with_its_grade(self):
+        """Every source's period prints, the lightcurve database's too, each with its grade where it has one."""
         old = claim("period_h", "lcdb", 0.1784, quality="3", unit="h")
         card = claim("period_h", "ssodnet", 0.089193, unit="h", ref="Santana-Ros+2025b (2025NatCo..16.8763S)")
         jpl = claim("period_h", "jpl-sbdb", 0.089193, unit="h")
         row = ledger.spin_row([old, card, jpl], coverage(), {"lcdb": "2023-10-01"})
         # a period in the unit the pages print it in: minutes under 2 h
-        self.assertEqual(row.conflicts, ["5.352 min (SsODNet, Santana-Ros+2025b; JPL's database) against a different "
-                                         "period on file in the lightcurve database, not shown here."])
-        self.assertNotIn("0.1784", row.conflicts[0])
-        self.assertNotIn("U 3", row.conflicts[0])
-        self.assertNotIn("grade 3", row.conflicts[0])
-        # where another source states the lightcurve database's value, the value prints and its grade does not
+        self.assertEqual(row.conflicts, ["5.352 min (SsODNet, Santana-Ros+2025b; JPL's database) against "
+                                         "10.7 min (the lightcurve database, grade 3)."])
+        # sources that agree share one group
         row = record([claim("period_h", "pravec", 250.0, quality="3", unit="h"),
                       claim("period_h", "lcdb", 250.0, quality="2", unit="h"),
                       claim("period_h", "ssodnet", 2.02, quality="2", unit="h", ref="Thirouin+2016b (2016AJ)"),
                       claim("period_h", "jpl-sbdb", 250.0, unit="h")]).rows["spin"]
-        self.assertEqual(row.conflicts, ["250 h (Pravec's table, grade 3; the lightcurve database; JPL's database) "
+        self.assertEqual(row.conflicts, ["250 h (Pravec's table, grade 3; the lightcurve database, grade 2; JPL's database) "
                                          "against 2.02 h (SsODNet, Thirouin+2016b, grade 2)."])      # one line, not three
 
     def test_two_usable_periods_more_than_twenty_percent_apart_conflict(self):

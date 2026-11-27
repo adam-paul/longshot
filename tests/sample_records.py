@@ -26,27 +26,27 @@ METHOD = "0.1"
 
 SOURCES = {
     "jpl-nhats": Source(
-        "jpl-nhats", "JPL NHATS", "2026-11-24", "2026-11-24", "open",
+        "jpl-nhats", "JPL NHATS", "2026-11-24", "2026-11-24",
         "Near-Earth Object Human Space Flight Accessible Targets Study, NASA/JPL.",
         "https://cneos.jpl.nasa.gov/nhats/"),
     "jpl-sbdb": Source(
-        "jpl-sbdb", "JPL Small-Body Database", "2026-11-24", "2026-11-24", "open",
+        "jpl-sbdb", "JPL Small-Body Database", "2026-11-24", "2026-11-24",
         "Small-Body Database, NASA/JPL Solar System Dynamics.",
         "https://ssd.jpl.nasa.gov/tools/sbdb_query.html"),
     "ssodnet": Source(
-        "ssodnet", "SsODNet", "2026-11-21", "2026-11-21", "single",
+        "ssodnet", "SsODNet", "2026-11-21", "2026-11-21",
         "Berthier et al. 2023, Astronomy & Astrophysics 671, A151.",
         "https://ssp.imcce.fr/webservices/ssodnet/"),
     "pravec": Source(
-        "pravec", "Ondřejov photometry table", "2026-11-24", "2026-11-24", "single",
+        "pravec", "Ondřejov photometry table", "2026-11-24", "2026-11-24",
         "Pravec, Wolf and Šarounová, Ondřejov Asteroid Photometry Project.",
         "https://www.asu.cas.cz/~ppravec/newres.txt"),
     "lcdb": Source(
-        "lcdb", "Asteroid Lightcurve Database", "2023-10-01", "2026-11-21", "inference",
+        "lcdb", "Asteroid Lightcurve Database", "2023-10-01", "2026-11-21",
         "Warner, Harris and Pravec 2009, Icarus 202, 134; release of 2023 October.",
         "https://minplanobs.org/mpinfo/php/lcdb.php"),
     "spitzer": Source(
-        "spitzer", "Spitzer near-Earth object surveys", "2016-09-01", "2026-11-21", "single",
+        "spitzer", "Spitzer near-Earth object surveys", "2016-09-01", "2026-11-21",
         "Trilling et al. 2016, Astronomical Journal 152, 172.",
         "https://nearearthobjects.nau.edu/spitzerneos.html"),
 }
@@ -395,7 +395,6 @@ RECORDS = [
             ]),
         },
         summary={"size_m": {"q05": 6, "q25": 7.2, "q50": 8, "q75": 8.8, "q95": 10},
-                 "size_open_m": {"q05": 5.2, "q50": 9.4, "q95": 21},
                  "mass_t": {"q05": 160, "q25": 340, "q50": 540, "q75": 800, "q95": 1500},
                  "class": {"S": 0.52, "C": 0.17, "X": 0.19, "other": 0.12}},
         missions={
