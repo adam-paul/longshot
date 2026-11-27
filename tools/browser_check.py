@@ -491,6 +491,8 @@ def run(args):
         marks["measured"] = solo(kinds["measured"])
         marks["measured_dimmed"] = solo(kinds["measured"], dim=True)
         checks["a measured size is a bright outline with a glow"] = marks["measured"]["top"] > 235 and marks["measured"]["halo"] >= 40
+        marks["measured_zoomed"] = solo(kinds["measured"], 8)
+        checks["zoomed in, marks grow: a measured rock at 8x lights more pixels than at 1x"] = marks["measured_zoomed"]["lit"] > 1.8 * marks["measured"]["lit"]
         checks["a rock out of the filter is faint, without its glow"] = marks["measured_dimmed"]["top"] < 60 and marks["measured_dimmed"]["lit"] < marks["measured"]["lit"] / 2
     if kinds["bound"] >= 0:
         marks["bound"] = solo(kinds["bound"])
@@ -502,7 +504,7 @@ def run(args):
         p1, p8 = marks["prior"], marks["prior_zoomed"]
         checks["estimated is a half-bright dot at home and a half-bright outline zoomed in, neither glowing"] = (
             130 < p1["top"] <= 172 and p1["lit"] <= 16 and 120 < p8["top"] <= 172 and p8["lit"] > 2 * p1["lit"] and p8["centre"] < 30
-            and ("measured" not in marks or marks["measured"]["lit"] > 1.5 * p8["lit"]))
+            and ("measured_zoomed" not in marks or marks["measured_zoomed"]["lit"] > 1.5 * p8["lit"]))
         marks["prior_dimmed"] = solo(kinds["prior"], dim=True)
         checks["a faint estimate is a sixth of an estimate"] = marks["prior_dimmed"]["top"] < 0.25 * p1["top"]
     if kinds["unchecked"] >= 0:
@@ -690,6 +692,18 @@ def run(args):
         report["overlaps"] = browser.js(OVERLAPS)
         inks["selected"], said["selected"] = browser.js(INKS), browser.js(WORDS)
         shot("selected")
+        # zoomed in on it, the crosshair still stops short of the rock, which has grown with the zoom
+        gaps = browser.js("""(async () => { const f = longshot.field, i = f.sel, frame = () => new Promise(r => requestAnimationFrame(r));
+            f.zoom(16 / f.z, f.sx(i), f.sy(i)); await frame(); await frame();
+            const d = [...document.querySelectorAll('#axes svg path')].map(p => p.getAttribute('d')).find(d => /H/.test(d) && /V/.test(d)) || '';
+            const n = (d.match(/-?[0-9.]+/g) || []).map(Number);
+            return { reach: 8 * f.s, left: f.sx(i) - n[2], below: n[4] - f.sy(i), z: f.z }; })()""")
+        report["crosshair_zoomed"] = gaps
+        checks["zoomed in on the selected rock, the crosshair stops short of it"] = (
+            gaps["z"] > 8 and gaps["left"] > gaps["reach"] + 1 and gaps["below"] > gaps["reach"] + 1)
+        shot("selected-zoomed")
+        browser.js("longshot.field.home()")
+        settle()
         browser.click(*browser.js(CENTRE % q("#readout [data-close]")))
         checks["Close restores the named list and gives the focus back"] = browser.until(
             f"{DEFAULT} && !location.search.includes('a=') && longshot.field.sel === -1 && document.activeElement.id === 'field'", 5)
@@ -859,12 +873,14 @@ def run(args):
         return { frames: f.frames - a, speed: f.speed, period: f.cols.period_s[best] }; })()""")
     if fast:
         report["frames"]["frames_per_second_zoomed_on_fastest"] = fast["frames"]
+        report["frames"]["outline_px_per_second_zoomed_on_fastest"] = round(fast["speed"], 1)
         if software:
             checks["a software renderer turns nothing unasked, even close up"] = fast["frames"] <= 1
         elif fast["speed"] >= 0.1:
-            # a frame each time the fastest outline in view has moved a fifth of a px: 5 a second per px a second
+            # a frame each time the fastest outline in view has moved a fifth of a px: 5 a second per px a second.
+            # Each wait also holds the browser's wait for its next frame, so allow down to 80% of that rate.
             checks["a turning rock in view keeps the frames coming, and no more than it needs"] = (
-                max(1, min(60, 5 * fast["speed"]) - 2) <= fast["frames"] <= min(61, 5 * fast["speed"] + 2))
+                max(1, 0.8 * min(60, 5 * fast["speed"]) - 2) <= fast["frames"] <= min(61, 5 * fast["speed"] + 2))
         shot("close")
     hidden = browser.js("""(async () => { const f = longshot.field, wait = ms => new Promise(r => setTimeout(r, ms));
         const show = v => { Object.defineProperty(document, 'hidden', { value: v, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); };

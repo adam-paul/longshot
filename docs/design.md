@@ -209,4 +209,4 @@ B612 Regular, self-hosted, one woff2 (`longshot/site/static/fonts/`), SIL OFL 1.
 | outside the filter | faint | faint | |
 | no brightness on file | not drawn | not drawn | none |
 
-Every rock's outline comes from its key (`longshot/shape.py`), the same rule on the entry and in the shader. The marks are glyphs, not to scale; the entry draws the rock to scale with a scale bar.
+Every rock's outline comes from its key (`longshot/shape.py`), the same rule on the entry and in the shader. The marks are glyphs, not to scale: a rock's height on the chart gives its diameter, and the entry draws the rock to scale with a scale bar. Zooming in magnifies the marks too: every mark, and its click target, grows with the square root of the zoom, up to 4× (from 16× zoom), so the rocks grow and still pull apart. Line widths do not grow.

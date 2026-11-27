@@ -3,7 +3,7 @@
 // probability: every chance it prints is a byte of the field file, every count a tally of its columns.
 // Its words are the surface vocabulary of docs/design.md section 3: measured and estimated; fits,
 // ruled out and unclear; diameter; Δv.
-import { Field, glContext, ZMAX } from './field.js';
+import { Field, glContext, ZMAX, MARK } from './field.js';
 
 const $ = s => document.querySelector(s);
 const form = $('#controls'), plot = $('#plot'), canvas = $('#field'), axes = $('#axes'), tip = $('#tip');
@@ -585,9 +585,11 @@ function drawAxes(f) {
   // the selected rock: a crosshair to both axes
   if (s >= 0) {
     const cy = v => Math.min(B, Math.max(T, v)), cxp = v => Math.min(R, Math.max(L, v));
+    // the lines stop short of the rock's widest reach at this zoom (it grows with zoom, and turns), plus a gap
+    const gap = MARK.sel * f.s + MARK.glow + 2;
     let c = '';
-    if (inY(sy)) c += `M${L} ${round(sy)}H${cxp(sx - 12)}`;
-    if (tagX) c += `M${round(sx)} ${cy(sy + 12)}V${B}`;
+    if (inY(sy)) c += `M${L} ${round(sy)}H${cxp(sx - gap)}`;
+    if (tagX) c += `M${round(sx)} ${cy(sy + gap)}V${B}`;
     svg += `<path d="${c}" style="fill:none;stroke:var(--edge,#5e5e5e)"/>`;
   }
 

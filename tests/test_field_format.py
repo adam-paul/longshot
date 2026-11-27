@@ -363,7 +363,8 @@ class Scripts(unittest.TestCase):
     def test_picking_uses_the_shader_s_marks(self):
         """Field.mark() restates which mark the vertex shader draws; the two must change together."""
         field = (STATIC / "field.js").read_text()
-        self.assertIn("return (c.state[i] & 3) >= 2 ? [1, MARK.rock] : this.zoomed || fits ? [1, MARK.out] : [0, MARK.dot];", field)
+        self.assertIn("return (c.state[i] & 3) >= 2 ? [1, MARK.rock * s] : this.zoomed || fits ? [1, MARK.out * s] : [0, MARK.dot * s];", field)
+        self.assertIn("R *= u_k.w;", field)                     # the shader grows the marks by the same factor
         self.assertIn("if (zoomed || fits || u_o >= 2) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; }", field)
         self.assertIn("export const ZMAX = 32, ZOUT = 4;", field)                                # docs/design.md
         self.assertNotIn("class=\"scale\"", (STATIC / "app.js").read_text())     # glyphs are not to scale: no scale bar
@@ -377,7 +378,7 @@ class Scripts(unittest.TestCase):
         text = (STATIC / "app.js").read_text() + (STATIC / "field.js").read_text()
         self.assertNotRegex(text, r"https?://")
         self.assertNotRegex(text, r"\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b")
-        self.assertEqual(re.findall(r"(?<![.\w])import\s[^;]*;", text), ["import { Field, glContext, ZMAX } from './field.js';"])
+        self.assertEqual(re.findall(r"(?<![.\w])import\s[^;]*;", text), ["import { Field, glContext, ZMAX, MARK } from './field.js';"])
 
     def test_the_app_computes_no_probability(self):
         """Chances are printed from the file's bytes: no arithmetic on p_* beyond reading it."""

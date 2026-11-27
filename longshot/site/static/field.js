@@ -3,8 +3,8 @@
 // the draw; anything that walks the rocks runs once, or on an input event.
 //
 // The canvas fills the figure; rocks draw inside the plot box (the figure less its margins,
-// where the app writes the axes as HTML). Marks are glyphs of a fixed size, not to scale:
-// their place on the size axis gives the size. One meaning per variable (docs/design.md
+// where the app writes the axes as HTML). Marks are glyphs, not to scale: their place on
+// the size axis gives the size. Zoomed in, they grow by grow(z) (below). One meaning per variable (docs/design.md
 // section 4), from the size row alone:
 //   measured            white rock outline with a faint glow; a bound, dashed and without glow
 //   estimated           a dot at half brightness; from ZOUT zoom, an outline at half brightness
@@ -16,6 +16,10 @@
 
 const K = 12, SHAPES = 8, TAU = 2 * Math.PI;
 export const ZMAX = 32, ZOUT = 4;                      // zoom range; estimated dots become outlines from ZOUT
+// Zoomed in, every mark grows with the square root of the zoom, up to GROW times: zoom reads as a magnifier,
+// while the rocks still pull apart (growing in step with the zoom would keep the overlap of the overview).
+export const GROW = 4;
+export const grow = z => Math.min(Math.sqrt(Math.max(z, 1)), GROW);
 const PICK = 10;                                       // CSS px
 const SLOW = /swiftshader|llvmpipe|software/i;         // renderers where a frame is too dear to spend on turning
 const GRID = 128;                                      // picking cells per axis
@@ -80,7 +84,7 @@ const float TAU = 6.2831853;
 uniform vec4 u_t[${K * SHAPES}];  // outline table: point xy, step across the line zw
 uniform vec4 u_map;   // view's left km/s, bottom log10 m, device px per km/s, device px per decade
 uniform vec4 u_box;   // plot box left and bottom, canvas width and height, device px from the bottom left
-uniform vec4 u_k;     // device px per CSS px, seconds, a mission chosen, zoomed past ZOUT
+uniform vec4 u_k;     // device px per CSS px, seconds, a mission chosen, the marks' growth with zoom (grow(z))
 uniform int u_o;      // 0 every rock, 1 the hover ring, 2 the selected rock's fill, 3 its outline
 uniform int u_sel;    // the selected rock, drawn by its own calls; -1 if none
 in float a_dv, a_ly, a_period;
@@ -96,7 +100,7 @@ void main() {
   int form = 1;
   float R = ${f(MARK.rock)}, lw = ${f(MARK.line)}, b = 1., duty = 1., dashes = 1.;
   uint size = a_state & 3u;                              // line style from the size row alone
-  bool zoomed = u_k.w > 0., fits = u_k.z > 0. && a_status == 2u, glow = false;
+  bool zoomed = u_k.w >= ${f(Math.sqrt(ZOUT) - 1e-4)}, fits = u_k.z > 0. && a_status == 2u, glow = false;
   if (size == 3u) glow = true;                           // measured: the glow, and nothing else has it
   else if (size < 2u) {                                  // estimated: half brightness, a dot until zoomed in
     b = ${f(MARK.half)};
@@ -108,6 +112,7 @@ void main() {
   if (u_o == 1) { form = 2; R = ${f(MARK.hover)}; lw = 1.; b = 1.; glow = false; }
   if (u_o >= 2) { form = 1; R = ${f(MARK.sel)}; lw = fits ? ${f(MARK.fitsLine)} : ${f(MARK.line)}; }
   if (u_o == 2) { form = 0; b = -1.; }
+  R *= u_k.w;                                            // marks grow as the view zooms in
   if (size == 2u && (u_o == 0 || u_o == 3)) { duty = .55; dashes = max(3., floor(TAU * R / 4.5)); }   // a bound: dashed
 
   int i = gl_VertexID >> 1;
@@ -221,6 +226,7 @@ export class Field {
   // ---- geometry, CSS px from the canvas's top left ----
   get z() { return (this.B.x1 - this.B.x0) / (this.V.x1 - this.V.x0); }
   get zoomed() { return this.z >= ZOUT - 1e-6; }
+  get s() { return grow(this.z); }                         // the marks' growth at this zoom
   get pw() { return this.w - this.M.l - this.M.r; }
   get ph() { return this.h - this.M.t - this.M.b; }
   px(dv) { const V = this.V; return this.M.l + (dv - V.x0) / (V.x1 - V.x0) * this.pw; }
@@ -234,11 +240,12 @@ export class Field {
   // Rock i's mark as the vertex shader draws it: [form (0 dot, 1 outline), radius px].
   mark(i) {
     const c = this.cols, fits = !!this.mission && c['status_' + this.mission][i] === 2;
-    return (c.state[i] & 3) >= 2 ? [1, MARK.rock] : this.zoomed || fits ? [1, MARK.out] : [0, MARK.dot];
+    const s = this.s;
+    return (c.state[i] & 3) >= 2 ? [1, MARK.rock * s] : this.zoomed || fits ? [1, MARK.out * s] : [0, MARK.dot * s];
   }
 
   // Nearest rock in the filters to a point, within tol px of it; -1 if none. Reads only nearby cells.
-  pick(x, y, tol = PICK) {
+  pick(x, y, tol = PICK * this.s) {
     if (!this.inBox(x, y, 4)) return -1;
     const kx = this.pw / (this.V.x1 - this.V.x0), ky = this.ph / (this.V.y1 - this.V.y0);
     const dx = this.dvAt(x), dy = this.lyAt(y), rx = tol / kx, ry = tol / ky;
@@ -346,7 +353,7 @@ export class Field {
         const [form, r] = this.mark(i);
         if (form === 1 && this.inBox(this.sx(i), this.sy(i), r)) v = Math.max(v, TAU * r / period[i]);
       }
-      if (s >= 0 && period[s] > 0 && this.inBox(this.sx(s), this.sy(s), MARK.sel)) v = Math.max(v, TAU * MARK.sel / period[s]);
+      if (s >= 0 && period[s] > 0 && this.inBox(this.sx(s), this.sy(s), MARK.sel * this.s)) v = Math.max(v, TAU * MARK.sel * this.s / period[s]);
     }
     this.speed = v;
     this.stale = false;
@@ -398,7 +405,7 @@ export class Field {
     gl.scissor(Math.floor(left), Math.floor(bottom), Math.ceil(pw), Math.ceil(ph));
     gl.uniform4f(u.map, V.x0, V.y0, pw / (V.x1 - V.x0), ph / (V.y1 - V.y0));
     gl.uniform4f(u.box, left, bottom, c.width, c.height);
-    gl.uniform4f(u.k, dpr, this.calm ? 0 : t / 1000, this.mission ? 1 : 0, this.zoomed ? 1 : 0);
+    gl.uniform4f(u.k, dpr, this.calm ? 0 : t / 1000, this.mission ? 1 : 0, this.s);
     const one = (vao, o) => { gl.uniform1i(u.o, o); gl.bindVertexArray(vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 2 * K + 2, 1); };
     if (only >= 0) {
       this.point(this.vone, only);
@@ -508,7 +515,7 @@ export class Field {
       pinch();
       if (!down.size) c.classList.remove('grab');
       if (e.type === 'pointerup' && moved < 5 && !many && !down.size) {
-        const p = at(e), touch = e.pointerType === 'touch', i = this.pick(p[0], p[1], touch ? 16 : PICK);
+        const p = at(e), touch = e.pointerType === 'touch', i = this.pick(p[0], p[1], (touch ? 16 : PICK) * this.s);
         if (touch && i >= 0) tapped = e.timeStamp;
         this.hooks.pick?.(i);
       }
