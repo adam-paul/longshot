@@ -1330,6 +1330,22 @@ def settles(rec: dict) -> tuple[str, str]:
     return (condition(g["label"]), MISSION_LABELS.get(o["mission"], o["mission"]).lower()) if g else ("", "")
 
 
+COMPARISON = re.compile(r"\s*([≤≥<>=])\s*")
+
+
+def measure_and_condition(rec: dict) -> tuple[str, str, str]:
+    """(what to measure, the mission, the condition the result is compared with), from the record's own condition:
+    "Spin period ≥ 2.2 h" for surface work gives ("Spin period", "Surface work", "≥ 2.2 h"). ('', '', '') when the
+    observation names no condition."""
+    o = rec.get("observe") or {}
+    label, _ = settles(rec)
+    parts = COMPARISON.split(label, maxsplit=1)
+    if len(parts) != 3:
+        return "", "", ""
+    quantity, op, value = parts
+    return quantity.strip(), MISSION_LABELS.get(o["mission"], o["mission"]), f"{op} {value.strip()}"
+
+
 def nothing_ranked(rec: dict) -> str:
     """Why no observation is ranked, in a few words. The missions' own results are under Missions, not here."""
     missions = [(rec.get("missions") or {}).get(mid) or {} for mid in MISSION_LABELS]

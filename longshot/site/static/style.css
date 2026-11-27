@@ -348,13 +348,11 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .ltbl tbody tr:hover > * { background: var(--grid); }
 .ltbl tr.tier th { padding-top: var(--s5); border-top: 0; font: var(--t-body); }
 .ltbl tr.tier th span { font: var(--t-label); margin-left: var(--s3); }
-.ltbl tr.tier:hover > *, .ltbl tr.run:hover > * { background: none; }
-.ltbl tr.run th { padding-top: var(--s3); border-top: 1px solid var(--edge); white-space: normal; }
-.ltbl tr.run .k { margin: 0 var(--s2) 0 var(--s5); }
-.ltbl tr.run .k:first-child { margin-left: 0; }
+.ltbl tr.tier:hover > * { background: none; }
 .ltbl .rank { color: var(--ink-2); }
 .ltbl .sz .g { margin-right: 6px; }
-.ltbl td.chk { white-space: normal; min-width: 10ch; }
+.ltbl td.chk { white-space: normal; min-width: 18ch; }
+.ltbl td.tel { white-space: normal; min-width: 14ch; }
 .rgroup { margin-top: var(--s6); }
 .rgroup h2 { font: var(--t-heading); }
 .rgroup .stmt { font: var(--t-prose); max-width: 72ch; margin-top: var(--s1); }
@@ -492,9 +490,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
   .ltbl tr { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px var(--s3); padding: var(--s3) 0; border-top: 1px solid var(--grid); }
   .ltbl tr.tier { display: block; border-top: 0; padding: var(--s5) 0 0; }
   .ltbl tr > * { border: 0 !important; padding: 0; white-space: normal; }
-  .ltbl tr.tier th, .ltbl tr.run th { display: block; padding: 0; }
-  .ltbl tr.run { display: block; padding: var(--s3) 0 0; }
-  .ltbl tr.run .k { display: block; margin: var(--s1) 0 0; }
+  .ltbl tr.tier th { display: block; padding: 0; }
   .ltbl td[data-l] { grid-column: 2 / -1; display: flex; justify-content: space-between; gap: var(--s3); text-align: right; }
   .ltbl td[data-l]::before { content: attr(data-l); color: var(--ink-2); font: var(--t-small); white-space: nowrap; text-align: left; }
   .ltbl td[data-l]:empty { display: none; }
@@ -518,11 +514,14 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
   .ltbl.obs td:nth-child(n+3):empty { display: none; }
   .ltbl.obs td:nth-child(3)::before { content: "Δv (km/s)"; }
   .ltbl.obs td:nth-child(4)::before { content: "Diameter (m)"; }
-  .ltbl.obs td:nth-child(5)::before { content: "Telescope"; }
-  .ltbl.obs td:nth-child(6)::before { content: "Window opens"; }
-  .ltbl.obs td:nth-child(7)::before { content: "Window closes"; }
-  .ltbl.obs td:nth-child(8)::before { content: "Peak brightness (mag)"; }
-  .ltbl.obs td:nth-child(9)::before { content: "Not checked"; }
+  .ltbl.obs td:nth-child(5)::before { content: "Measure"; }
+  .ltbl.obs td:nth-child(6)::before { content: "Mission"; }
+  .ltbl.obs td:nth-child(7)::before { content: "Condition"; }
+  .ltbl.obs td:nth-child(8)::before { content: "Telescope"; }
+  .ltbl.obs td:nth-child(9)::before { content: "Window opens"; }
+  .ltbl.obs td:nth-child(10)::before { content: "Window closes"; }
+  .ltbl.obs td:nth-child(11)::before { content: "Peak brightness (mag)"; }
+  .ltbl.obs td:nth-child(12)::before { content: "Not checked"; }
 }
 
 /* the method page's tables of lines and prices; a formula in the reference layer's notation */
