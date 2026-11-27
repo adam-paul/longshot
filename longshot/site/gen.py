@@ -68,7 +68,7 @@ NOT_CLAIMED = (
     "No single dollar value for an asteroid. A dollar figure is always a range, at dated list prices. It counts "
     "what is in the rock before any cost, with the chance of nothing first.",
     "No metal detection. These data cannot tell a metal-rich asteroid from the rest.",
-    "No water detection from these data. Where no sample has come back, an entry gives the share of "
+    "No water detection from these data. Where no sample has come back, an asteroid's page gives the share of "
     "similar asteroids that hold water bound in minerals.",
     "No composition for a small asteroid beyond the estimate, until someone observes it.",
     "No live observing status. A window is two dates, as of the data date.",
@@ -328,8 +328,7 @@ def observe_page(recs, sources, assets, data_date, method, observations=None, ta
         + (f'<div><dt>Order</dt><dd>{t.esc(t.cap(order))}</dd></div>' if order else "")
         + '</dl></div>'
         f'<p class="cap">For each asteroid: what to measure, and the mission condition the result would settle. {t.esc(OBSERVE_DV)} '
-        'Diameter: the measured value, or the 90% range of the estimate; "on entry" where the source allows its value '
-        'only on the asteroid\'s own page.</p>'
+        'Diameter: the measured value, or the 90% range of the estimate.</p>'
         f'{t.define(table)}</main>')
     return t.page(title=f"Observe next | {t.SITE}", body=body, kind="list", depth=1,
                   assets=assets, data_date=data_date, method=method, current="list/observe.html")
@@ -924,7 +923,7 @@ MARKS = (
     ("prior", "No source on file gives a value, so the site estimates one from the asteroid's brightness and from "
               "asteroids like it. A dot, at half brightness. Zoomed in 4× or more, a half-bright outline."),
     ("unchecked", "A source that could hold a value was not queried, failed, or does not know the asteroid. The "
-                  "value shown is still an estimate. The entry names the source and the reason."),
+                  "value shown is still an estimate. The asteroid's page names the source and the reason."),
 )
 VERDICTS = (
     ("pass", "Measurements meet every condition. A heavier outline in the chart."),
@@ -975,10 +974,10 @@ def method_page(recs, sources, assets, data_date, method, tables=None) -> str:
               '<li>An estimate\'s range is a 90% range: 9 in 10 asteroids of that brightness fall inside it.</li>'
               '<li>A mass is always a 90% range, since the site computes it from draws of diameter and density.</li>'
               '<li>A measurement\'s range is the error its source states, ±1σ. The front page gives a measured '
-              'value alone, and the entry gives its error.</li>'
+              'value alone, and the asteroid\'s page gives its error.</li>'
               f'<li>A chance is the share of {t.count(tables.n_draws)} random draws of the asteroid that meet a condition. '
               'A share of none prints as &lt;1%, and a share of all as &gt;99%.</li></ul>')
-        + sec("coverage", '<p class="cap">For each row of an entry, how many asteroids are in each state. None: no '
+        + sec("coverage", '<p class="cap">For each row of an asteroid\'s page, how many asteroids are in each state. None: no '
               'value counts, and there is nothing to estimate from. Sunlight push is never estimated.</p>'
               + counts_table(recs))
         + sec("missions", '<p class="note">A tag beside each figure says how the method set it: from the data, quoted '

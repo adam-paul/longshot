@@ -84,7 +84,7 @@ def source() -> Source:
         name="Published papers",
         edition=edition,
         retrieved=edition,
-        citation="values entered by hand from published papers; an entry names the paper beside each value",
+        citation="values entered by hand from published papers; the asteroid's page names the paper beside each value",
         url="",
     )
 

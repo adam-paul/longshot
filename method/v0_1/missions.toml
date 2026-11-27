@@ -122,7 +122,7 @@ alternatives = [
   { value = 3, what = "the worst code at which JPL never says only a survey could recover the asteroid (docs/research/verify-obs-window.md section 1)" },
   { value = 5, what = "the usual line for an orbit good enough to find again (docs/plan.md section 1.4)" },
 ]
-caveat = "The code is one test and JPL's own pointing test is another. JPL says only a survey could recover 137 asteroids that meet this condition; an entry's first difficulty step says so."
+caveat = "The code is one test and JPL's own pointing test is another. JPL says only a survey could recover 137 asteroids that meet this condition; the first difficulty step on its page says so."
 
 [[surface.gates]]
 id = "size"

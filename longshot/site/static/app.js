@@ -446,7 +446,7 @@ async function show(key, focus) {
   box.className = 'selected';
   box.innerHTML = `<div class="sel-head"><div><h2 tabindex="-1">${esc(row ? row[2] || row[1] : '')}</h2></div>` +
     '<button type="button" class="btn" data-close>Close</button></div><div class="sel-body"></div>' +
-    `<div class="sel-go"><a class="btn btn-solid" data-open href="${esc(url.href)}">Open entry</a></div>`;
+    `<div class="sel-go"><a class="btn btn-solid" data-open href="${esc(url.href)}">Full details for ${esc(row ? row[2] || row[1] : '')}</a></div>`;
   box.querySelector('[data-close]').onclick = () => select('', true);
   readout.replaceChildren(box);
   readout.scrollTop = 0;
@@ -655,7 +655,7 @@ function listen() {
   form.addEventListener('submit', e => { e.preventDefault(); find(); });
   addEventListener('popstate', () => { read(); apply(); });
 
-  // A link to an entry opens its summary here; a modified click, or Open entry, goes to the page.
+  // A link to an entry opens its summary here; a modified click, or Full details, goes to the page.
   document.addEventListener('click', e => {
     const a = e.target.closest?.('a[href]');
     if (!a || a.hasAttribute('data-open') || a.origin !== location.origin || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;

@@ -31,6 +31,7 @@ A technical term on the surface is a bug. A surface term whose meaning changes o
 | Term | Means | Not |
 |---|---|---|
 | asteroid | one object on JPL's list of reachable near-Earth asteroids | object, body, rock (in copy) |
+| the asteroid's page | the page with everything on file for one asteroid. The readout's link to it reads "Full details for <name>" | entry, record, profile |
 | Δv | delta-v, the total change of speed for the cheapest round trip, in km/s. Spelled out as "delta-v (Δv)" once per page | delta-v, ΔV, dV, cost |
 | diameter | the asteroid's width, in m | size |
 | measured | a source on file gives a value for it | known |

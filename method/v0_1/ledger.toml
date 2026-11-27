@@ -24,7 +24,7 @@ tolerance_kind = "judgement"
 tolerance_source = "no source gives a figure. Sources that copy one measurement agree to rounding; the 16 disagreements on file differ by a factor of 1.4 or more (build/records.jsonl, 2026-11-25), so any line from 0.05 to 0.35 picks the same rows"
 # A period with no grade.
 ungraded = "counts"
-ungraded_rule = "A published period with no grade counts, whatever its source. It does not count when a graded source gives the same period with a grade under 2-. The site treats the lightcurve database's ungraded entry and JPL's copy of it alike."
+ungraded_rule = "A published period with no grade counts, whatever its source. It does not count when a graded source gives the same period with a grade under 2-. The site treats the lightcurve database's ungraded value and JPL's copy of it alike."
 ungraded_kind = "judgement"
 ungraded_source = "method/v0_1/missions.toml [rules.period] (27 list members have a period only on a literature card, with no grade). The lightcurve database's readme, section 4.1.6: a missing U usually means the period came from a source with no lightcurve to grade, such as radar"
 # A number another source gives only as a limit.
