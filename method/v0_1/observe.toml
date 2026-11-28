@@ -61,7 +61,7 @@ source = "tie order from docs/research/verify-obs-window.md section 3: 'The usef
 [rank]
 # Order of list/observe.html.
 order = ["window kind: pointable, then survey-recovery-only, then none", "year the window opens, earliest first", "gain, largest first", "window start, earliest first", "object key"]
-said = "windows a telescope can point at first, then by the year the window opens, then by how much one observation would change the verdicts"   # the order in words, for list/observe.html
+said = "windows a telescope can point at first, then by the year the window opens, then by how much one observation would change a viability"   # the order in words, for list/observe.html
 kind = "judgement"
 source = "docs/plan.md Appendix C, WP2: the ranking is 'joined to when the object can next be pointed at'. Review of 2026-11-25: by gain alone the list opened with a 2037 window and an asteroid only a survey could recover; of 1,956 ranked, 136 were survey-recovery-only and 522 had no window through 2045"
 unchecked = "When a source for the row the observation would settle was not checked, the record's observe.unchecked names it, so the entry can say to look there first: the measurement may already exist. The text does not repeat it"

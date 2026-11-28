@@ -10,9 +10,15 @@ The field file holds the columns the first screen draws with, from any source
 - period_s is the rotation period the spin row rests on, and only when the row is
   measured and its sources do not disagree; otherwise 0, and the rock does not
   turn. A body that no longer exists does not turn.
-- status_*, p_* and pct_* are this method's own verdicts: p_* for drawing,
-  pct_* the whole percentage the entry prints, for the table view. No dollar
-  figure is in the file.
+- p_<mission>, status_<mission> and pct_<mission>, three per mission type in the
+  method's order (mission_columns), are its viability: p_* for drawing, status_*
+  0 No, 1 estimated, 2 Yes, pct_* the whole percentage the entry prints, for the
+  table view. No dollar figure is in the file.
+- g_<mission>_<condition>, one per condition of each mission type in the method's
+  order (gate_columns): 255 met, 254 not met, 253 not assessed, else the whole
+  percentage of an estimated chance that it is met (0 and 100 print as <1% and
+  >99%). The manifest's missions list names each type and its conditions, so the
+  app holds no mission's name or condition.
 - named is 1 where the asteroid has a name.
 
 An object with no H has no size, so it cannot be placed in the field: it is left
@@ -38,20 +44,19 @@ from pathlib import Path
 from longshot import config
 from longshot import draws as draws_mod
 from longshot import ledger as ledger_mod
+from longshot import method as method_mod
 from longshot import shape
 from longshot.method import Method
 from longshot.types import ROWS, Fact, ObjectRecord, Row
 
 SCHEMA = 1
 # The columns the app reads, in order, and no others: anything else about an asteroid is in its record and on
-# its entry. A feature that needs more in the field should fetch a second file.
+# its entry. A feature that needs more in the field should fetch a second file. These are the ones whatever the
+# mission types; each mission type adds its own after them (field_columns(m)): its viability, then its conditions.
 COLUMNS = (
     ("dv", "f32"),
     ("size_q50", "f32"), ("size_q05", "f32"), ("size_q95", "f32"),
-    ("period_s", "f32"), ("state", "u8"),
-    ("p_surface", "u8"), ("p_capture", "u8"),
-    ("status_surface", "u8"), ("status_capture", "u8"),
-    ("pct_surface", "u8"), ("pct_capture", "u8"), ("named", "u8"),
+    ("period_s", "f32"), ("state", "u8"), ("named", "u8"),
     ("seed", "u16"),
 )
 TYPES = {"f32": ("f", 4), "u8": ("B", 1), "u16": ("H", 2), "i32": ("i", 4), "u32": ("I", 4)}
@@ -59,6 +64,7 @@ ALIGN = 4                                   # each column starts on a multiple o
 STATE_ROWS = ("size", "spin", "surface", "push")       # two bits each, size in the low bits
 STATE_CODE = {"unchecked": 0, "prior": 1, "limit": 2, "measured": 3}
 STATUS_CODE = {"fail": 0, "untested": 1, "pass": 2}
+GATE_YES, GATE_NO, GATE_NONE = 255, 254, 253    # a condition's byte; 0 to 100 is an estimated chance, in percent
 SIZE_ROWS = ("size", "surface")             # the rows whose facts go into a size
 
 
@@ -128,6 +134,43 @@ def _pct_byte(mission: dict) -> int:
     return max(1, min(99, math.floor(p * 100 + 0.5 + 1e-9)))
 
 
+def _gate_byte(gate: dict | None) -> int:
+    """One condition's byte: met, not met, not assessed, or the whole percentage of its estimated chance."""
+    if not gate:
+        return GATE_NONE
+    status = gate.get("status")
+    if status == "pass":
+        return GATE_YES
+    if status == "fail":
+        return GATE_NO
+    return _pct_byte({"status": "untested", "p": gate.get("p")})
+
+
+def mission_columns(m: Method) -> tuple:
+    """The viability columns, after COLUMNS: p_, status_ and pct_ for each mission type, in the method's order."""
+    return tuple((f"{k}_{mid}", "u8") for mid in m.missions["order"] for k in ("p", "status", "pct"))
+
+
+def field_columns(m: Method) -> tuple:
+    """Every column of the field file, in order: COLUMNS, then each mission type's viability, then its conditions."""
+    return COLUMNS + mission_columns(m) + gate_columns(m)
+
+
+def gate_columns(m: Method) -> tuple:
+    """The condition columns, after the viability ones: one per condition of each mission type, in the method's order."""
+    mis = m.missions
+    return tuple((f"g_{mid}_{g['id']}", "u8") for mid in mis["order"] for g in mis[mid]["gates"])
+
+
+def mission_list(m: Method) -> list[dict]:
+    """The manifest's missions: each type's name, summary and conditions, for the app's control and table."""
+    mis = m.missions
+    return [{"id": mid, "label": mis[mid]["label"], "summary": mis[mid].get("summary", ""),
+             "gates": [{"id": g["id"], "short": g.get("short") or g["label"], "label": g["label"],
+                        "column": f"g_{mid}_{g['id']}"} for g in mis[mid]["gates"]]}
+            for mid in mis["order"]]
+
+
 def period_s(record: ObjectRecord) -> float:
     """The rotation period the spin row rests on, in seconds, when the row is measured and its sources agree; else 0.
     The entry does not turn a rock whose sources disagree, so the field does not either."""
@@ -190,9 +233,10 @@ def measured_m(record: ObjectRecord) -> float | None:
     return float(f.value) * (1000.0 if f.unit == "km" else 1.0) if f is not None else None
 
 
-def field_row(record: ObjectRecord) -> dict | None:
-    """One object's values for every column, or None when it has no size or no delta-v to place it by. A measured
-    size is plotted at its value (size_q50), not at the middle of its draws."""
+def field_row(record: ObjectRecord, m: Method | None = None) -> dict | None:
+    """One object's values for every column (field_columns(m)), or None when it has no size or no delta-v to place it by.
+    A measured size is plotted at its value (size_q50), not at the middle of its draws."""
+    m = m or method_mod.load()
     size = _size(record)
     measured = measured_m(record) if size is not None else None
     if measured is not None:
@@ -205,26 +249,31 @@ def field_row(record: ObjectRecord) -> dict | None:
     for i, name in enumerate(STATE_ROWS):
         state |= STATE_CODE[record.rows[name].state] << (2 * i)
     missions = record.missions or {}
-    surface, capture = missions.get("surface") or {}, missions.get("capture") or {}
+    per_type = {}
+    for mid in m.missions["order"]:
+        mi = missions.get(mid) or {}
+        per_type.update({f"p_{mid}": _p_byte(mi), f"status_{mid}": STATUS_CODE.get(mi.get("status"), 1),
+                      f"pct_{mid}": _pct_byte(mi)})
+        held = {g.get("id"): g for g in mi.get("gates", [])}
+        for g in m.missions[mid]["gates"]:
+            per_type[f"g_{mid}_{g['id']}"] = _gate_byte(held.get(g["id"]))
     return {
+        **per_type,
         "dv": float(dv.value),
         "size_q50": size["q50"], "size_q05": size["q05"], "size_q95": size["q95"],
         "period_s": period_s(record),
         "state": state,
-        "p_surface": _p_byte(surface), "p_capture": _p_byte(capture),
-        "status_surface": STATUS_CODE.get(surface.get("status"), 1),
-        "status_capture": STATUS_CODE.get(capture.get("status"), 1),
-        "pct_surface": _pct_byte(surface), "pct_capture": _pct_byte(capture),
         "named": int(bool(record.name)),
         "seed": shape_seed(record.key),
     }
 
 
-def pack(columns: dict[str, list]) -> tuple[bytes, list[dict]]:
-    """{name: values} -> (bytes, [{name, type, offset}]): little-endian columns in COLUMNS order, each aligned."""
+def pack(columns: dict[str, list], spec: tuple = COLUMNS) -> tuple[bytes, list[dict]]:
+    """{name: values} -> (bytes, [{name, type, offset}]): little-endian columns in spec's order (COLUMNS, then any
+    condition columns), each aligned."""
     blob, listing = bytearray(), []
-    n = len(columns[COLUMNS[0][0]])
-    for name, kind in COLUMNS:
+    n = len(columns[spec[0][0]])
+    for name, kind in spec:
         values = columns[name]
         if len(values) != n:
             raise ValueError(f"column {name} has {len(values)} values, expected {n}")
@@ -271,23 +320,25 @@ def counts(records: list[ObjectRecord], placed: list[ObjectRecord], columns: dic
     }
 
 
-def write_field(records: list[ObjectRecord], data_dir: Path | None = None) -> dict:
+def write_field(records: list[ObjectRecord], data_dir: Path | None = None, m: Method | None = None) -> dict:
     """Write field.<hash>.bin, keys.<hash>.json and field.json into data_dir; return the manifest."""
     data_dir = Path(data_dir or config.DIST / "data")
+    m = m or method_mod.load()
+    spec = field_columns(m)
     ordered = sorted(records, key=lambda r: r.key)
-    columns = {name: [] for name, _ in COLUMNS}
+    columns = {name: [] for name, _ in spec}
     placed, keys, unplaced = [], [], []
     for r in ordered:
-        row = field_row(r)
+        row = field_row(r, m)
         name = [r.key, r.designation, r.name, r.number]
         if row is None:
             unplaced.append(name + [_dv(r)])            # no rock, but a row in the table view
             continue
         placed.append(r)
         keys.append(name)
-        for name, _ in COLUMNS:
+        for name, _ in spec:
             columns[name].append(row[name])
-    blob, listing = pack(columns)
+    blob, listing = pack(columns, spec)
     keys_bytes = json.dumps(keys, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     field_name = f"field.{hashlib.sha256(blob).hexdigest()[:12]}.bin"
     keys_name = f"keys.{hashlib.sha256(keys_bytes).hexdigest()[:12]}.json"
@@ -299,6 +350,7 @@ def write_field(records: list[ObjectRecord], data_dir: Path | None = None) -> di
         "schema": SCHEMA, "data_date": dates.pop(), "method": methods.pop(), "n": len(keys),
         "file": field_name, "columns": listing, "keys_file": keys_name,
         "counts": counts(records, placed, columns),
+        "missions": mission_list(m),
         # Not drawn (no size to place them by), but they have pages: search must still find them.
         "unplaced": unplaced,
     }

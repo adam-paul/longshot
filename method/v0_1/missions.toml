@@ -21,18 +21,18 @@ order = ["surface", "capture"]
 
 [rules]
 # How gates become a status. The same for every mission type.
-# Printed on method.html, one sentence each, in the words a visitor reads (docs/design.md section 3): a gate is a
-# condition; pass, fail and untested read as met, failed and unclear for a condition, fits, ruled out and unclear
-# for a mission.
+# In the words a visitor reads (docs/design.md section 3): a gate is a condition; pass, fail and untested read as
+# Yes, No and an estimated chance, under "Met" for a condition and "Viability" for a mission type. method.html
+# words these rules itself (longshot/site/gen.py, _rules), with the figures below.
 gate = [
   "A measurement decides a condition when it clears the line by 2 of its stated one-sigma errors, or by a factor of 2 if it states no error",
-  "Otherwise the condition is unclear. Its chance is the share of the asteroid's 2,000 joint draws of diameter, class, reflectivity, density and spin that meet it",
-  "An unclear chance is never 0 or 1. With n draws it stays between 1/n and 1 − 1/n, and prints as <1% or >99%",
+  "Otherwise the condition is estimated. Its chance is the share of the asteroid's 2,000 joint draws of diameter, class, reflectivity, density and spin that meet it",
+  "An estimated chance is never 0 or 1. With n draws it stays between 1/n and 1 − 1/n, and prints as <1% or >99%",
 ]
 mission = [
-  "A mission is ruled out if any condition fails",
-  "It fits if every condition is met",
-  "Otherwise it is unclear, with the share of joint draws that meet every condition. A condition a measurement decides is the same in every draw",
+  "Viability is No if any condition is not met",
+  "It is Yes if every condition is met",
+  "Otherwise it is estimated, as the share of joint draws that meet every condition. A condition a measurement decides is the same in every draw",
 ]
 kind = "quoted"
 source = "DESIGN.md section 3 (known pass, known fail, untested with a probability) and docs/plan.md Appendix C, WP2"
@@ -93,7 +93,7 @@ source = "AGENTS.md, traps; docs/mvp.md section 4, Row"
 
 [rules.mass]
 # The mass gate has no direct measurement for any list member but the three sampled asteroids.
-decides = "Met when a measured diameter's upper end, at 7,500 kg/m³, gives a mass under the limit. Failed when its lower end, at 900 kg/m³, gives a mass over it."
+decides = "Yes when a measured diameter's upper end, at 7,500 kg/m³, gives a mass under the limit. No when its lower end, at 900 kg/m³, gives a mass over it."
 otherwise = "untested, with p from the joint draws of density given class and reflectivity"
 density_on_file = "A bulk density on file (JPL's for the three sampled asteroids; a literature card's from radiation pressure or drift) replaces the class range in the draws, so it narrows the mass range and p. It does not decide the gate: 12 of the 15 on file come from a model of the push, not from a measured mass"
 kind = "judgement"
@@ -101,13 +101,14 @@ source = "7,500 and 900 kg/m3 are the two ends of priors.toml [density]"
 
 # ----------------------------------------------------------------------------------------------------------------
 [surface]
-label = "Surface work"
-summary = "Land on or anchor to an asteroid tens of metres or more across, and work its loose material."
+label = "Surface mining"
+summary = "Land on or anchor to an asteroid and mine its loose surface material."
 kind = "quoted"
 source = "docs/plan.md section 1.4 and section 6 (proposed mission types); DESIGN.md section 9"
 
 [[surface.gates]]
 id = "findable"
+short = "Orbit"
 label = "Orbit condition code ≤ 5"
 quantity = "occ"
 unit = "orbit condition code, 0 best to 9 worst"
@@ -126,6 +127,7 @@ caveat = "The code is one test and JPL's own pointing test is another. JPL says 
 
 [[surface.gates]]
 id = "size"
+short = "Diameter"
 label = "Diameter ≥ 30 m"
 quantity = "diameter_m"
 unit = "m"
@@ -145,6 +147,7 @@ not_used = "Karman+ wanted a rubble pile 'with a diameter measured in hundreds o
 
 [[surface.gates]]
 id = "spin"
+short = "Spin"
 label = "Spin period ≥ 2.2 h"
 quantity = "period_h"
 unit = "h"
@@ -157,7 +160,7 @@ gravitational_constant = 6.6743e-11
 kind = "judgement"
 source = "docs/research/capability.md section 2: 2.3 h at 2,000 kg/m3, 3.0 h at 1,200, 1.2 h for solid iron. docs/research/industry.md item 4: Karman+ 'uses the 2.2 h spin barrier'. 2.2 h is the formula at 2,250 kg/m3; it is chosen because every count in docs/plan.md section 1.2 and every spin prior in priors.toml is stated at 2.2 h"
 alternatives = [
-  { value = 1.0, what = "period over 1 h: Alarcon et al. 2026 for surface work, Thirouin et al. 2016 for a viable target (docs/research/industry.md item 4; docs/research/verify-coverage.md section 2.3)" },
+  { value = 1.0, what = "period over 1 h: Alarcon et al. 2026 for surface mining, Thirouin et al. 2016 for a viable target (docs/research/industry.md item 4; docs/research/verify-coverage.md section 2.3)" },
   { value = 2.2, what = "2,250 kg/m3; the spin barrier Karman+ uses" },
   { value = 2.3, what = "2,000 kg/m3, the density Karman+'s Prospector assumes for every asteroid (docs/research/verify-facts-missions.md)" },
   { value = 3.0, what = "1,200 kg/m3, an asteroid like Bennu or Ryugu (docs/research/capability.md section 2)" },
@@ -166,7 +169,7 @@ caveat = "A screening line, not a physical limit: slight cohesion lets a small a
 
 [surface.not_gated]
 delta_v = "Max Δv is a filter on the field, not a condition. JPL's figure is the cheapest round trip over all launch dates, and first missions choose by launch date (docs/research/industry.md item 2)."
-tumbling = "Karman+ ranks 'slow rotation, and not tumbling' (docs/research/industry.md item 4). The lightcurve database flags tumblers, Apophis among them, and Apophis is the company's first target. No source gives a line for how much tumbling rules an asteroid out."
+tumbling = "Karman+ ranks 'slow rotation, and not tumbling' (docs/research/industry.md item 4). The lightcurve database flags tumblers, Apophis among them, and Apophis is the company's first target. No source gives a line for how much tumbling makes an asteroid not viable."
 class = "No class is required: the first missions filter loosely on class and choose by launch date (docs/plan.md section 1.3)."
 kind = "quoted"
 source = "as given in each entry"
@@ -238,13 +241,14 @@ why = "Orbit code 0. 340 m (300 to 380, one sigma; literature card, Brozović et
 
 # ----------------------------------------------------------------------------------------------------------------
 [capture]
-label = "Whole-body capture"
-summary = "Enclose an asteroid a few metres across and move all of it."
+label = "Asteroid capture"
+summary = "Enclose a whole asteroid and move it."
 kind = "quoted"
 source = "docs/plan.md section 1.4 (last paragraph) and section 6; docs/research/capability.md section 4.3"
 
 [[capture.gates]]
 id = "findable"
+short = "Orbit"
 label = "Orbit condition code ≤ 5"
 quantity = "occ"
 unit = "orbit condition code, 0 best to 9 worst"
@@ -256,6 +260,7 @@ source = "as for surface work. The Keck study on what is known beforehand: 'only
 
 [[capture.gates]]
 id = "size"
+short = "Diameter"
 label = "Diameter ≤ 10 m"
 quantity = "diameter_m"
 unit = "m"
@@ -271,6 +276,7 @@ alternatives = [
 
 [[capture.gates]]
 id = "mass"
+short = "Mass"
 label = "Mass ≤ 1,300 t"
 quantity = "mass_t"
 unit = "t"

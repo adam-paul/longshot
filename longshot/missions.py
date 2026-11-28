@@ -14,8 +14,9 @@ A gate's text says only what its row does not: why a measurement did not
 decide. It is empty when the row says it all. A source that was not checked is
 named once, in its row on the entry; the gate rests on the estimate and does not
 name the source again. Nothing here says "not measured" of a row a source was not
-checked for. The words a visitor reads for the statuses are fits, ruled out and
-unclear (docs/design.md section 3); the record keeps pass, fail and untested.
+checked for. A visitor reads the statuses as a viability: Yes, No or an estimated chance,
+counted as viable, not viable and estimated (docs/design.md section 3); the record
+keeps pass, fail and untested.
 
     record.missions[mission] = {status, p, gates: [{id, label, status, p, basis, text}]}
 

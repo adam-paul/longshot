@@ -33,16 +33,18 @@ STATIC = ROOT / "longshot" / "site" / "static"
 GLYPH_CSS = "\n".join("  " + line for line in (STATIC / "style.css").read_text(encoding="utf-8").splitlines()
                        if line.startswith(".g"))
 
-# docs/mvp.md section 5, in order.
+# docs/mvp.md section 5, in order: the columns whatever the mission types.
 COLUMNS = (
     ("dv", "f32"),
     ("size_q50", "f32"), ("size_q05", "f32"), ("size_q95", "f32"),
-    ("period_s", "f32"), ("state", "u8"),
-    ("p_surface", "u8"), ("p_capture", "u8"),
-    ("status_surface", "u8"), ("status_capture", "u8"),
-    ("pct_surface", "u8"), ("pct_capture", "u8"), ("named", "u8"),
+    ("period_s", "f32"), ("state", "u8"), ("named", "u8"),
     ("seed", "u16"),
 )
+# Then each mission type's viability, three columns a type (export.mission_columns). The made-up field has two
+# types of its own; a real field's are in its manifest's missions.
+MISSIONS = ("surface", "capture")
+mission_columns = lambda ids: tuple((f"{k}_{mid}", "u8") for mid in ids for k in ("p", "status", "pct"))
+ALL = COLUMNS + mission_columns(MISSIONS)
 TYPES = {"f32": ("f", 4), "u8": ("B", 1), "u16": ("H", 2), "i32": ("i", 4), "u32": ("I", 4)}
 STATE_ROWS = ("size", "spin", "surface", "push")      # two bits each, size in the low bits
 UNCHECKED, PRIOR, LIMIT, MEASURED = 0, 1, 2, 3
@@ -124,7 +126,11 @@ def check(manifest_path):
         if field not in manifest:
             problems.append(f"manifest lacks {field}")
     listed = {c["name"]: c["type"] for c in manifest["columns"]}
-    for name, kind in COLUMNS:
+    # the mission types: the manifest's list, else those whose status column the file holds
+    ids = [m["id"] for m in manifest.get("missions") or []] or [c[7:] for c in listed if c.startswith("status_")]
+    if not ids:
+        problems.append("no mission type: neither a missions list nor a status_ column")
+    for name, kind in COLUMNS + mission_columns(ids):
         if listed.get(name) != kind:
             problems.append(f"column {name}: expected {kind}, manifest has {listed.get(name)}")
     spans = sorted((c["offset"], c["offset"] + n * TYPES[c["type"]][1], c["name"]) for c in manifest["columns"])
@@ -155,13 +161,11 @@ def check(manifest_path):
         problems.append("size_q05 <= size_q50 <= size_q95 does not hold in every row")
     if not all(math.isfinite(v) and v >= 0 for v in cols["period_s"]):
         problems.append("period_s must be finite and not negative")
-    for name in ("status_surface", "status_capture"):
-        if not all(v in (FAIL, UNTESTED, PASS) for v in cols[name]):
-            problems.append(f"{name} must be 0, 1 or 2")
-    for name in ("pct_surface", "pct_capture"):
-        if not all(0 <= v <= 100 for v in cols[name]):
-            problems.append(f"{name} must be 0 to 100")
-    for mission in ("surface", "capture"):
+    for mission in ids:
+        if not all(v in (FAIL, UNTESTED, PASS) for v in cols[f"status_{mission}"]):
+            problems.append(f"status_{mission} must be 0, 1 or 2")
+        if not all(0 <= v <= 100 for v in cols[f"pct_{mission}"]):
+            problems.append(f"pct_{mission} must be 0 to 100")
         decided = {(FAIL, 0), (PASS, 100)}
         if not all((s, v) in decided or s == UNTESTED for s, v in zip(cols[f"status_{mission}"], cols[f"pct_{mission}"])):
             problems.append(f"pct_{mission} must be 0 for a fail and 100 for a pass")
@@ -188,7 +192,7 @@ def synthesize(n, seed="longshot-synthetic"):
     digit added, so a search for the second meets the first before it. About one in forty is numbered.
     """
     rng = random.Random(f"{seed}:{n}")
-    cols = {name: [] for name, _ in COLUMNS}
+    cols = {name: [] for name, _ in ALL}
     keys, seen = [], set()
     short = _designation(rng, seen)
     for i in range(n):
@@ -263,7 +267,7 @@ def synthesize(n, seed="longshot-synthetic"):
         "with_period": sum(1 for p in cols["period_s"] if p > 0),
         "size_state": [sum(1 for s in cols["state"] if s & 3 == code) for code in range(4)],
     }
-    return [(name, kind, cols[name]) for name, kind in COLUMNS], keys, counts
+    return [(name, kind, cols[name]) for name, kind in ALL], keys, counts
 
 
 def unplaced(seed="longshot-synthetic", count=2):
@@ -327,7 +331,7 @@ INDEX = """<!doctype html>
 <main>
   <form id="controls" action="index.html" method="get">
     <fieldset class="ctl"><legend>View</legend><div class="seg"><label><input type="radio" name="view" value="chart" checked><span>Chart</span></label><label><input type="radio" name="view" value="table"><span>Table</span></label></div></fieldset>
-    <fieldset class="ctl"><legend>Mission</legend><div class="seg"><label><input type="radio" name="m" value="" checked><span>Any</span></label><label><input type="radio" name="m" value="surface"><span>Surface work</span></label><label><input type="radio" name="m" value="capture"><span>Whole-body capture</span></label></div></fieldset>
+    <fieldset class="ctl"><legend>Mission type</legend><div class="seg"><label><input type="radio" name="m" value="" checked><span>All</span></label><label><input type="radio" name="m" value="surface"><span>Surface mining</span></label><label><input type="radio" name="m" value="capture"><span>Asteroid capture</span></label></div></fieldset>
     <div class="ctl"><label class="lab" for="dv">Max Δv (km/s)</label><div><input id="dv" name="dv" type="range" min="3.3" max="12" step="0.1" value="12"> <output name="dv-value" for="dv">12.0</output></div></div>
     <div class="ctl"><label class="lab" for="q">Find</label><input id="q" name="q" type="search" placeholder="Designation, name or number" autocomplete="off"></div>
   </form>

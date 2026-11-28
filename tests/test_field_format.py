@@ -59,14 +59,16 @@ class FieldFormat(unittest.TestCase):
 
     def test_contract_table_is_parsed(self):
         cols = contract_columns()
-        self.assertEqual(len(cols), 14)
+        self.assertEqual(len(cols), 8)                                   # the columns whatever the mission types
         self.assertEqual(cols[0], ("dv", "f32"))
         self.assertEqual(cols[-1], ("seed", "u16"))
 
     def test_manifest_lists_every_contract_column_in_order(self):
         listed = [(c["name"], c["type"]) for c in self.manifest["columns"]]
-        self.assertEqual(listed, list(synth.COLUMNS))
-        self.assertEqual(listed, contract_columns())
+        self.assertEqual(listed, list(synth.ALL))
+        # the contract's columns, then three for each mission type (docs/mvp.md section 5)
+        self.assertEqual(listed[:len(contract_columns())], contract_columns())
+        self.assertEqual(listed[len(contract_columns()):], list(synth.mission_columns(synth.MISSIONS)))
 
     def test_manifest_fields(self):
         m = self.manifest
@@ -80,7 +82,7 @@ class FieldFormat(unittest.TestCase):
         manifest, cols, keys = synth.read_field(self.path)
         self.assertEqual(manifest, self.manifest)
         self.assertEqual(keys, self.keys)
-        self.assertEqual(set(cols), {name for name, _ in synth.COLUMNS})
+        self.assertEqual(set(cols), {name for name, _ in synth.ALL})
         for name, kind, values in self.columns:
             want = [f32(v) for v in values] if kind == "f32" else values
             self.assertEqual(cols[name], want, name)
@@ -111,7 +113,7 @@ class FieldFormat(unittest.TestCase):
             self.assertEqual(c["offset"], offset, c["name"])
             offset += n * SIZES[c["type"]]
         self.assertEqual(len(blob), offset)
-        self.assertEqual(offset, n * sum(SIZES[kind] for _, kind in synth.COLUMNS))
+        self.assertEqual(offset, n * sum(SIZES[kind] for _, kind in synth.ALL))
         # With an odd n, a one-byte column first and one after seed, every wider column starts off its boundary
         # (seed too: seven one-byte columns come before it); the reader must not care.
         odd = sorted(((name, kind, values[:7]) for name, kind, values in self.columns),
@@ -119,7 +121,7 @@ class FieldFormat(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             synth.write_field(tmp, odd, self.keys[:7], "2026-11-24", "synthetic", align=1)
             manifest, cols, _ = synth.read_field(Path(tmp) / "field.json")
-            self.assertEqual(set(synth.unaligned(manifest)), {name for name, kind in synth.COLUMNS if kind != "u8"})
+            self.assertEqual(set(synth.unaligned(manifest)), {name for name, kind in synth.ALL if kind != "u8"})
             self.assertEqual(cols["seed"], dict((n, v) for n, _, v in odd)["seed"])
             self.assertEqual(synth.check(Path(tmp) / "field.json"), [])
         self.assertEqual(synth.unaligned(self.manifest), [])
@@ -297,7 +299,8 @@ class Scripts(unittest.TestCase):
     """The app reads columns by name from the manifest; these catch a name the contract does not have."""
 
     def test_columns_the_scripts_ask_for_are_in_the_contract(self):
-        names = {name for name, _ in contract_columns()}
+        # the contract's columns, and each mission type's three (here the made-up field's two types)
+        names = {name for name, _ in contract_columns()} | {name for name, _ in synth.mission_columns(synth.MISSIONS)}
         app, field = (STATIC / "app.js").read_text(), (STATIC / "field.js").read_text()
         asked = set(re.findall(r"\bcols\.([a-z0-9_]+)", app + field)) - {"mask", "ly"}      # the app's own two
         asked |= set(re.findall(r"a_[a-z]+: '([a-z0-9_]+)'", field)) - {"mask", "ly", "status_", "p_"}
@@ -322,15 +325,17 @@ class Scripts(unittest.TestCase):
         self.assertNotIn("90% range, measured", app)
 
     def test_two_states_on_the_surface(self):
-        """docs/design.md section 3: the front page says measured or estimated, and a mission's verdict is fits,
-        ruled out or unclear. A size not checked is an estimate there; it is never called "not measured"."""
+        """docs/design.md section 3: the front page says measured or estimated, and a mission type's viability is
+        Yes, No or a chance. A size not checked is an estimate there; it is never called "not measured"."""
         app = (STATIC / "app.js").read_text()
         words = re.findall(r"'([^'\n]*)'|`([^`]*)`", app)
         text = " ".join(a or b for a, b in words)
         for gone in ("Not measured", "not measured", "Not checked", "Limit only", "No size", "Untested", "Pass", "Fail",
                      "under 1%", "over 99%", "Delta-v", "Plotted", "Listed", "Size, ", "brighter if likelier"):
             self.assertNotIn(gone, text, gone)
-        self.assertIn("const VERDICT = ['ruled out', 'unclear', 'fits'];", app)
+        self.assertIn("const VIABILITY = 'Mission viability', YES = 'Yes', NO = 'No';", app)
+        for gone in ("VERDICT", "Fits", "Ruled out", "unclear", "chance it fits"):      # docs/design.md section 3: viability
+            self.assertNotIn(gone, text, gone)
         self.assertIn("const X_TITLE = 'Δv, cheapest round trip (km/s)', Y_TITLE = 'Diameter (m)';", app)
         self.assertNotIn("E.zoom", app)                                          # no zoom factor
         self.assertNotIn("E.count", app)                                         # the count is in the legend line
@@ -353,7 +358,11 @@ class Scripts(unittest.TestCase):
         self.assertIn("half: 0xa8 / 255,", field)
         self.assertIn("dim: 0.16,", field)
         self.assertEqual(sorted(set(re.findall(r"\bb = ([^;,]+)[;,]", shader))), ["${f(MARK.half)}", "-1.", "1."])
-        self.assertIn("if (fits) lw = ${f(MARK.fitsLine)};", shader)
+        # viable: filled, never a heavier line (docs/design.md section 4: fill means viable, nothing else)
+        self.assertIn("bool fill = fits && (u_o == 0 || u_o == 3);", shader)
+        self.assertIn("if (fill && side > 0.) { q = vec2(0.); v_d = R * px * length(e.xy); }", shader)
+        self.assertIn("v_s = vec4(b, fill ? duty + 2. : duty, hw, glow ? hg : 0.);", shader)   # a bound stays dashed
+        self.assertNotIn("fitsLine", shader)
 
     def test_every_rock_in_one_instanced_draw(self):
         field = (STATIC / "field.js").read_text()
@@ -384,7 +393,10 @@ class Scripts(unittest.TestCase):
         """Chances are printed from the file's bytes: no arithmetic on p_* beyond reading it."""
         app = (STATIC / "app.js").read_text()
         self.assertEqual(re.findall(r"cols\['p_' \+ m\]\[r\][^;]*", app), ["cols['p_' + m][r] / 255 : NaN"])   # for sorting only
-        self.assertIn("const p = cols['pct_' + m][r]; return p <= 0 ? '<1%' : p >= 100 ? '>99%' : p + '%';", app)
+        self.assertIn("const pctText = p => p <= 0 ? '<1%' : p >= 100 ? '>99%' : p + '%';", app)
+        self.assertIn("pctText(cols['pct_' + m][r])", app)
+        # a condition's chance is its byte, printed as it is (export.py, gate columns)
+        self.assertIn("const gateText = v => v === 255 ? YES : v === 254 ? NO : v === 253 ? '' : pctText(v);", app)
 
 
 if __name__ == "__main__":

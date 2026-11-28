@@ -71,7 +71,7 @@ published_bar_source = "a period over 1 hour 'considered viable for surface oper
 published_bar_note = "a period over 1 h is 'considered viable for surface operations' (Thirouin et al. 2016, quoted by Alarcon et al. 2026, arXiv:2605.04784)"
 screening_line_h = 2.2
 screening_line_source = "docs/plan.md 1.2: 'a screening line for surface work, not a physical limit'"
-screening_line_note = "the condition for surface work: a screening line, not a physical limit"
+screening_line_note = "the condition for surface mining: a screening line, not a physical limit"
 
 # ---------------------------------------------------------------------------
 # The record of what has flown. Each fact carries as_of, source and recheck.

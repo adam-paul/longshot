@@ -90,7 +90,7 @@ def best(record: ObjectRecord, m: Method) -> dict | None:
         return None
     missions = record.missions or {}
     top = None
-    # Ties go to the lightcurve, then to surface work: observe.toml [choice].tie.
+    # Ties go to the lightcurve, then to the mission types in missions.toml's order: observe.toml [choice].tie.
     for obs in m.observe["observations"]:
         for mission in m.missions["order"]:
             mi = missions.get(mission)

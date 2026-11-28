@@ -8,9 +8,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from longshot import method as _method
+
 ROWS = ("reach", "tracking", "size", "spin", "surface", "push")
 STATES = ("measured", "limit", "prior", "unchecked")
-MISSIONS = ("surface", "capture")
+MISSIONS = tuple(_method.load().missions["order"])   # the mission types, as method/v0_1/missions.toml orders them
 LADDER = ("found_again", "reached", "workable", "anything_in_it", "brought_back")
 
 

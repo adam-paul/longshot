@@ -88,15 +88,14 @@ time, .nb { white-space: nowrap; }
 /* ---------- marks: one set on every page ---------- */
 /* Each mark is one empty element with its outline as a background, so a page that lists thousands carries a
    class name per mark. Measured: a white rock outline with the glow. A bound: the outline dashed. Estimated: a dot
-   at half brightness; zoomed, a half-bright outline. Fits: a heavy outline. Ruled out: a cross. */
+   at half brightness; zoomed, a half-bright outline. Viable, with a mission type chosen: the rock filled. */
 .g { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; flex: none; background: center / 100% 100% no-repeat; }
 .g-measured { filter: var(--glow); }
 .g-measured { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='none' stroke-linejoin='round' stroke='%23fff' stroke-width='1.7'/%3E%3C/svg%3E"); }
 .g-limit { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='none' stroke-linejoin='round' stroke='%23fff' stroke-width='1.7' stroke-dasharray='2.8 2.3'/%3E%3C/svg%3E"); }
 .g-prior { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Ccircle r='2.6' fill='%23a8a8a8'/%3E%3C/svg%3E"); }
 .g-priorz { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='none' stroke-linejoin='round' stroke='%23a8a8a8' stroke-width='1.4'/%3E%3C/svg%3E"); }
-.g-pass { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='none' stroke-linejoin='round' stroke='%23fff' stroke-width='2.7'/%3E%3C/svg%3E"); }
-.g-fail { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpath d='M-4 -4L4 4M4 -4L-4 4' fill='none' stroke='%23a8a8a8' stroke-width='1.8'/%3E%3C/svg%3E"); }
+.g-pass { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='%23fff' stroke-linejoin='round' stroke='%23fff' stroke-width='1.7'/%3E%3C/svg%3E"); }   /* viable: the rock filled */
 .st { display: inline-flex; align-items: center; white-space: nowrap; font: var(--t-label); }
 
 /* ---------- buttons and inputs ---------- */
@@ -151,18 +150,38 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .fig-head { display: flex; align-items: center; gap: var(--s3) var(--s5); flex-wrap: wrap; margin-bottom: var(--s3); min-height: 32px; }
 /* the line above the chart: labels grey, counts white */
 .legend { flex: 1; min-width: 0; }
-.legend ul { display: flex; gap: var(--s2) var(--s5); flex-wrap: wrap; font: var(--t-label); color: var(--ink-2); }
-.legend li { display: flex; align-items: center; white-space: nowrap; }
+/* The key: the total, then a row per thing the marks say, its grey label in a column of its own and its items
+   beside it, so an item that wraps stays under its row. Every row is always there and every count keeps one width
+   (as wide as 7,231), so the legend has one height in every state and the chart below it never moves. */
+.legend ul { font: var(--t-label); color: var(--ink-2); }
+.legend > ul { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s2) var(--s5); }
+.legend li.tot { grid-column: 1 / -1; }                 /* "397 of 7,231 reachable asteroids": a phrase, spaced as text */
+.legend li.row { display: contents; }
+.legend ul.items { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); }
+.legend li.c { display: flex; align-items: center; white-space: nowrap; }
 .legend .n { color: var(--ink); margin-left: 6px; }
-.legend li.tot { display: block; }                    /* "397 of 7,231 reachable asteroids": a phrase, spaced as text */
 .legend li.tot .n { margin: 0; }
+.legend li.c .n { display: inline-block; min-width: 5ch; font-variant-numeric: tabular-nums; }
+.legend li[data-k="loose"] .n { min-width: 0; }         /* "No brightness 6 (not drawn)": one digit, read as a phrase */
+.legend .aft { margin-left: 6px; }
+.legend[data-m="0"] li.row.v { visibility: hidden; }    /* with All the viability row keeps its place, so the chart keeps its height */
+/* wide: the items in columns too, lined up across the rows, and the zoom buttons beside the total; from 1280 px,
+   where the four columns (774 px) fit beside the readout */
+@media (min-width: 1280px) {
+  .fig-head { position: relative; }
+  .fig-head .zoom { position: absolute; top: 0; right: 0; }
+  .legend > ul { grid-template-columns: repeat(4, max-content); }
+  .legend ul.items { display: contents; }
+  .legend li.tot { padding: 6px 0; }                     /* as tall as the zoom buttons beside it */
+}
 .zoom { display: flex; align-items: center; gap: var(--s2); margin-left: auto; }
 .zoom .btn { height: 32px; }
 .plot { position: relative; flex: 1; min-height: 0; margin: 0; touch-action: pan-y; }
 .plot canvas, .plot .grid { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .plot canvas { cursor: crosshair; }
 .plot canvas.grab { cursor: grabbing; }
-.plot canvas:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.plot canvas:focus-visible { outline: none; }        /* Escape hands the focus back to the chart; the ring shows only when Tab brought it (app.js adds .tabbed) */
+.plot canvas.tabbed:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .plot-note, .noscript-fig { border: 1px solid var(--edge); padding: var(--s5); color: var(--ink-2); font: var(--t-label); }
 
 /* the axes overlay, drawn by the app as HTML: tick labels small, axis titles a label, the Max Δv label, all grey;
@@ -182,7 +201,10 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .ftbl { width: 100%; font: var(--t-label); }
 .ftbl th, .ftbl td { padding: 6px var(--s3); height: 33px; text-align: left; vertical-align: baseline; white-space: nowrap; }
 .ftbl th:first-child, .ftbl td:first-child { padding-left: 0; }
-.ftbl thead th { color: var(--ink-2); vertical-align: bottom; border-bottom: 1px solid var(--edge); padding-top: var(--s2); padding-bottom: var(--s2); position: sticky; top: 0; background: var(--ground); z-index: 1; }
+.ftbl thead { position: sticky; top: 0; background: var(--ground); z-index: 1; }   /* both header rows stay, as one */
+.ftbl thead th { color: var(--ink-2); vertical-align: bottom; border-bottom: 1px solid var(--edge); padding-top: var(--s2); padding-bottom: var(--s2); background: var(--ground); }
+.ftbl thead th.grp { color: var(--ink-2); padding-bottom: 2px; height: auto; }   /* "Mission viability" over its columns: the rule under it spans them */
+.ftbl th.vcol, .ftbl td.mis { text-align: right; }
 .ftbl thead th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
 .ftbl thead th button:hover { text-decoration: underline; text-decoration-color: var(--edge); text-underline-offset: 3px; }
 .ftbl thead th[aria-sort] button::after { content: ""; display: inline-block; width: 0; height: 0; margin-left: 6px; border: 4px solid transparent; vertical-align: 1px; }
@@ -193,12 +215,9 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .ftbl tbody tr:hover > *, .ftbl tbody tr.sel > * { background: var(--grid); }
 .ftbl tbody tr.sel > :first-child { border-left: 2px solid var(--ink); }
 .ftbl .nm { margin-left: var(--s2); }
-.ftbl .mc { display: inline-flex; align-items: baseline; gap: var(--s3); }
-.ftbl .mc .vd { min-width: 88px; }
-.ftbl .mc .ch { min-width: 11ch; text-align: right; }    /* ">99% chance": the widest, so the verdicts line up */
-@media (min-width: 900px) and (max-width: 1339px) {
-  .ftbl .mc { flex-direction: column; gap: 0; } .ftbl .mc .vd { min-width: 0; }   /* the chance under its verdict */
-}
+.ftbl .vc { display: inline-flex; align-items: baseline; gap: 6px; }   /* Yes, No, or a chance with the estimate's dot */
+.ftbl .vc .g { align-self: center; margin-right: 0; }
+.ftbl td.mis { min-width: 9ch; }
 .ftbl td.meas { white-space: normal; min-width: 9ch; }
 .ftbl .szc { min-width: 128px; }
 .ftbl .sz { display: inline-flex; align-items: baseline; gap: 6px; }
@@ -327,10 +346,11 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .kv dt { color: var(--ink-2); }
 .kv dd { padding-left: var(--s4); }
 .missions { display: grid; gap: var(--s6); }
-.mission .verdict { display: flex; align-items: baseline; margin: var(--s1) 0 var(--s3); font: var(--t-body); flex-wrap: wrap; }
+.mission .verdict { display: flex; align-items: baseline; gap: var(--s2); margin: var(--s1) 0 var(--s3); font: var(--t-body); flex-wrap: wrap; }
+.mission .verdict .k { color: var(--ink-2); font: var(--t-label); }
 .mission .verdict .g { align-self: center; }
 .gates { table-layout: fixed; }
-.gates .g1 { width: 40%; } .gates .g2 { width: 18%; } .gates .g3 { width: 18%; } .gates .g4 { width: 24%; }
+.gates .g1 { width: 50%; } .gates .g2 { width: 18%; } .gates .g4 { width: 32%; }
 .gtext { font: var(--t-small); color: var(--ink-2); margin-top: 2px; }
 .gtext.t { font: var(--t-prose); color: var(--ink); margin-top: var(--s1); }    /* a note in sentences under a condition */
 
@@ -394,12 +414,17 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
   .ctl.dv { flex-direction: row; align-items: center; gap: var(--s3); }
   .ctl.dv .dvrow { flex: 1; }
   .ctl.mission .seg label { flex: 1 1 auto; } .ctl.mission .seg span { text-align: center; padding: 6px 10px; }
+  /* more mission types than fit one row: the segments wrap, each keeping all four borders, the shared ones overlapped */
+  .ctl.mission .seg { flex-wrap: wrap; padding: 1px 0 0 1px; }
+  .ctl.mission .seg span, .ctl.mission .seg label + label span { border-left: 1px solid var(--edge); margin: -1px 0 0 -1px; }
+  .ctl.mission .seg input:checked + span { position: relative; border-color: var(--ink); }
   .dvrow input[type="range"] { flex: 1; width: auto; }
   input[type="search"] { width: 100%; }
   .fig { padding: var(--s3) var(--gutter) var(--s2); }
   .plot { flex: none; height: 460px; }
   .legend { flex: 1 1 100%; order: 2; }
-  .legend ul { gap: var(--s2) var(--s4); }
+  .legend > ul { grid-template-columns: minmax(0, 1fr); }   /* a phone: each label above its items */
+  .legend > ul, .legend ul.items { gap: var(--s2) var(--s4); }
   .zoom { order: 1; }
   .fig-head { gap: var(--s2) var(--s3); }
   .tview { flex: none; }
@@ -515,7 +540,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
   .ltbl.obs td:nth-child(3)::before { content: "Δv (km/s)"; }
   .ltbl.obs td:nth-child(4)::before { content: "Diameter (m)"; }
   .ltbl.obs td:nth-child(5)::before { content: "Measure"; }
-  .ltbl.obs td:nth-child(6)::before { content: "Mission"; }
+  .ltbl.obs td:nth-child(6)::before { content: "Mission type"; }
   .ltbl.obs td:nth-child(7)::before { content: "Condition"; }
   .ltbl.obs td:nth-child(8)::before { content: "Telescope"; }
   .ltbl.obs td:nth-child(9)::before { content: "Window opens"; }

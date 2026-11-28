@@ -97,6 +97,35 @@ Reference, not a target (he said "a bit" and "better designed"). The claudestron
 
 So a mission name appears once, as the filter, and an asteroid's own mission status appears only under its "Missions" heading.
 
+**Decided on 2026-11-27: mission viability** (Linear CAP-29). Three first-time readers took "Mission" for missions that had flown, and "unclear, >99% chance" for a contradiction.
+
+> I don't understand what "verdict" even means in this context.
+
+> Any way we could do something like "Mission Viability" as a parent header and then have each mission as a subheader or something? Then Yes/No and % estimates would be immediately clear what they are.
+
+> definitely the viable/not viable/estimated text makes sense here. Very clear.
+
+> it certainly makes sense on the chart -- hiding/showing the relevant asteroids directly.
+
+- The two mission types are **Surface mining** and **Asteroid capture** (his choice of four shortlisted pairs). The control is "Mission type: All, Surface mining, Asteroid capture".
+- An asteroid's result for a mission type is its **viability**: Yes, No, or an estimated chance. Its heading is "Mission viability", in the table, the readout and the entry. The legend counts Viable, Estimated and Not viable. "Verdict", "fits", "ruled out", "unclear" and "chance it fits" leave the site.
+- The mission type stays a filter in both views, for mission types still to come. In the table, choosing one opens its group into its conditions.
+
+> I still feel like "All" would be better, since we are showing all asteroids. None makes it seem subtractive, but it's additive.
+
+> there is judder when switching -- the chart expands or collapses according to the vertical height of the header [...] I would rather this be consistent regardless.
+
+- The first segment is **All**. The legend's viability line keeps its place with All, unseen, so switching never moves the chart.
+
+> What is measured? Like literally what is being measured? And what is estimated/being estimated? And what is the relevance of not having brightness on file?
+
+> In the chart view, when a specific mission is selected, the same asteroid icon is next to "Viable" as is next to "measured". [...] one of them is therefore incorrect.
+
+> excellent recommendations. I agree with both.
+
+- The legend is a key of three lines: the total; **Diameter**: Measured, Estimated from brightness, No brightness (not drawn); **Mission viability**: Viable, Estimated, Not viable.
+- A viable asteroid is **filled** in the chart, with the same filled rock beside Viable. Fill means viable and nothing else; the heavier line is gone.
+
 ## 5. Copy
 
 > I don't want extraneous text, or excessive subtitles the way Claude sites are wont to include. Just clear detail and info where it's relevant and valuable.

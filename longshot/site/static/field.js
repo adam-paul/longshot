@@ -8,9 +8,10 @@
 // section 4), from the size row alone:
 //   measured            white rock outline with a faint glow; a bound, dashed and without glow
 //   estimated           a dot at half brightness; from ZOUT zoom, an outline at half brightness
-//   with a mission:     an asteroid that fits keeps its mark with a heavier line (an estimated one
-//                       as an outline); the app takes the ruled-out ones out of the filter
-// A rock the filter leaves out (over Max Δv, not matching the search, ruled out by the mission)
+//   with a mission type: a viable asteroid is filled, its outline, glow and line style kept (an estimated
+//                       one as a filled outline); fill means viable, nothing else. The app takes the not
+//                       viable out of the filter
+// A rock the filter leaves out (over Max Δv, not matching the search, not viable for the mission type)
 // is faint: drawn at 0.16 of its brightness and without glow, and it cannot be picked.
 // No chance is drawn: brightness is the state of the size row, or faint.
 
@@ -42,7 +43,6 @@ const SQUASH = [1, 0.82, 0.9, 0.74, 0.95, 0.7, 0.86, 0.78];   // each shape's wi
 // Three brightness levels: 1 measured, HALF estimated, and DIM times either for a rock outside the filter.
 export const MARK = {
   rock: 4.6, line: 1.25,            // measured, or a bound
-  fitsLine: 2.2,                    // with a mission: an asteroid that fits
   out: 3.8, outLine: 1,             // estimated, zoomed in
   dot: 1.25,                        // estimated, overview
   half: 0xa8 / 255,                 // estimated: the apparatus grey, #a8a8a8
@@ -107,10 +107,10 @@ void main() {
     if (zoomed || fits || u_o >= 2) { R = ${f(MARK.out)}; lw = ${f(MARK.outLine)}; }
     else { form = 0; R = ${f(MARK.dot)}; }
   }
-  if (fits) lw = ${f(MARK.fitsLine)};
+  bool fill = fits && (u_o == 0 || u_o == 3);            // viable: filled, the selected one's outline too
   if (u_o == 0 && a_mask == 0u) { b *= ${f(MARK.dim)}; glow = false; }
   if (u_o == 1) { form = 2; R = ${f(MARK.hover)}; lw = 1.; b = 1.; glow = false; }
-  if (u_o >= 2) { form = 1; R = ${f(MARK.sel)}; lw = fits ? ${f(MARK.fitsLine)} : ${f(MARK.line)}; }
+  if (u_o >= 2) { form = 1; R = ${f(MARK.sel)}; lw = ${f(MARK.line)}; }
   if (u_o == 2) { form = 0; b = -1.; }
   R *= u_k.w;                                            // marks grow as the view zooms in
   if (size == 2u && (u_o == 0 || u_o == 3)) { duty = .55; dashes = max(3., floor(TAU * R / 4.5)); }   // a bound: dashed
@@ -137,6 +137,10 @@ void main() {
   } else {
     q = R * px * e.xy + side * out_ * e.zw;
     v_d = side * out_;
+    // a fill: the ribbon's inner edge (side +1: the step zw points in) at the centre, at the outline's own distance
+    // from it, so the line and its glow sit where they do unfilled; the fragment shader lights everything inside
+    // the line (duty + 2 says so), and a bound's dashes stay on the line itself
+    if (fill && side > 0.) { q = vec2(0.); v_d = R * px * length(e.xy); }
   }
   if (rock) {
     float turn = float((a_seed >> 8) & 255u) / 256. + (a_period > 0. ? fract(u_k.y / a_period) : 0.);
@@ -146,7 +150,7 @@ void main() {
   vec2 at = u_box.xy + vec2((a_dv - u_map.x) * u_map.z, (a_ly - u_map.y) * u_map.w);
   gl_Position = vec4((at + q) / u_box.zw * 2. - 1., 0., 1.);
   v_t = float(i) / float(K) * dashes;
-  v_s = vec4(b, duty, hw, glow ? hg : 0.);
+  v_s = vec4(b, fill ? duty + 2. : duty, hw, glow ? hg : 0.);
 }`;
 
 // The glow is a wider band of the same ribbon whose brightness falls from HALO_IN beside the line
@@ -160,8 +164,11 @@ flat in vec4 v_s;
 out vec4 o;
 void main() {
   if (v_s.x < 0.) { o = vec4(0., 0., 0., 1.); return; }
-  if (fract(v_t) > v_s.y) discard;
-  float d = abs(v_d), v = clamp(v_s.z + .5 - d, 0., 1.);
+  bool fl = v_s.y > 1.5;                                 // a viable rock's fill
+  // a bound's dashes cut the line, never the fill inside it; and the fill is lit from the line's centre inwards,
+  // so it meets the line with no seam
+  if (!(fl && v_d > v_s.z + .5) && fract(v_t) > (fl ? v_s.y - 2. : v_s.y)) discard;
+  float d = fl && v_d > 0. ? 0. : abs(v_d), v = clamp(v_s.z + .5 - d, 0., 1.);
   if (v_s.w > 0.) v = max(v, mix(${f(HALO_IN)}, ${f(HALO_OUT)}, clamp((d - v_s.z) / max(v_s.w - v_s.z, 1.), 0., 1.)) * clamp(v_s.w + .5 - d, 0., 1.));
   o = vec4(v_s.x * v);                                   // premultiplied white
 }`;
@@ -237,7 +244,7 @@ export class Field {
   sy(i) { return this.py(this.ly[i]); }
   inBox(x, y, pad = 0) { const M = this.M; return x >= M.l - pad && x <= this.w - M.r + pad && y >= M.t - pad && y <= this.h - M.b + pad; }
 
-  // Rock i's mark as the vertex shader draws it: [form (0 dot, 1 outline), radius px].
+  // Rock i's mark as the vertex shader draws it: [form (0 dot, 1 outline or a viable one's fill), radius px].
   mark(i) {
     const c = this.cols, fits = !!this.mission && c['status_' + this.mission][i] === 2;
     const s = this.s;

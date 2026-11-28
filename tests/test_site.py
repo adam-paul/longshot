@@ -21,8 +21,8 @@ from tests import sample_records as sample
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 CSS = (Path(gen.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
-SUMMARY_LABELS = ["Diameter", "Spin", "Composition", "Mass", "Δv", "Surface work", "Whole-body capture", "Best next observation"]
-SUMMARY_GROUPS = ["Missions"]       # headings in the summary list: one row, a single cell
+SUMMARY_LABELS = ["Diameter", "Spin", "Composition", "Mass", "Δv", "Surface mining", "Asteroid capture", "Best next observation"]
+SUMMARY_GROUPS = ["Mission viability"]       # headings in the summary list: one row, a single cell
 
 
 class Node:
@@ -305,7 +305,7 @@ class SiteTest(unittest.TestCase):
         self.assertIn("checked", form.find("input", name="view", value="chart")[0].attrs)
         self.assertIn("checked", form.find("input", name="m", value="")[0].attrs)
         self.assertEqual([s.text() for s in form.find("span") if s.parent.tag == "label"],
-                         ["Chart", "Table", "Any", "Surface work", "Whole-body capture"])
+                         ["Chart", "Table", "All", "Surface mining", "Asteroid capture"])
         (dv,) = form.find("input", name="dv")
         # the slider spans the data's own delta-v, to a tenth: nothing typed into the generator
         dvs = [t.delta_v(dataclasses.asdict(r)) for r in sample.RECORDS]
@@ -363,7 +363,7 @@ class SiteTest(unittest.TestCase):
         """One line: the count shown, the two marks with theirs, then those with no rock. A bound is a measurement
         and a row not checked is an estimate, so the line has two states (docs/design.md section 3)."""
         legend = self.trees["index.html"].root.find("div", id="legend")[0]
-        counts = {li.attrs["data-k"]: int(li.find("span", cls="n")[0].text()) for li in legend.find("li")}
+        counts = {li.attrs["data-k"]: int(li.find("span", cls="n")[0].text()) for li in legend.find("li") if "data-k" in li.attrs}
         drawn = [r for r in sample.RECORDS if t.placed(dataclasses.asdict(r))]
         self.assertEqual(list(counts), ["shown", "measured", "estimated", "loose"])
         self.assertEqual(counts["shown"], len(drawn))
@@ -372,13 +372,22 @@ class SiteTest(unittest.TestCase):
         self.assertLessEqual(counts["measured"], sum(1 for r in drawn if r.rows["size"].state in ("measured", "limit")))
         self.assertEqual(counts["measured"] + counts["estimated"], counts["shown"])
         self.assertEqual(counts["loose"], len(sample.RECORDS) - len(drawn))
-        words = [li.text(gap=" ").split() for li in legend.find("li")]
-        # the shown count first, of every reachable asteroid, so the numbers close; then each mark's words and count
-        self.assertEqual([" ".join(w) for w in words], [f"{len(drawn)} of {len(sample.RECORDS)} reachable asteroids",
-                         f"Measured {counts['measured']}", f"Estimated (median) {counts['estimated']}",
-                         "No brightness on file 1"])
+        # the shown count first, of every reachable asteroid, so the numbers close; then the Diameter row: its label,
+        # then each mark's words and count
+        rows = legend.find("li", cls="row")
+        diameter, viability = rows
+        self.assertEqual(legend.find("li", cls="tot")[0].text(gap=" ").split(),
+                         f"{len(drawn)} of {len(sample.RECORDS)} reachable asteroids".split())
+        self.assertEqual(diameter.find("span", cls="lab")[0].text(), "Diameter")
+        self.assertEqual([" ".join(li.text(gap=" ").split()) for li in diameter.find("li", cls="c")],
+                         [f"Measured {counts['measured']}", f"Estimated from brightness {counts['estimated']}", "No brightness 1 (not drawn)"])
         # the two marks the field and the entries use, and no other
-        self.assertEqual({sorted(s.classes - {"g"})[0] for s in legend.find("i", cls="g")}, {"g-prior", "g-measured"})
+        self.assertEqual({sorted(s.classes - {"g"})[0] for s in diameter.find("i", cls="g")}, {"g-prior", "g-measured"})
+        # the viability row is there before a mission type is chosen, unseen and unread, so the chart keeps its height
+        self.assertEqual(viability.find("span", cls="lab")[0].text(), "Mission viability")
+        self.assertEqual([li.text() for li in viability.find("li", cls="c")], ["Viable", "Estimated", "Not viable"])
+        self.assertEqual([viability.find(tag)[0].attrs.get("aria-hidden") for tag in ("span", "ul")], ["true", "true"])
+        self.assertFalse(any("data-k" in li.attrs for li in viability.find("li", cls="c")))
 
     def test_readout_lists_only_the_named(self):
         """The readout's default is the named asteroids with their Δv: no typical example, no counts table
@@ -439,7 +448,7 @@ class SiteTest(unittest.TestCase):
             # the price tag is named for what it holds; with no observation ranked there is no section to repeat that
             self.assertEqual([a.text() for a in main.find("nav", cls="toc")[0].find("a")],
                              ["Data", "Difficulty", t.value_title(dataclasses.asdict(r))]
-                             + (["Best next observation"] if r.observe else []) + ["Missions", "Sources"])
+                             + (["Best next observation"] if r.observe else []) + ["Mission viability", "Sources"])
             for a in main.find("nav", cls="toc")[0].find("a"):
                 self.assertEqual(len(main.find(id=a.attrs["href"][1:])), 1)
             # links inside the liftable element: its own anchors, the outside world, and the method page,
@@ -477,15 +486,18 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(a["Spin"][1].text(), "time for one turn, Ondřejov photometry table")
         self.assertEqual(a["Δv"][0].text(), "4.620 km/s")
         self.assertEqual(a["Δv"][1].text(), "354 d round trip")
-        # a verdict is the value: the word with its mark, an unclear one's chance beside it, and no state column
-        self.assertEqual([a["Whole-body capture"][i].text() for i in range(3)], ["Unclear", "41% chance it fits", ""])
-        self.assertEqual((a["Surface work"][0].text(), a["Surface work"][2].text()), ("Ruled out", ""))
-        self.assertEqual(len(a["Surface work"][0].find("i", cls="g-fail")), 1)
-        self.assertEqual(a["Surface work"][1].text(), "needs diameter ≥ 40 m and spin period ≥ 2.2 h")
+        # a viability is a value with its state: a chance is estimated, and says which conditions are still open;
+        # No is measured, and says which conditions a measurement fails
+        capture = [a["Asteroid capture"][i].text() for i in range(3)]
+        self.assertEqual((capture[0], capture[2]), ("41%", "Estimated"))
+        self.assertTrue(capture[1].startswith("needs "), capture[1])
+        self.assertEqual((a["Surface mining"][0].text(), a["Surface mining"][2].text()), ("No", "Measured"))
+        self.assertEqual(len(a["Surface mining"][2].find("i", cls="g-measured")), 1)
+        self.assertEqual(a["Surface mining"][1].text(), "needs diameter ≥ 40 m and spin period ≥ 2.2 h")
         self.assertEqual(a["Best next observation"][0].text(), plain_observation("size"))     # its plain name on the surface
         self.assertIn("window 2027-02-10 to 2027-04-02", a["Best next observation"][1].text())
-        self.assertEqual(self.summary("s0000005")["Surface work"][0].text(), "Fits")
-        self.assertEqual(len(self.summary("s0000005")["Surface work"][0].find("i", cls="g-pass")), 1)
+        yes = self.summary("s0000005")["Surface mining"]
+        self.assertEqual([yes[i].text() for i in range(3)], ["Yes", "", "Measured"])
         self.assertEqual(self.summary("s0000005")["Composition"][0].text(), "Carbon-rich")
         self.assertEqual(self.summary("s0000002")["Diameter"][1].text(), "50–85 m (±1σ), SsODNet")
         self.assertEqual(self.summary("s0000003")["Diameter"][0].text(), "≤ 200 m")          # a bound, measured
@@ -507,7 +519,7 @@ class SiteTest(unittest.TestCase):
         (spin,) = [i for i in t.summary_items(one, srcs()) if i[0] == "Spin"]
         self.assertEqual(tuple(re.sub(r"<[^>]+>", "", x) for x in spin[1:3]), ("2.02 h or 72.72 s", "time for one turn; sources disagree"))
         # the missions' verdicts are said once, under Missions: here only why nothing is ranked
-        self.assertEqual(self.summary("s0000005")["Best next observation"][1].text(), "both verdicts rest on measurements")
+        self.assertEqual(self.summary("s0000005")["Best next observation"][1].text(), "viability rests on measurements for every mission type")
         # no brightness: nothing to estimate from, and no state is claimed
         f = self.summary("s0000006")
         self.assertEqual([f["Diameter"][i].text() for i in range(3)], ["None", "no brightness on file", ""])
@@ -899,10 +911,10 @@ class SiteTest(unittest.TestCase):
         preset = {(mid, g["id"]): g["preset"] for mid in m.missions["order"] for g in m.missions[mid]["gates"]}
         size = self.rows("s0000001")["size"].find("div", cls="gauge")[0]
         self.assertEqual([g.text() for g in size.find("i", cls="gate")],
-                         [f"{t.num(preset[('capture', 'size')])} m: whole-body capture",
-                          f"{t.num(preset[('surface', 'size')])} m: surface work"])
+                         [f"{t.num(preset[('capture', 'size')])} m: asteroid capture",
+                          f"{t.num(preset[('surface', 'size')])} m: surface mining"])
         spin = self.rows("s0000001")["spin"].find("div", cls="gauge")[0]
-        self.assertEqual([g.text() for g in spin.find("i", cls="gate")], [f"{t.num(preset[('surface', 'spin')])} h: surface work"])
+        self.assertEqual([g.text() for g in spin.find("i", cls="gate")], [f"{t.num(preset[('surface', 'spin')])} h: surface mining"])
         # both missions draw the orbit code at the same line: it is drawn once, by its own name
         track = self.rows("s0000001")["tracking"].find("div", cls="gauge")[0]
         self.assertEqual([g.text() for g in track.find("i", cls="gate")], [t.condition(m.missions["surface"]["gates"][0]["label"])])
@@ -1030,11 +1042,11 @@ class SiteTest(unittest.TestCase):
     def test_an_untested_chance_is_never_printed_as_certain(self):
         i = self.entry("s0000009")
         said = [m.find("p", cls="verdict")[0].text() for m in i.find("div", cls="mission")]
-        self.assertEqual(said, ["Unclear, <1% chance it fits", "Unclear, >99% chance it fits"])
-        chances = [td.text() for td in i.find("div", cls="mission")[0].find("td", cls="num")]
-        self.assertEqual(chances, ["", "<1%", "1%"])     # met, 0 of 2,000, then 10 of 2,000
-        verdicts = [td.text() for td in i.find("div", cls="mission")[0].find("td") if td.attrs.get("data-l") == "Verdict"]
-        self.assertEqual(verdicts, ["Met", "Unclear", "Unclear"])
+        self.assertEqual(said, ["Viability <1% Estimated", "Viability >99% Estimated"])
+        cells = [td for td in i.find("div", cls="mission")[0].find("td") if td.attrs.get("data-l") == "Met"]
+        # measured, then 0 of 2,000 and 10 of 2,000: a chance carries the estimated mark, and says so to a screen reader
+        self.assertEqual([td.text() for td in cells], ["Yes", "estimated, <1%", "estimated, 1%"])
+        self.assertEqual([len(td.find("i", cls="g-prior")) for td in cells], [0, 1, 1])
         # a condition resting on a row not checked says so, on the entry
         basis = [td.text() for td in i.find("div", cls="mission")[0].find("td") if td.attrs.get("data-l") == "Basis"]
         self.assertEqual(basis, ["measured", "estimated; a source not checked", "estimated; a source not checked"])
@@ -1052,18 +1064,18 @@ class SiteTest(unittest.TestCase):
         kv = a.find("dl")[0]
         pairs = dict(zip([dt.text() for dt in kv.find("dt")], [dd.text() for dd in kv.find("dd")]))
         self.assertEqual(pairs["Observation"], observation("size"))
-        self.assertEqual(pairs["Decides"], "Diameter ≤ 10 m, for whole-body capture")     # its chance is under Missions, once
+        self.assertEqual(pairs["Decides"], "Diameter ≤ 10 m, for asteroid capture")     # its chance is under Missions, once
         self.assertEqual(pairs["Telescope"], "2 m telescope, or radar at the close pass")
         self.assertNotIn("2027-02-10", a.text())                 # when it can be observed is the tracking row's to say
         # nothing ranked: the summary gives the reason in a few words, and no section repeats it
         said = lambda key: self.summary(key)["Best next observation"][1].text()
-        for key, why in (("s0000005", "both verdicts rest on measurements"), ("s0000006", "orbit not good enough to find it again"),
-                         ("s0000009", "no single observation would change a verdict")):
+        for key, why in (("s0000005", "viability rests on measurements for every mission type"), ("s0000006", "orbit not good enough to find it again"),
+                         ("s0000009", "no single observation would change a viability")):
             self.assertEqual(said(key), why)
             self.assertEqual(self.entry(key).find("section", id="settle"), [], key)
         both = dataclasses.asdict(sample.RECORDS[4])
         both["missions"]["surface"]["status"] = "fail"
-        self.assertEqual(t.nothing_ranked(both), "both verdicts rest on measurements")
+        self.assertEqual(t.nothing_ranked(both), "viability rests on measurements for every mission type")
         gone = dict(dataclasses.asdict(sample.RECORDS[5]), gone={"date": "2099-02-15", "text": "It hit.", "evidence": "x"})
         self.assertEqual(t.nothing_ranked(gone), "it no longer exists")
         # and nothing on its entry treats it as still there: no turning rock, no estimate of what is in it
@@ -1125,15 +1137,15 @@ class SiteTest(unittest.TestCase):
         # each row says what to measure, for which mission, and the condition the result is compared with;
         # the only heading rows are the window kinds
         self.assertEqual([tr for tr in root.find("tbody")[0].find("tr") if "run" in tr.classes], [])
-        said = [(c["Measure"], c["Mission"], c["Condition"]) for c in cells.values()]
-        self.assertIn(("Diameter", "Whole-body capture", "≤ 10 m"), said)
+        said = [(c["Measure"], c["Mission type"], c["Condition"]) for c in cells.values()]
+        self.assertIn(("Diameter", "Asteroid capture", "≤ 10 m"), said)
         for measure, mission, cond in said:
             self.assertTrue(measure and mission and cond)
             self.assertNotIn(mission.lower(), cond.lower())     # the mission has its own column
         # the list is in the method's order and has no script: its headings are plain
         self.assertEqual(root.find("thead")[0].find("button"), [])
         self.assertEqual(root.find("script"), [])
-        self.assertIn("4 asteroids with an unclear verdict", root.find("dl", cls="lmeta")[0].text())
+        self.assertIn("4 asteroids with an estimated viability", root.find("dl", cls="lmeta")[0].text())
         # a window kind heads its rows, with its count
         recs = [dataclasses.replace(r, observe=dict(r.observe, tier="pointable")) if r.observe else r for r in sample.RECORDS]
         page = parse(gen.observe_page([dataclasses.asdict(r) for r in recs], srcs(), sample.ASSETS, sample.DATA_DATE,
@@ -1278,7 +1290,7 @@ class SiteTest(unittest.TestCase):
         marks, verdicts = states.find("table")
         self.assertEqual([tag.text() for tag in marks.find("span", cls="st")], ["Measured", "Bound", "Estimated", "Not checked"])
         self.assertIn("The value shown is still an estimate.", marks.text())
-        self.assertEqual([tag.text() for tag in verdicts.find("span", cls="st")], ["Fits", "Ruled out", "Unclear"])
+        self.assertEqual([tag.text() for tag in verdicts.find("span", cls="st")], ["Viable", "Estimated", "Not viable"])
         # delta-v is spelled out once
         self.assertEqual(text.count("Delta-v (Δv)"), 1)
         for a in root.find("nav", cls="toc")[0].find("a"):
@@ -1520,6 +1532,32 @@ class FormatTest(unittest.TestCase):
         # a year mark too close to the data date's label goes unlabelled
         self.assertEqual([y.text() for y in tl.find("i", cls="yr") if "d0" not in y.classes], ["", "2028"])
         self.assertEqual(t.timeline("x", "y", "2026-11-24"), "")
+
+
+
+class MissionNames(unittest.TestCase):
+    """docs/design.md section 3: one name and one summary per mission type, the method file's, everywhere."""
+
+    def test_the_pages_name_the_mission_types_as_the_method_does(self):
+        from longshot import method as method_mod
+        mis = method_mod.load().missions
+        self.assertEqual(list(t.MISSION_LABELS), mis["order"])
+        for mid in mis["order"]:
+            self.assertEqual(t.MISSION_LABELS[mid], mis[mid]["label"])
+            self.assertEqual(t.MISSION_SUMMARIES[mid], mis[mid]["summary"])
+            self.assertIsNone(re.search(r"\d", mis[mid]["label"] + mis[mid]["summary"]), "a threshold in a name or summary")
+            self.assertTrue(all(g.get("short") for g in mis[mid]["gates"]), "every condition has a short heading")
+
+    def test_viability_is_yes_no_or_a_chance(self):
+        self.assertEqual(t.viability({"status": "pass", "p": 1.0}), ("pass", "Yes", "measured"))
+        self.assertEqual(t.viability({"status": "fail", "p": 0.0}), ("fail", "No", "measured"))
+        self.assertEqual(t.viability({"status": "untested", "p": 0.35}), ("untested", "35%", "prior"))
+        self.assertEqual(t.viability({"status": "untested", "p": 0.9999})[1], "&gt;99%")
+        gates = [{"label": "Orbit code ≤ 5", "status": "pass"}, {"label": "Diameter ≥ 30 m", "status": "untested"},
+                 {"label": "Spin period ≥ 2.2 h", "status": "fail"}]
+        self.assertEqual(t.needs({"gates": gates}, "fail"), "needs spin period ≥ 2.2 h")
+        self.assertEqual(t.needs({"gates": gates}, "untested"), "needs diameter ≥ 30 m")
+        self.assertEqual(t.needs({"gates": gates}, "pass"), "")
 
 
 if __name__ == "__main__":
