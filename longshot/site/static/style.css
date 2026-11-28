@@ -96,7 +96,7 @@ time, .nb { white-space: nowrap; }
 .g-prior { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Ccircle r='2.6' fill='%23a8a8a8'/%3E%3C/svg%3E"); }
 .g-priorz { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='none' stroke-linejoin='round' stroke='%23a8a8a8' stroke-width='1.4'/%3E%3C/svg%3E"); }
 .g-pass { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-8 -8 16 16'%3E%3Cpolygon points='4.8,2.0 4.1,5.1 1.0,6.7 -2.1,5.0 -3.6,2.6 -6.6,0.7 -5.8,-2.4 -3.0,-3.8 -1.0,-6.5 2.1,-5.2 3.3,-2.4 6.3,-0.7' fill='%23fff' stroke-linejoin='round' stroke='%23fff' stroke-width='1.7'/%3E%3C/svg%3E"); }   /* viable: the rock filled */
-.st { display: inline-flex; align-items: center; white-space: nowrap; font: var(--t-label); }
+.st { display: inline-flex; align-items: center; white-space: nowrap; font: var(--t-label); color: var(--ink-2); }   /* a state word is an addendum: grey; its mark keeps its own look */
 
 /* ---------- buttons and inputs ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); font: var(--t-label); color: var(--ink); background: var(--ground); border: 1px solid var(--edge); border-radius: 0; padding: 5px 12px; text-decoration: none; cursor: pointer; }
@@ -110,7 +110,7 @@ table { border-collapse: collapse; }
 .tbl th, .tbl td { padding: 6px 0 6px var(--s4); text-align: left; vertical-align: baseline; }
 .tbl th:first-child, .tbl td:first-child { padding-left: 0; }
 .tbl thead th { color: var(--ink-2); border-bottom: 1px solid var(--edge); padding-bottom: 8px; vertical-align: bottom; }
-.tbl tbody th { color: var(--ink-2); }
+.tbl tbody th { color: var(--ink); }   /* a property's name: content, white (docs/design.md section 4) */
 .tbl .num { text-align: right; }
 .tbl tbody tr + tr > * { border-top: 1px solid var(--grid); }
 .tbl.mini { width: auto; min-width: 280px; margin-top: var(--s3); }
@@ -156,7 +156,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .legend ul { font: var(--t-label); color: var(--ink-2); }
 .legend > ul { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s2) var(--s5); }
 .legend li.tot { grid-column: 1 / -1; }                 /* "397 of 7,231 reachable asteroids": a phrase, spaced as text */
-.legend li.row { display: contents; }
+.legend li.lrow { display: contents; }
 .legend ul.items { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); }
 .legend li.c { display: flex; align-items: center; white-space: nowrap; }
 .legend .n { color: var(--ink); margin-left: 6px; }
@@ -164,7 +164,8 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .legend li.c .n { display: inline-block; min-width: 5ch; font-variant-numeric: tabular-nums; }
 .legend li[data-k="loose"] .n { min-width: 0; }         /* "No brightness 6 (not drawn)": one digit, read as a phrase */
 .legend .aft { margin-left: 6px; }
-.legend[data-m="0"] li.row.v { visibility: hidden; }    /* with All the viability row keeps its place, so the chart keeps its height */
+.legend .lab { color: var(--ink); }                       /* a row's name: content, white; its states and the phrase grey */
+.legend[data-m="0"] li.lrow.v { visibility: hidden; }    /* with All the viability row keeps its place, so the chart keeps its height */
 /* wide: the items in columns too, lined up across the rows, and the zoom buttons beside the total; from 1280 px,
    where the four columns (774 px) fit beside the readout */
 @media (min-width: 1280px) {
@@ -248,7 +249,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .ehead h1 { font: var(--t-title); }
 .ident { display: flex; gap: var(--s5); flex-wrap: wrap; font: var(--t-label); }
 .ident > div { display: flex; gap: var(--s2); }
-.ident dt { color: var(--ink-2); }
+.ident dt { color: var(--ink); }   /* a property's name: content, white (docs/design.md section 4) */
 .toc-m { display: none; }
 
 .sum { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--s6); padding: var(--s5) 0 var(--s6); border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
@@ -266,12 +267,15 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .sumlist { width: 100%; font: var(--t-label); align-self: start; }
 .sumlist th, .sumlist td { padding: 9px 0 9px var(--s5); text-align: left; vertical-align: baseline; border-top: 1px solid var(--grid); }
 .sumlist tr:first-child > * { border-top: 0; padding-top: 0; }
-.sumlist th { padding-left: 0; color: var(--ink-2); white-space: nowrap; width: 1%; }
+.sumlist th { padding-left: 0; white-space: nowrap; width: 1%; }   /* a name is content, white as its value; units, details and states are grey */
 .sumlist .v { font: var(--t-body); white-space: nowrap; }
 .sumlist .v .g { vertical-align: -1px; }
 .sumlist .d { color: var(--ink-2); width: 100%; }
 .sumlist .s { white-space: nowrap; }
-.sumlist tr.grp th { padding-top: var(--s4); width: auto; }
+/* a section's heading: white like the names under it, set apart by its size, the space above it and its rule */
+.sumlist tr.grp th { font: var(--t-body); padding: var(--s5) 0 var(--s2); width: auto; border-top: 0; border-bottom: 1px solid var(--edge); }
+.sumlist tr:first-child.grp th { padding-top: 0; }
+.sumlist tr.grp + tr > * { border-top: 0; }
 
 .body { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--s6); }
 .toc { position: sticky; top: 0; align-self: start; padding-top: var(--s6); }
@@ -288,7 +292,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .facts { width: 100%; font: var(--t-label); table-layout: fixed; }
 .facts .c-l { width: 22%; } .facts .c-v { width: 14%; } .facts .c-r { width: 20%; } .facts .c-q { width: 21%; } .facts .c-s { width: 23%; }
 .facts th, .facts td { padding: 5px 0 5px var(--s4); text-align: left; vertical-align: baseline; overflow-wrap: break-word; }
-.facts th { padding-left: 0; color: var(--ink-2); }
+.facts th { padding-left: 0; }   /* a property's name: content, white (docs/design.md section 4) */
 .facts .v { text-align: right; }
 .facts .q { color: var(--ink-2); }
 .facts .s { color: var(--ink-2); font: var(--t-small); }
@@ -343,7 +347,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 
 .kv { display: grid; grid-template-columns: 200px minmax(0, 1fr); font: var(--t-label); max-width: 860px; }
 .kv > * { padding: 7px 0; border-top: 1px solid var(--grid); }
-.kv dt { color: var(--ink-2); }
+.kv dt { color: var(--ink); }   /* a property's name: content, white (docs/design.md section 4) */
 .kv dd { padding-left: var(--s4); }
 .missions { display: grid; gap: var(--s6); }
 .mission .verdict { display: flex; align-items: baseline; gap: var(--s2); margin: var(--s1) 0 var(--s3); font: var(--t-body); flex-wrap: wrap; }
@@ -358,7 +362,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .lhead { padding: var(--s6) 0 var(--s4); display: flex; justify-content: space-between; align-items: flex-end; gap: var(--s5); flex-wrap: wrap; }
 .lhead h1 { font: var(--t-title); }
 .lmeta { display: flex; gap: var(--s6); font: var(--t-label); flex-wrap: wrap; }
-.lmeta dt { color: var(--ink-2); }
+.lmeta dt { color: var(--ink); }   /* a property's name: content, white (docs/design.md section 4) */
 .ltbl { width: 100%; font: var(--t-label); }
 .ltbl th, .ltbl td { padding: 7px var(--s2); text-align: left; vertical-align: baseline; white-space: nowrap; }
 .ltbl th:first-child, .ltbl td:first-child { padding-left: 0; }
@@ -387,7 +391,7 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 /* the method page: labelled lines read from the method files */
 .doc .facts { display: grid; table-layout: auto; }
 .doc dl.facts > div { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--s4); padding: 7px 0; border-top: 1px solid var(--grid); }
-.doc dl.facts dt { color: var(--ink-2); }
+.doc dl.facts dt { color: var(--ink); }   /* a property's name: content, white (docs/design.md section 4) */
 .doc dl.facts dd > * + * { margin-left: var(--s3); }
 .doc .v.t { font: var(--t-prose); }
 .doc .r, .doc .gr { color: var(--ink-2); font: var(--t-small); }
@@ -453,13 +457,17 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
   .sum { grid-template-columns: 1fr; gap: var(--s5); }
   .rockfig { display: grid; grid-template-columns: 140px 1fr; gap: var(--s4); align-items: center; }
   .sumlist, .sumlist tbody { display: block; }
-  .sumlist tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--s3); padding: 8px 0; border-top: 1px solid var(--grid); }
+  /* as the readout: two lines a row, the name and its value, then the detail and the state */
+  .sumlist tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--s3); padding: 8px 0; border-top: 1px solid var(--grid); align-items: baseline; }
   .sumlist tr:first-child { border-top: 0; padding-top: 0; }
   .sumlist th, .sumlist td { padding: 0 !important; border: 0 !important; width: auto; }
-  .sumlist .v { grid-column: 1 / -1; white-space: normal; }
-  .sumlist .d { grid-column: 1 / -1; }
-  .sumlist .s { grid-column: 2; grid-row: 1; text-align: right; }
-  .sumlist tr.grp { display: block; padding: var(--s4) 0 2px; }
+  .sumlist .v { grid-column: 1 / -1; grid-row: 1; justify-self: end; text-align: right; }
+  .sumlist .d { grid-column: 1; grid-row: 2; }
+  .sumlist tr:has(> .s:empty) .d { grid-column: 1 / -1; }
+  .sumlist .s { grid-column: 2; grid-row: 2; text-align: right; }
+  .sumlist tr.grp { display: block; padding: var(--s5) 0 var(--s2); border-top: 0; border-bottom: 1px solid var(--edge); }
+  .sumlist tr.grp:first-child { padding-top: 0; }
+  .sumlist tr.grp + tr { border-top: 0; }
   .body { display: block; }
   .toc { display: none; }
   .row { grid-template-columns: 1fr; gap: var(--s2); }
@@ -498,15 +506,17 @@ input[type="search"]:focus-visible { outline: 2px solid var(--ink); outline-offs
 .readout .sum { display: block; padding: 0; border: 0; }
 .readout .rockfig { display: none; }
 .readout .sumlist, .readout .sumlist tbody { display: block; }
-.readout .sumlist tr { display: grid; grid-template-columns: auto minmax(0, 1fr) 118px; gap: 0 var(--s3); padding: 6px 0; border-top: 1px solid var(--grid); align-items: baseline; }
+/* two lines a row: the name and its value, then the detail and the state, so a long value has the width */
+.readout .sumlist tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--s3); padding: 6px 0; border-top: 1px solid var(--grid); align-items: baseline; }
 .readout .sumlist th, .readout .sumlist td { padding: 0; border: 0; width: auto; }
 .readout .sumlist th { grid-column: 1; grid-row: 1; white-space: nowrap; }
-.readout .sumlist .v { grid-column: 2; grid-row: 1; text-align: right; white-space: normal; }
-.readout .sumlist tr:has(> .s:empty) .v { grid-column: 2 / -1; }
-.readout .sumlist .d { grid-column: 1 / -1; grid-row: 2; }
-.readout .sumlist .s { grid-column: 3; grid-row: 1; text-align: left; }
-.readout .sumlist tr.grp { display: block; padding: var(--s4) 0 2px; }
-.readout .sumlist tr.grp th { display: block; padding: 0; }
+.readout .sumlist .v { grid-column: 1 / -1; grid-row: 1; justify-self: end; text-align: right; }   /* the first line is the name's and the value's: the detail below keeps the width */
+.readout .sumlist .d { grid-column: 1; grid-row: 2; }
+.readout .sumlist tr:has(> .s:empty) .d { grid-column: 1 / -1; }
+.readout .sumlist .s { grid-column: 2; grid-row: 2; text-align: right; }
+.readout .sumlist tr.grp { display: block; padding: 0; border-top: 0; }
+.readout .sumlist tr.grp th { display: block; }
+.readout .sumlist tr.grp + tr { border-top: 0; }
 .readout .toc-m { display: none; }
 
 @media (max-width: 1199px) {

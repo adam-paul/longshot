@@ -319,7 +319,7 @@ function legendHtml(t, { table, zoomed, on }) {
   // a row: its label, then its items; the label keeps its own column, so a wrapped item stays under its row
   const row = (word, items, v = false) => {
     const hide = v && !on ? ' aria-hidden="true"' : '';
-    return `<li class="row${v ? ' v' : ''}"><span class="lab"${hide}>${word}</span><ul class="items"${hide}>${items}</ul></li>`;
+    return `<li class="lrow${v ? ' v' : ''}"><span class="lab"${hide}>${word}</span><ul class="items"${hide}>${items}</ul></li>`;
   };
   return '<ul>' +
     `<li data-k="shown" class="tot"><span class="n">${count(t.shown)}</span> of <span class="n">${count(N)}</span> reachable asteroids</li>` +
@@ -538,11 +538,13 @@ function hover(i) {
   tip.hidden = i < 0 || i === sel;                                       // the selected rock has its tags and the readout
   if (tip.hidden) return;
   const row = keys?.[i];
-  const size = measured(i) ? `${metres(cols.size_q50[i])} m ${k(sizeState(i) === 2 ? 'measured, a bound' : 'measured')}`
-    : `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} m ${k('90% range, estimated')}`;
+  // a name and its value white; units and addenda (the state, the range) grey, as the readout (docs/design.md section 5)
+  const unit = x => `<span class="u">${x}</span>`;
+  const size = measured(i) ? `${metres(cols.size_q50[i])} ${unit('m')} ${k(sizeState(i) === 2 ? 'measured, a bound' : 'measured')}`
+    : `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} ${unit('m')} ${k('90% range, estimated')}`;
   tip.innerHTML = (row ? `<div class="tn">${esc(row[2] || row[1])}</div>` : '') +
-    `<div>${k('Δv')} ${cols.dv[i].toFixed(3)} km/s</div><div>${k('Diameter')} ${size}</div>` +
-    (S.m ? `<div>${k('Viability')} ${viabilityOf(i, S.m)}${statusOf(i, S.m) === 1 ? ' ' + k('estimated') : ''}</div>` : '');
+    `<div>Δv ${cols.dv[i].toFixed(3)} ${unit('km/s')}</div><div>Diameter ${size}</div>` +
+    (S.m ? `<div>Viability ${viabilityOf(i, S.m)}${statusOf(i, S.m) === 1 ? ' ' + k('estimated') : ''}</div>` : '');
   // beside the rock, on whichever side has room; anchored on that side so it never narrows to fit
   const x = field.sx(i), y = field.sy(i), flip = x > field.w - 300;
   Object.assign(tip.style, { position: 'absolute', top: y + 'px', whiteSpace: 'nowrap', transform: 'translateY(-50%)',

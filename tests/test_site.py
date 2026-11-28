@@ -21,8 +21,9 @@ from tests import sample_records as sample
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 CSS = (Path(gen.__file__).parent / "static" / "style.css").read_text(encoding="utf-8")
-SUMMARY_LABELS = ["Diameter", "Spin", "Composition", "Mass", "Δv", "Surface mining", "Asteroid capture", "Best next observation"]
-SUMMARY_GROUPS = ["Mission viability"]       # headings in the summary list: one row, a single cell
+SUMMARY_LABELS = ["Diameter", "Spin", "Composition", "Mass", "Δv", "Surface mining", "Asteroid capture"]
+# the summary's three sections (docs/design.md section 5); the last holds one row named for the observation, or None
+SUMMARY_GROUPS = ["Properties", "Mission viability", "Next observation"]
 
 
 class Node:
@@ -118,7 +119,7 @@ def observation(oid: str) -> str:
 
 def plain_observation(oid: str) -> str:
     """An observation's plain name, as the front page and an entry's summary give it."""
-    return {o["id"]: o.get("plain") or o["label"] for o in method.load().observe["observations"]}[oid]
+    return {o["id"]: o.get("plain") or o["label"] for o in method.load().observe["observations"]}.get(oid, oid)   # an id it does not list: as it is
 
 
 def everything_in(n: Node) -> str:
@@ -156,6 +157,12 @@ class SiteTest(unittest.TestCase):
         """{label: (value cell, detail cell, state cell)} of an entry's summary list."""
         (table,) = self.entry(key).find("table", cls="sumlist")
         return {tr.find("th")[0].text(): tuple(tr.find("td")) for tr in table.find("tr") if "grp" not in tr.classes}
+
+    def next_observation(self, key) -> tuple[str, Node]:
+        """(the row's name, its detail cell): the one row under the summary's Next observation."""
+        (table,) = self.entry(key).find("table", cls="sumlist")
+        tr = table.find("tr")[-1]
+        return tr.find("th")[0].text(), tr.find("td")[1]
 
     # ---- the set of pages
 
@@ -374,7 +381,7 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(counts["loose"], len(sample.RECORDS) - len(drawn))
         # the shown count first, of every reachable asteroid, so the numbers close; then the Diameter row: its label,
         # then each mark's words and count
-        rows = legend.find("li", cls="row")
+        rows = legend.find("li", cls="lrow")
         diameter, viability = rows
         self.assertEqual(legend.find("li", cls="tot")[0].text(gap=" ").split(),
                          f"{len(drawn)} of {len(sample.RECORDS)} reachable asteroids".split())
@@ -448,7 +455,7 @@ class SiteTest(unittest.TestCase):
             # the price tag is named for what it holds; with no observation ranked there is no section to repeat that
             self.assertEqual([a.text() for a in main.find("nav", cls="toc")[0].find("a")],
                              ["Data", "Difficulty", t.value_title(dataclasses.asdict(r))]
-                             + (["Best next observation"] if r.observe else []) + ["Mission viability", "Sources"])
+                             + (["Next observation"] if r.observe else []) + ["Mission viability", "Sources"])
             for a in main.find("nav", cls="toc")[0].find("a"):
                 self.assertEqual(len(main.find(id=a.attrs["href"][1:])), 1)
             # links inside the liftable element: its own anchors, the outside world, and the method page,
@@ -467,7 +474,9 @@ class SiteTest(unittest.TestCase):
         for r in sample.RECORDS:
             s = self.summary(r.key)
             want = SUMMARY_LABELS if r.summary.get("mass_t") else [x for x in SUMMARY_LABELS if x != "Mass"]
-            self.assertEqual(list(s), want, r.key)
+            obs = plain_observation(r.observe["best"]) if r.observe else "None"
+            self.assertEqual(list(s), want + [obs[:1].upper() + obs[1:]], r.key)
+            self.assertEqual(s[list(s)[-1]][0].text(), "", r.key)      # the next observation's row has no value
             groups = [tr.text() for tr in self.entry(r.key).find("table", cls="sumlist")[0].find("tr") if "grp" in tr.classes]
             self.assertEqual(groups, SUMMARY_GROUPS, r.key)
             # the surface's two states: a bound is measured, and not checked is estimated
@@ -494,8 +503,9 @@ class SiteTest(unittest.TestCase):
         self.assertEqual((a["Surface mining"][0].text(), a["Surface mining"][2].text()), ("No", "Measured"))
         self.assertEqual(len(a["Surface mining"][2].find("i", cls="g-measured")), 1)
         self.assertEqual(a["Surface mining"][1].text(), "needs diameter ≥ 40 m and spin period ≥ 2.2 h")
-        self.assertEqual(a["Best next observation"][0].text(), plain_observation("size"))     # its plain name on the surface
-        self.assertIn("window 2027-02-10 to 2027-04-02", a["Best next observation"][1].text())
+        nxt = self.next_observation("s0000001")
+        self.assertEqual(nxt[0], plain_observation("size"))     # its plain name on the surface, as the row's name
+        self.assertIn("window 2027-02-10 to 2027-04-02", nxt[1].text())
         yes = self.summary("s0000005")["Surface mining"]
         self.assertEqual([yes[i].text() for i in range(3)], ["Yes", "", "Measured"])
         self.assertEqual(self.summary("s0000005")["Composition"][0].text(), "Carbon-rich")
@@ -519,7 +529,7 @@ class SiteTest(unittest.TestCase):
         (spin,) = [i for i in t.summary_items(one, srcs()) if i[0] == "Spin"]
         self.assertEqual(tuple(re.sub(r"<[^>]+>", "", x) for x in spin[1:3]), ("2.02 h or 72.72 s", "time for one turn; sources disagree"))
         # the missions' verdicts are said once, under Missions: here only why nothing is ranked
-        self.assertEqual(self.summary("s0000005")["Best next observation"][1].text(), "viability rests on measurements for every mission type")
+        self.assertEqual(self.next_observation("s0000005")[1].text(), "viability rests on measurements for every mission type")
         # no brightness: nothing to estimate from, and no state is claimed
         f = self.summary("s0000006")
         self.assertEqual([f["Diameter"][i].text() for i in range(3)], ["None", "no brightness on file", ""])
@@ -1068,7 +1078,7 @@ class SiteTest(unittest.TestCase):
         self.assertEqual(pairs["Telescope"], "2 m telescope, or radar at the close pass")
         self.assertNotIn("2027-02-10", a.text())                 # when it can be observed is the tracking row's to say
         # nothing ranked: the summary gives the reason in a few words, and no section repeats it
-        said = lambda key: self.summary(key)["Best next observation"][1].text()
+        said = lambda key: self.next_observation(key)[1].text()
         for key, why in (("s0000005", "viability rests on measurements for every mission type"), ("s0000006", "orbit not good enough to find it again"),
                          ("s0000009", "no single observation would change a viability")):
             self.assertEqual(said(key), why)

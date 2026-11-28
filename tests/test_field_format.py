@@ -320,8 +320,8 @@ class Scripts(unittest.TestCase):
         # measured on the front page where the size row is measured or a bound, from whichever source gives it
         self.assertIn("const measured = r => sizeState(r) >= 2;", app)
         # the tip: a measured diameter is its value; a range is only ever an estimate's 90% range, and says so
-        self.assertIn("const size = measured(i) ? `${metres(cols.size_q50[i])} m ${k(sizeState(i) === 2 ? 'measured, a bound' : 'measured')}`", app)
-        self.assertIn(": `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} m ${k('90% range, estimated')}`;", app)
+        self.assertIn("const size = measured(i) ? `${metres(cols.size_q50[i])} ${unit('m')} ${k(sizeState(i) === 2 ? 'measured, a bound' : 'measured')}`", app)
+        self.assertIn(": `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} ${unit('m')} ${k('90% range, estimated')}`;", app)
         self.assertNotIn("90% range, measured", app)
 
     def test_two_states_on_the_surface(self):

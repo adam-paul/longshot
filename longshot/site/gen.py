@@ -156,11 +156,11 @@ def legend(recs: list) -> str:
     return ('<ul>'
             f'<li data-k="shown" class="tot"><span class="n">{t.count(len(drawn))}</span> of '
             f'<span class="n">{t.count(len(recs))}</span> reachable asteroids</li>'
-            '<li class="row"><span class="lab">Diameter</span><ul class="items">'
+            '<li class="lrow"><span class="lab">Diameter</span><ul class="items">'
             + item("measured", t.glyph("measured"), "Measured", measured)
             + item("estimated", t.glyph("prior"), "Estimated from brightness", len(drawn) - measured)
             + item("loose", "", "No brightness", loose, '<span class="aft">(not drawn)</span>')
-            + f'</ul></li><li class="row v"><span class="lab"{hide}>{t.VIABILITY}</span><ul class="items"{hide}>'
+            + f'</ul></li><li class="lrow v"><span class="lab"{hide}>{t.VIABILITY}</span><ul class="items"{hide}>'
             + unseen(t.glyph("pass"), "Viable") + unseen("", "Estimated") + unseen("", "Not viable")
             + '</ul></li></ul>')
 
@@ -926,7 +926,7 @@ def _observing(m) -> str:
 
 METHOD_TOC = (("about", "Data"), ("states", "Marks"), ("ranges", "Ranges and chances"), ("coverage", "Coverage"),
               ("missions", "Missions"), ("ledger", "What counts as measured"), ("difficulty", "Difficulty"),
-              ("flown", "What has flown"), ("value", "Metal and water"), ("observe", "Best next observation"),
+              ("flown", "What has flown"), ("value", "Metal and water"), ("observe", "Next observation"),
               ("not-claimed", "Not claimed"), ("sources", "Sources"))
 MARKS = (
     ("measured", "A source on file gives a value. A rock outline with a glow."),

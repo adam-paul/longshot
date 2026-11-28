@@ -1567,17 +1567,19 @@ def _density(rec: dict, sources: dict):
 
 
 GROUP = None        # a summary item whose value is GROUP is a heading over the items after it
-BEST_NEXT = "Best next observation"
+BEST_NEXT = "Next observation"
+PROPERTIES = "Properties"
 
 
 def summary_items(rec: dict, sources: dict, observations: dict | None = None) -> list[tuple]:
-    """[(label, value as HTML, detail as plain text, state or None)] for the entry's summary.
-    An item whose value is GROUP heads the ones after it."""
+    """[(label, value as HTML, detail as plain text, state or None)] for the entry's summary, in three sections:
+    Properties, Mission viability, Next observation. An item whose value is GROUP heads the ones after it."""
     rows, summ = rec["rows"], rec.get("summary") or {}
     items = []
     gone = rec.get("gone") or {}
     if gone:                                # first, so nothing below reads as if it were still there
         items.append(("Gone", date(gone["date"]) if gone.get("date") else "Yes", gone.get("text") or "", None))
+    items.append((PROPERTIES, GROUP, "", None))
     # diameter: the value the size row rests on, its range and whose it is
     srow = rows.get("size") or {}
     sstate = srow.get("state", "unchecked")
@@ -1696,20 +1698,25 @@ def summary_items(rec: dict, sources: dict, observations: dict | None = None) ->
         else:
             detail = "; ".join(x for x in (o.get("needs") or "", f"window {w['start']} to {w['end']}"
                                            if w.get("start") and w.get("end") else "") if x)
-        items.append((BEST_NEXT, esc(what), detail, None))
+        items.append((BEST_NEXT, GROUP, "", None))
+        items.append((esc(what), "", detail, None))       # the observation is the row's name; what it takes, its detail
     else:
-        items.append((BEST_NEXT, "None", "" if gone else nothing_ranked(rec), None))
+        items.append((BEST_NEXT, GROUP, "", None))
+        items.append(("None", "", "" if gone else nothing_ranked(rec), None))
     return items
 
 
 def summary_list(items: list) -> str:
+    """The summary: a heading per section, then rows of a name, its value, a detail and a state. The name and the
+    value are content (white); the unit, the detail and the state are their addenda (grey). docs/design.md section 5."""
     rows = []
     for name, val, detail, state in items:
         if val is GROUP:
             rows.append(f'<tr class="grp"><th colspan="4" scope="rowgroup">{name}</th></tr>')
             continue
         tag = state_tag(state, surface=True) if state else ""
-        rows.append(f'<tr><th scope="row">{name}</th><td class="v">{val}</td>'
+        solo = "" if val else ' class="solo"'                     # a row with no value: the next observation
+        rows.append(f'<tr{solo}><th scope="row">{name}</th><td class="v">{val}</td>'
                     f'<td class="d">{nowrap_dates(detail)}</td><td class="s">{tag}</td></tr>')
     return f'<table class="sumlist"><tbody>{"".join(rows)}</tbody></table>'
 
