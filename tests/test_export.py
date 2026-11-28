@@ -30,8 +30,7 @@ SIZES = {"f32": 4, "u8": 1, "u16": 2, "i32": 4, "u32": 4}
 CODES = {"f32": "f", "u8": "B", "u16": "H", "i32": "i", "u32": "I"}
 FORBIDDEN = ("mean", "median", "expected")
 # The columns the app reads. The nine others docs/mvp.md section 5 first listed were never read (45% of the file).
-USED = ("dv", "size_q50", "size_q05", "size_q95", "period_s", "state", "p_surface", "p_capture",
-        "status_surface", "status_capture", "pct_surface", "pct_capture", "named", "seed")
+USED = ("dv", "size_q50", "size_q05", "size_q95", "period_s", "state", "named", "seed")   # whatever the mission types
 DROPPED = ("h", "occ", "findable", "win_start", "win_end", "win_mag", "pointable", "metal_p_nothing", "metal_usd_q75")
 
 
@@ -179,9 +178,14 @@ class Export(unittest.TestCase):
     def test_manifest_follows_the_contract(self):
         m = self.manifest
         self.assertEqual(list(m), ["schema", "data_date", "method", "n", "file", "columns", "keys_file", "counts",
-                                   "unplaced"])
+                                   "missions", "unplaced"])
         self.assertEqual((m["schema"], m["data_date"], m["method"]), (1, config.DATA_DATE, config.METHOD))
         listed = [(c["name"], c["type"]) for c in m["columns"]]
+        # the contract's columns, then each mission type's viability, then a byte per condition, in the method's order
+        self.assertEqual(listed, list(export.field_columns(M)))
+        self.assertEqual(listed[len(export.COLUMNS):], [(f"{k}_{mid}", "u8") for mid in M.missions["order"] for k in ("p", "status", "pct")]
+                         + [(f"g_{mid}_{g['id']}", "u8") for mid in M.missions["order"] for g in M.missions[mid]["gates"]])
+        listed = listed[:len(export.COLUMNS)]
         self.assertEqual(listed, list(export.COLUMNS))
         self.assertEqual([name for name, _ in listed], list(USED))
         # each is a column of the contract's table, with its type, and in the table's order
@@ -199,7 +203,31 @@ class Export(unittest.TestCase):
             for name in DROPPED:
                 self.assertIsNone(re.search(rf"(?:cols\.|['\"]){name}\b", text), f"{script} reads {name}")
         n = self.manifest["n"]
-        self.assertEqual(len(self.blob), n * (5 * 4 + 8 * 1) + (-n * 8 % 4) + n * 2)
+        size = 0
+        for _, kind in export.field_columns(M):                                   # each column 4-aligned, then its n values
+            size += -size % 4 + n * SIZES[kind]
+        self.assertEqual(len(self.blob), size)
+
+    def test_the_missions_and_their_conditions_are_in_the_manifest(self):
+        """The app holds no mission type's name or condition: the manifest lists them, from the method file."""
+        listed = self.manifest["missions"]
+        self.assertEqual([m["id"] for m in listed], M.missions["order"])
+        for m in listed:
+            spec = M.missions[m["id"]]
+            self.assertEqual((m["label"], m["summary"]), (spec["label"], spec["summary"]))
+            self.assertEqual([(g["id"], g["short"], g["label"]) for g in m["gates"]],
+                             [(g["id"], g["short"], g["label"]) for g in spec["gates"]])
+            self.assertTrue(all(g["column"] == f'g_{m["id"]}_{g["id"]}' for g in m["gates"]))
+            self.assertFalse(re.search(r"\d", m["label"] + m["summary"]), "a name or summary holds no threshold")
+
+    def test_a_condition_byte_says_yes_no_or_its_chance(self):
+        self.assertEqual(export._gate_byte({"status": "pass", "p": 1.0}), export.GATE_YES)
+        self.assertEqual(export._gate_byte({"status": "fail", "p": 0.0}), export.GATE_NO)
+        self.assertEqual(export._gate_byte(None), export.GATE_NONE)
+        self.assertEqual(export._gate_byte({"status": "untested", "p": 0.35}), 35)
+        self.assertEqual(export._gate_byte({"status": "untested", "p": 0.001}), 0)     # prints as <1%
+        self.assertEqual(export._gate_byte({"status": "untested", "p": 0.999}), 100)   # prints as >99%
+        self.assertTrue(all(v <= 100 for v in (export._gate_byte({"status": "untested", "p": p / 100}) for p in range(101))))
 
     def test_objects_that_are_not_drawn_are_listed_for_search(self):
         # a keys-file row, then the delta-v: the table view lists it
@@ -230,8 +258,8 @@ class Export(unittest.TestCase):
         ordered = [r for r in sorted(self.records, key=lambda r: r.key) if r.summary]
         self.assertEqual([k[0] for k in keys], [r.key for r in ordered])
         for i, r in enumerate(ordered):
-            row = export.field_row(r)
-            for name, kind in export.COLUMNS:
+            row = export.field_row(r, M)
+            for name, kind in export.field_columns(M):
                 want = f32(row[name]) if kind == "f32" else row[name]
                 self.assertEqual(cols[name][i], want, f"{r.key} {name}")
 

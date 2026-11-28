@@ -1,8 +1,8 @@
 // The front page around the field: loading, URL state, the control strip, the legend line, the axes,
 // the table view and the readout. It reads the pipeline's files from its own site and computes no
 // probability: every chance it prints is a byte of the field file, every count a tally of its columns.
-// Its words are the surface vocabulary of docs/design.md section 3: measured and estimated; fits,
-// ruled out and unclear; diameter; Δv.
+// Its words are the surface vocabulary of docs/design.md section 3: measured and estimated; a mission type's
+// viability, Yes, No or a chance, counted as viable, estimated and not viable; diameter; Δv.
 import { Field, glContext, ZMAX, MARK } from './field.js';
 
 const $ = s => document.querySelector(s);
@@ -10,10 +10,10 @@ const form = $('#controls'), plot = $('#plot'), canvas = $('#field'), axes = $('
 const legendBox = $('#legend'), tableBox = $('#table'), readout = $('#readout');
 const E = form.elements;
 const TYPES = { f32: Float32Array, u8: Uint8Array, u16: Uint16Array, i32: Int32Array, u32: Uint32Array };
-const MISSIONS = ['surface', 'capture'], MISSION_NAME = { surface: 'Surface work', capture: 'Whole-body capture' };
-// A mission's verdict, by the pipeline's status code: 0 fail, 1 untested, 2 pass.
-const VERDICT = ['ruled out', 'unclear', 'fits'];
-const RULED = 'Ruled out', LOOSE = 'No brightness on file';
+// The mission types, their names and their conditions, from the manifest (export.mission_list): the app holds none.
+// GATES[m]: [{ id, short, label, column }], a condition's byte column in the field file.
+let MISSIONS = [], MISSION_NAME = {}, GATES = {};
+const VIABILITY = 'Mission viability', YES = 'Yes', NO = 'No';
 const PAGE = 50;
 const title = document.title;
 // S is the page's whole state; the URL holds it. dv 0: no cut-off. dir 0: the column's own direction.
@@ -45,8 +45,8 @@ const k = s => `<span class="k">${s}</span>`;                          // appara
 // ---- the marks: one set for the legend and the table; style.css draws each (.g-measured ...) ----
 
 // The classes are the site's (templates.glyph): limit is a bound's dashed outline, prior an estimate's dot, priorz
-// that dot as the zoomed field draws it, pass the heavy outline of one that fits.
-const G = Object.fromEntries(Object.entries({ measured: 'measured', bound: 'limit', estimated: 'prior', estimatedz: 'priorz', fits: 'pass' })
+// that dot as the zoomed field draws it, pass a viable one's filled rock.
+const G = Object.fromEntries(Object.entries({ measured: 'measured', bound: 'limit', estimated: 'prior', estimatedz: 'priorz', viable: 'pass' })
   .map(([mark, c]) => [mark, `<i class="g g-${c}" aria-hidden="true"></i>`]));
 // The size row's two-bit state: 3 measured, 2 a bound, 1 not measured, 0 not checked. On the surface a bound is
 // measured (a source gives it) and both of the others are estimated: which source was not checked is on the entry.
@@ -60,12 +60,16 @@ const rowOf = r => r < n ? keys?.[r] : loose[r - n];
 const keyOf = r => rowOf(r)?.[0] ?? '';
 const nameOf = r => { const row = rowOf(r); return row ? row[2] || row[1] : ''; };
 const dvOf = r => r < n ? cols.dv[r] : typeof loose[r - n]?.[4] === 'number' ? loose[r - n][4] : NaN;
-// 0 ruled out, 1 unclear, 2 fits. An asteroid with no rock is ruled out of both missions (docs/mvp.md section 5, unplaced).
+// A viability by the pipeline's status code: 0 No, 1 estimated (a chance), 2 Yes. An asteroid with no rock is No for
+// every mission type (docs/mvp.md section 5, unplaced).
 const statusOf = (r, m) => r < n ? cols['status_' + m][r] : 0;
 const chanceOf = (r, m) => r < n ? cols['p_' + m][r] / 255 : NaN;
-// The chance as the entry prints it: the file's whole percentage, read with the status (0 and 100 are <1% and >99%).
-const chanceText = (r, m) => { const p = cols['pct_' + m][r]; return p <= 0 ? '<1%' : p >= 100 ? '>99%' : p + '%'; };
-const verdictText = (r, m) => { const s = statusOf(r, m); return VERDICT[s] + (s === 1 ? ', ' + chanceText(r, m) + ' chance' : ''); };
+// A chance as the entry prints it: the file's whole percentage (0 and 100 are <1% and >99%).
+const pctText = p => p <= 0 ? '<1%' : p >= 100 ? '>99%' : p + '%';
+const viabilityOf = (r, m) => { const s = statusOf(r, m); return s === 2 ? YES : s === 0 ? NO : pctText(cols['pct_' + m][r]); };
+// A condition's byte (export.py): 255 Yes, 254 No, 253 not assessed, else the chance it is met, in percent.
+const gateOf = (r, g) => r < n && cols[g.column] ? cols[g.column][r] : 253;
+const gateText = v => v === 255 ? YES : v === 254 ? NO : v === 253 ? '' : pctText(v);
 // A measured diameter to the precision the field file keeps (four figures at most), in metres.
 const metres = v => count(+(+v).toPrecision(4));
 const rowAt = key => index?.get(key) ?? -1;
@@ -90,6 +94,7 @@ async function start() {
     const T = TYPES[type];
     cols[name] = offset % T.BYTES_PER_ELEMENT ? new T(buf.slice(offset, offset + n * T.BYTES_PER_ELEMENT)) : new T(buf, offset, n);
   }
+  missionTypes();
   listen();
   const gl = canvas && glContext(canvas);
   if (gl) {
@@ -285,34 +290,47 @@ function suggest() {
 // then each mark's words and its count. Shown is measured plus estimated (plus, in the table, the rows with no
 // brightness); the asteroids over Max Δv or not matching the search are the rest of the total.
 function tally() {
-  const t = { shown: 0, measured: 0, estimated: 0, fits: 0, ruled: 0, loose: 0 };
+  const t = { shown: 0, measured: 0, estimated: 0, viable: 0, chance: 0, not: 0, loose: 0 };
   for (let r = 0; r < N; r++) {
     if (!near[r]) continue;
-    if (!full[r]) { t.ruled++; continue; }
-    if (r >= n) { t.loose++; continue; }
+    if (r >= n) { t.loose++; continue; }                                // counted apart in every state, never as not viable
+    if (!full[r]) { t.not++; continue; }
     t.shown++;
     if (measured(r)) t.measured++; else t.estimated++;
-    if (S.m && statusOf(r, S.m) === 2) t.fits++;
+    if (S.m) { if (statusOf(r, S.m) === 2) t.viable++; else t.chance++; }
   }
   return t;
 }
 function legend() {
   if (!legendBox) return;
-  const table = S.view === 'table', zoomed = !!field?.zoomed && !table, t = tally();
-  if (table) t.shown += t.loose;                                        // the table lists them, with no diameter
-  const mark = (key, g, word, v) => `<li data-k="${key}">${g}${word}<span class="n">${count(v)}</span></li>`;
-  let h = `<li data-k="shown" class="tot"><span class="n">${count(t.shown)}</span>` +
-    (t.shown === N ? '' : ` of <span class="n">${count(N)}</span>`) + ' reachable asteroids</li>' +
-    mark('measured', G.measured, 'Measured', t.measured) +
-    mark('estimated', zoomed ? G.estimatedz : G.estimated, table ? 'Estimated (90% range)' : 'Estimated (median)', t.estimated);
-  if (S.m) h += mark('fits', table ? '' : G.fits, 'Fits', t.fits) + mark('ruled', '', RULED, t.ruled);
-  if (t.loose) h += mark('loose', '', LOOSE, t.loose);
-  // the app writes the whole line: whatever the page drew there before the field file loaded gives way to it
-  let ul = legendBox.matches('ul') ? legendBox : legendBox.querySelector('ul');
-  if (!ul) ul = Object.assign(document.createElement('ul'), { className: 'legend' });
-  if (ul !== legendBox && (legendBox.childNodes.length !== 1 || legendBox.firstChild !== ul)) legendBox.replaceChildren(ul);
-  ul.innerHTML = h;
+  const table = S.view === 'table', zoomed = !!field?.zoomed && !table, t = tally(), on = !!S.m;
+  if (table && !on) t.shown += t.loose;                                 // the table lists them, with no diameter
+  legendBox.innerHTML = legendHtml(t, { table, zoomed, on });
   legendBox.dataset.z = zoomed ? '1' : '0';
+  legendBox.dataset.m = on ? '1' : '0';
+}
+// The legend is a key (docs/design.md section 8): the total, then a line per thing the marks say, each a grey label
+// and its states with their counts. Diameter: how the height on the chart is known. Mission viability: with a mission
+// type chosen; with All the line keeps its place, unseen and unread. Every item keeps one width whatever its count and
+// every line is always there, so the legend, and the chart below it, never change height. gen.legend writes the same.
+function legendHtml(t, { table, zoomed, on }) {
+  const item = (key, g, word, v, after = '', shown = true) =>
+    `<li class="c"${shown ? ` data-k="${key}"` : ''}>${g}${word}<span class="n">${shown ? count(v) : ''}</span>${after}</li>`;
+  // a row: its label, then its items; the label keeps its own column, so a wrapped item stays under its row
+  const row = (word, items, v = false) => {
+    const hide = v && !on ? ' aria-hidden="true"' : '';
+    return `<li class="row${v ? ' v' : ''}"><span class="lab"${hide}>${word}</span><ul class="items"${hide}>${items}</ul></li>`;
+  };
+  return '<ul>' +
+    `<li data-k="shown" class="tot"><span class="n">${count(t.shown)}</span> of <span class="n">${count(N)}</span> reachable asteroids</li>` +
+    row('Diameter',
+      item('measured', G.measured, 'Measured', t.measured) +
+      item('estimated', zoomed ? G.estimatedz : G.estimated, 'Estimated from brightness', t.estimated) +
+      item('loose', '', 'No brightness', t.loose, table ? '' : '<span class="aft">(not drawn)</span>')) +
+    row(VIABILITY,
+      item('viable', table ? '' : G.viable, 'Viable', t.viable, '', on) +
+      item('chance', '', 'Estimated', t.chance, '', on) +
+      item('not', '', 'Not viable', t.not, '', on), true) + '</ul>';
 }
 
 // ---- chart / table ----------------------------------------------------------------------------
@@ -329,15 +347,29 @@ function view() {
 }
 
 // The table's columns: heading ("Quantity (unit)", the unit never in the cells), numeric, the direction a first
-// click sorts, and what each row sorts by.
+// click sorts, and what each row sorts by. missionTypes() adds a column per mission type, keyed by its id, and one
+// per condition, keyed "<mission>-<condition>"; each knows its group (docs/design.md section 8, the table).
 const TCOLS = {
   ast: { h: 'Asteroid', dir: 1, of: r => ((r < n ? cols.named[r] : rowOf(r)?.[2]) ? '0' : '1') + nameOf(r).toLowerCase() },   // names, then designations
   dv: { h: 'Δv (km/s)', num: true, dir: 1, of: r => { const v = dvOf(r); return isNaN(v) ? Infinity : v; } },
   size: { h: 'Diameter (m)', num: true, dir: -1, of: r => r < n ? cols.size_q50[r] : -1 },
-  surface: { h: MISSION_NAME.surface, dir: -1, of: r => missionKey(r, 'surface') },
-  capture: { h: MISSION_NAME.capture, dir: -1, of: r => missionKey(r, 'capture') },
 };
+// Yes first, then the chances, highest first, then No.
 const missionKey = (r, m) => { const s = statusOf(r, m); return s === 2 ? 2 : s === 1 ? chanceOf(r, m) : s - 1; };
+const gateKey = (r, g) => { const v = gateOf(r, g); return v === 255 ? 2 : v === 254 ? -1 : v === 253 ? -2 : v / 100; };
+// The mission types from the manifest; without them (an older field file), from the control's own segments.
+function missionTypes() {
+  const listed = man.missions || [...(E.m instanceof RadioNodeList ? E.m : [])].filter(c => c.value)
+    .map(c => ({ id: c.value, label: c.parentElement.textContent.trim(), gates: [] }));
+  MISSIONS = listed.map(m => m.id).filter(m => cols['status_' + m]);
+  for (const m of listed) {
+    if (!MISSIONS.includes(m.id)) continue;
+    MISSION_NAME[m.id] = m.label;
+    GATES[m.id] = (m.gates || []).filter(g => cols[g.column]).map(g => ({ ...g, key: `${m.id}-${g.id}` }));
+    TCOLS[m.id] = { h: m.label, card: `${m.label} viability`, dir: -1, of: r => missionKey(r, m.id), mission: m.id };
+    for (const g of GATES[m.id]) TCOLS[g.key] = { h: g.short, note: g.label, card: g.label, dir: -1, of: r => gateKey(r, g), gate: g };
+  }
+}
 const sorted = {};
 // Each column's sort values, computed once (the names only once they have loaded).
 const sortValues = k => {
@@ -346,7 +378,10 @@ const sortValues = k => {
   v.named = !!keys;
   return sorted[k] = v;
 };
-const tcols = () => S.m ? ['ast', 'dv', 'size', S.m] : ['ast', 'dv', 'size', 'surface', 'capture'];
+// With no mission type, one viability column per type; with one chosen, its conditions and then its viability.
+const tcols = () => ['ast', 'dv', 'size', ...(S.m ? [...GATES[S.m].map(g => g.key), S.m] : MISSIONS)];
+// The heading over the viability columns: "Mission viability", or the chosen type's own.
+const group = () => S.m ? `${MISSION_NAME[S.m]} viability` : VIABILITY;
 const sortKey = () => S.sort && tcols().includes(S.sort) ? S.sort : (S.m || 'dv');
 const sortDir = () => S.sort === sortKey() && S.dir ? S.dir : TCOLS[sortKey()].dir;
 
@@ -387,13 +422,12 @@ function tableShell() {
   pager.prev.addEventListener('click', turn(-1));
   pager.next.addEventListener('click', turn(1));
 }
-// A mission's verdict: the word, and for an unclear one the chance it fits.
-function missionCell(r, m) {
-  const s = statusOf(r, m);
-  // the chance's slot is there on every row, so the verdicts line up down the column
-  return `<span class="mc"><span class="vd">${VERDICT[s]}</span>` +
-    `<span class="ch">${s === 1 ? chanceText(r, m) + ' chance' : ''}</span></span>`;
+// A viability or a condition: Yes or No, measured, so no mark; or a chance with the estimate's dot.
+function valueCell(text, estimated) {
+  return estimated ? `<span class="vc">${G.estimated}<span class="vh">estimated, </span>${text}</span>` : `<span class="vc">${text}</span>`;
 }
+function missionCell(r, m) { return valueCell(viabilityOf(r, m), statusOf(r, m) === 1); }
+function gateCell(r, g) { const v = gateOf(r, g); return valueCell(gateText(v), v <= 100); }
 // The diameter with its mark: a measured one as its value, an estimate as its 90% range (the legend says which).
 // A row with no rock has no brightness to estimate from.
 function sizeCell(r) {
@@ -409,9 +443,14 @@ function renderTable() {
   if (!tbl) return;
   const all = rows(), total_ = all.length, pages = Math.max(1, Math.ceil(total_ / PAGE));
   if (S.page >= pages) { S.page = pages - 1; write(true); }
-  const cs = tcols(), k = sortKey(), d = sortDir();
-  tbl.tHead.innerHTML = '<tr>' + cs.map(c => `<th scope="col"${TCOLS[c].num ? ' class="num"' : ''}` +
-    `${c === k ? ` aria-sort="${d > 0 ? 'ascending' : 'descending'}"` : ''}><button type="button" data-sort="${c}">${TCOLS[c].h}</button></th>`).join('') + '</tr>';
+  const cs = tcols(), k = sortKey(), d = sortDir(), base = cs.filter(c => !TCOLS[c].mission && !TCOLS[c].gate);
+  // two header rows: the asteroid's own columns span both; the viability columns sit under their group's heading
+  const th = (c, span) => `<th scope="col"${span ? ' rowspan="2"' : ''} class="${TCOLS[c].num ? 'num' : ''}${TCOLS[c].mission || TCOLS[c].gate ? ' vcol' : ''}"` +
+    `${c === k ? ` aria-sort="${d > 0 ? 'ascending' : 'descending'}"` : ''}><button type="button" data-sort="${c}">` +
+    `${TCOLS[c].note ? `<dfn title="${esc(TCOLS[c].note)}">${esc(TCOLS[c].h)}</dfn>` : esc(TCOLS[c].mission && S.m ? 'Overall' : TCOLS[c].h)}</button></th>`;
+  const grouped = cs.length - base.length;
+  tbl.tHead.innerHTML = '<tr>' + base.map(c => th(c, grouped)).join('') +
+    (grouped ? `<th scope="colgroup" colspan="${grouped}" class="grp">${esc(group())}</th></tr><tr>` + cs.slice(base.length).map(c => th(c)).join('') : '') + '</tr>';
   let h = '';
   for (const r of all.slice(S.page * PAGE, S.page * PAGE + PAGE)) {
     const row = rowOf(r), key = keyOf(r), dv = dvOf(r);
@@ -420,7 +459,7 @@ function renderTable() {
       if (c === 'ast') h += `<td class="ast">${row ? `<a href="a/${encodeURIComponent(key)}.html">${esc(row[2] || row[1])}</a>${row[2] ? `<span class="nm">${esc(row[1])}</span>` : ''}` : ''}</td>`;
       else if (c === 'dv') h += `<td class="num dvc${isNaN(dv) ? ' none' : ''}" data-l="${TCOLS.dv.h}">${isNaN(dv) ? 'not on file' : dv.toFixed(3)}</td>`;
       else if (c === 'size') h += `<td class="num szc" data-l="${TCOLS.size.h}">${sizeCell(r)}</td>`;
-      else h += `<td class="mis" data-l="${MISSION_NAME[c]}">${missionCell(r, c)}</td>`;
+      else h += `<td class="mis" data-l="${esc(TCOLS[c].card)}">${TCOLS[c].gate ? gateCell(r, TCOLS[c].gate) : missionCell(r, c)}</td>`;
     }
     h += '</tr>';
   }
@@ -492,8 +531,8 @@ async function show(key, focus) {
 
 // ---- the tip --------------------------------------------------------------------------------
 
-// The rock under the pointer: its name, Δv and diameter, and with a mission its verdict. A measured diameter is its
-// value; an estimate is its 90% range, and says so.
+// The rock under the pointer: its name, Δv and diameter, and with a mission type its viability. A measured diameter
+// is its value; an estimate is its 90% range, and says so; so is an estimated viability.
 function hover(i) {
   if (!tip) return;
   tip.hidden = i < 0 || i === sel;                                       // the selected rock has its tags and the readout
@@ -503,7 +542,7 @@ function hover(i) {
     : `${sig2(cols.size_q05[i])}–${sig2(cols.size_q95[i])} m ${k('90% range, estimated')}`;
   tip.innerHTML = (row ? `<div class="tn">${esc(row[2] || row[1])}</div>` : '') +
     `<div>${k('Δv')} ${cols.dv[i].toFixed(3)} km/s</div><div>${k('Diameter')} ${size}</div>` +
-    (S.m ? `<div>${k(MISSION_NAME[S.m])} ${verdictText(i, S.m)}</div>` : '');
+    (S.m ? `<div>${k('Viability')} ${viabilityOf(i, S.m)}${statusOf(i, S.m) === 1 ? ' ' + k('estimated') : ''}</div>` : '');
   // beside the rock, on whichever side has room; anchored on that side so it never narrows to fit
   const x = field.sx(i), y = field.sy(i), flip = x > field.w - 300;
   Object.assign(tip.style, { position: 'absolute', top: y + 'px', whiteSpace: 'nowrap', transform: 'translateY(-50%)',
@@ -667,6 +706,11 @@ function listen() {
   if (tip && !tip.hasAttribute('role')) tip.setAttribute('role', 'status');
   if (canvas) {
     canvas.tabIndex = 0;
+    let tabbing = false;                                               // the chart's ring shows only when Tab brought the focus, not Escape or a click
+    document.addEventListener('keydown', e => { tabbing = e.key === 'Tab'; }, true);
+    document.addEventListener('pointerdown', () => { tabbing = false; }, true);
+    canvas.addEventListener('focus', () => canvas.classList.toggle('tabbed', tabbing));
+    canvas.addEventListener('blur', () => canvas.classList.remove('tabbed'));
     if (!canvas.hasAttribute('aria-label')) canvas.setAttribute('aria-label', 'Asteroids by delta-v (Δv) and diameter. Plus and minus zoom, arrow keys pan, Shift and an arrow key move between asteroids, Enter opens one.');
     canvas.addEventListener('keydown', e => {
       if (!field || e.ctrlKey || e.metaKey || e.altKey) return;                    // the browser's own: zoom, back, new tab
@@ -693,7 +737,7 @@ function mission(m) {
   S.page = 0; S.sort = ''; S.dir = 0; listed = null;                  // a mission sorts by its own chance first
   setControl('m', S.m);
   field?.setMission(S.m);
-  filter();                                                             // its ruled-out asteroids leave the filter
+  filter();                                                             // its not viable leave the filter
   if (S.view === 'table') renderTable();
   if (tip && !tip.hidden && field?.hot >= 0) hover(field.hot);
   write();

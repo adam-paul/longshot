@@ -6,8 +6,8 @@ returns strings. Text from upstream is escaped at the point it is printed.
 The words and marks follow docs/design.md. Two states on the surface (the front page and an
 entry's summary): measured, an unbroken rock outline that glows; estimated, a dot. The entry's
 record layer adds the bound (a dashed outline) and "not checked: <source>", which is still an
-estimate. A mission's verdict is fits (a heavy outline), ruled out (a cross) or unclear (no mark,
-its chance beside it). The pipeline's own names (prior, unchecked, pass, fail, untested) stay in
+estimate. A mission type's viability is Yes or No (measured) or a chance (estimated, with the
+estimate's dot in a table cell). The pipeline's own names (prior, unchecked, pass, fail, untested) stay in
 data attributes and are mapped to words here, at display.
 
 Parentheses are conventional: the stylesheet takes them from the fallback font, since B612 draws
@@ -22,6 +22,7 @@ from datetime import date as _date
 
 from longshot import draws as draws_mod
 from longshot import ledger as ledger_mod
+from longshot import method as method_mod
 from longshot import shape as shape_mod
 
 SITE = "longshot"
@@ -62,11 +63,16 @@ STATE_WORDS = {
 SURFACE_WORDS = {"measured": "Measured", "limit": "Measured", "prior": "Estimated", "unchecked": "Estimated"}
 STATE_GLYPH = {"measured": "measured", "limit": "limit", "prior": "prior", "unchecked": "prior"}
 NOT_CHECKED = "Not checked"
-# A mission's verdict, and one condition's.
-STATUS_WORDS = {"pass": "Fits", "untested": "Unclear", "fail": "Ruled out"}
-CONDITION_WORDS = {"pass": "Met", "untested": "Unclear", "fail": "Failed"}
-# One name per mission: the field's filter, an entry's Missions section, the table view's columns.
-MISSION_LABELS = {"surface": "Surface work", "capture": "Whole-body capture"}
+# A mission type's viability as the legend counts it, and the value a viability or a condition takes: Yes and No
+# are measured; an estimated one is its chance (docs/design.md section 3).
+STATUS_WORDS = {"pass": "Viable", "untested": "Estimated", "fail": "Not viable"}
+YES_NO = {"pass": "Yes", "fail": "No"}
+VIABILITY = "Mission viability"
+# One name and one summary per mission type, read from method/v0_1/missions.toml in its order: the field's filter,
+# the readout and an entry's Mission viability. A new mission type there needs nothing here.
+_MISSIONS = method_mod.load().missions
+MISSION_LABELS = {mid: _MISSIONS[mid]["label"] for mid in _MISSIONS["order"]}
+MISSION_SUMMARIES = {mid: _MISSIONS[mid].get("summary", "") for mid in _MISSIONS["order"]}
 METHOD_PAGE = "method.html"
 RUNG_LABELS = {
     "found_again": "Finding it again", "reached": "Reaching it",
@@ -666,12 +672,12 @@ def period_of(rec: dict, sources: dict) -> tuple[float | None, str]:
 
 # ---------------------------------------------------------------- marks
 
-GLYPHS = ("measured", "limit", "prior", "pass", "fail")     # an unclear verdict has no mark: its chance says it
+GLYPHS = ("measured", "limit", "prior", "pass")     # pass: a viable rock, filled, as the chart draws them
 
 
 def glyph(state: str, said: str = "") -> str:
-    """The mark for a row state or a mission verdict, drawn as the field draws it: a measured outline,
-    a bound's dashed outline, an estimate's dot; fits, a heavy outline; ruled out, a cross.
+    """The mark for a row state, drawn as the field draws it: a measured outline, a bound's dashed outline, an
+    estimate's dot; and a viable rock, filled, as the chart draws them with a mission type chosen.
 
     One empty element: style.css draws each mark (.g-measured and the rest), so a page that lists two
     thousand asteroids carries a class name per mark, not an outline. `said` gives it the state in words
@@ -1347,7 +1353,7 @@ def measure_and_condition(rec: dict) -> tuple[str, str, str]:
 
 
 def nothing_ranked(rec: dict) -> str:
-    """Why no observation is ranked, in a few words. The missions' own results are under Missions, not here."""
+    """Why no observation is ranked, in a few words. The mission types' own results are under Mission viability."""
     missions = [(rec.get("missions") or {}).get(mid) or {} for mid in MISSION_LABELS]
     if rec.get("gone"):
         return "it no longer exists"
@@ -1355,8 +1361,8 @@ def nothing_ranked(rec: dict) -> str:
         return "orbit not good enough to find it again"
     states = [m.get("status") for m in missions]
     if "untested" not in states and all(states):
-        return "both verdicts rest on measurements"
-    return "no single observation would change a verdict"
+        return "viability rests on measurements for every mission type"
+    return "no single observation would change a viability"
 
 
 def next_window(rec: dict) -> tuple[str, str]:
@@ -1407,27 +1413,41 @@ def obs_name(observations: dict | None, oid, surface: bool = False) -> str:
     return o or ""
 
 
-def verdict(m: dict | None) -> tuple[str, str, str]:
-    """(the pipeline's status, the verdict as HTML with its mark, its chance in words or '')."""
+def viability(m: dict | None) -> tuple[str, str, str]:
+    """(the pipeline's status, the value: Yes, No or the chance, and its state: measured or prior). A condition
+    takes the same values: Yes, No or the chance it is met."""
     status = (m or {}).get("status", "untested")
-    word = STATUS_WORDS.get(status, cap(status))
-    if status == "untested":
-        p = (m or {}).get("p")
-        return status, word, f"{esc(chance(p))} chance it fits" if is_num(p) else ""
-    return status, f"{glyph(status)}{word}", ""
+    if status in YES_NO:
+        return status, YES_NO[status], "measured"
+    p = (m or {}).get("p")
+    return status, esc(chance(p)) if is_num(p) else "None", "prior"
+
+
+def needs(m: dict, status: str) -> str:
+    """A viability's detail: the conditions a measurement fails, for No; the conditions still open, for a chance.
+    "needs diameter ≥ 30 m and spin period ≥ 2.2 h". '' for Yes."""
+    want = {"fail": "fail", "untested": "untested"}.get(status)
+    said = [condition(g.get("label")) for g in (m or {}).get("gates", []) if want and g.get("status") == want]
+    said = [x[:1].lower() + x[1:] for x in said if x]
+    return "needs " + " and ".join(said) if said else ""
 
 
 def missions(rec: dict) -> str:
+    """The entry's Mission viability: per mission type its summary, its viability with the state word, and each
+    condition with its value (Yes, No or the chance it is met) and what that rests on."""
     out = []
     for mid, name in MISSION_LABELS.items():
         m = (rec.get("missions") or {}).get(mid)
+        about = f'<p class="note">{esc(MISSION_SUMMARIES[mid])}</p>' if MISSION_SUMMARIES.get(mid) else ""
         if not m:
-            out.append(f'<div class="mission"><h3>{name}</h3><p class="none">Not assessed</p></div>')
+            out.append(f'<div class="mission"><h3>{name}</h3>{about}<p class="none">Not assessed</p></div>')
             continue
         rows = []
         for g in m.get("gates", []):
             st = g.get("status", "untested")
-            ch = esc(chance(g["p"])) if st == "untested" and is_num(g.get("p")) else ""
+            # a chance carries the estimated mark, as the front page's table draws it (docs/design.md section 4)
+            met = YES_NO.get(st) or (f'<span class="vc">{glyph("prior")}<span class="vh">estimated, </span>{esc(chance(g["p"]))}</span>'
+                                     if is_num(g.get("p")) else "")
             basis = GATE_BASIS.get(g.get("basis"), esc(g.get("basis")))
             row = rec["rows"].get(GATE_ROW.get(g.get("id"))) or {}
             if g.get("basis") == "prior" and row.get("state") == "unchecked":
@@ -1438,18 +1458,18 @@ def missions(rec: dict) -> str:
             what = esc(condition(g.get("label")))
             if rec.get("gone"):
                 # the method fails a gone asteroid's orbit condition with the reason (missions.toml [rules.gone]);
-                # the page names what failed, and the summary's Gone row gives the reason once
+                # the page names the condition not met, and the summary's Gone row gives the reason once
                 what, text = "Still exists", ""
             elif g.get("id"):
                 what = method_link(f'g-{mid}-{g["id"]}', what)
             rows.append(f'<tr data-status="{esc(st)}"><th scope="row">{what}{text}</th>'
-                        f'<td data-l="Verdict">{CONDITION_WORDS.get(st, cap(st))}</td>'
-                        f'<td class="num" data-l="Chance it is met">{ch}</td><td data-l="Basis">{basis}</td></tr>')
-        status, word, said = verdict(m)
-        out.append(f'<div class="mission" data-status="{esc(status)}"><h3>{name}</h3>'
-                   f'<p class="verdict">{word}{", " + said if said else ""}</p>'
-                   '<table class="tbl gates"><colgroup><col class="g1"><col class="g2"><col class="g3"><col class="g4"></colgroup>'
-                   '<thead><tr><th scope="col">Condition</th><th scope="col">Verdict</th><th scope="col" class="num">Chance it is met</th>'
+                        f'<td class="num" data-l="Met">{met}</td><td data-l="Basis">{basis}</td></tr>')
+        status, value, state = viability(m)
+        tag = "" if rec.get("gone") else state_tag(state, surface=True)
+        out.append(f'<div class="mission" data-status="{esc(status)}"><h3>{name}</h3>{about}'
+                   f'<p class="verdict"><span class="k">Viability</span> {value} {tag}</p>'
+                   '<table class="tbl gates"><colgroup><col class="g1"><col class="g2"><col class="g4"></colgroup>'
+                   '<thead><tr><th scope="col">Condition</th><th scope="col" class="num">Met</th>'
                    f'<th scope="col">Basis</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
     return f'<div class="missions">{"".join(out)}</div>'
 
@@ -1651,21 +1671,19 @@ def summary_items(rec: dict, sources: dict, observations: dict | None = None) ->
     # no state mark: JPL gives every asteroid's Δv, so the mark would answer nothing
     items.append((f'<abbr title="{esc(DV_TITLE)}">Δv</abbr>', f'{dv:.3f} {u("km/s")}' if dv is not None else "None",
                   f"{count(days)} d round trip" if days is not None else "", None))
-    # the verdicts, under their own heading: the verdict is the value, so no state column
-    items.append(("Missions", GROUP, "", None))
+    # mission viability, under its own heading: Yes, No or the chance, its state, and what it needs
+    items.append((VIABILITY, GROUP, "", None))
     for mid, name in MISSION_LABELS.items():
         mm = (rec.get("missions") or {}).get(mid)
         if not mm:
             items.append((name, "Not assessed", "", None))
             continue
-        status, word, said = verdict(mm)
-        if status == "fail" and gone:
-            said = "it no longer exists"
-        elif status == "fail":
-            fails = [condition(g.get("label")) for g in mm.get("gates", []) if g.get("status") == "fail"]
-            said = "needs " + " and ".join(x[:1].lower() + x[1:] for x in fails if x)
-        items.append((name, word, html.unescape(said), None))
-    # the one observation that would most change the verdicts
+        status, value, state = viability(mm)
+        if gone:
+            items.append((name, value, "it no longer exists", None))
+            continue
+        items.append((name, value, html.unescape(needs(mm, status)), state))
+    # the one observation that would most change a viability
     o = rec.get("observe")
     if o:
         what = cap(obs_name(observations, o.get("best"), surface=True) or o.get("best") or "")
@@ -1699,7 +1717,7 @@ def summary_list(items: list) -> str:
 # ---------------------------------------------------------------- the entry
 
 TOC = (("data", "Data"), ("difficulty", "Difficulty"), ("value", "Metal and water"),
-       ("settle", BEST_NEXT), ("missions", "Missions"), ("sources", "Sources"))
+       ("settle", BEST_NEXT), ("missions", VIABILITY), ("sources", "Sources"))
 
 
 def value_title(rec: dict) -> str:

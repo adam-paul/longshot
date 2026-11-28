@@ -142,20 +142,27 @@ def plotted_measured(r: dict) -> bool:
 
 
 def legend(recs: list) -> str:
-    """The line above the chart: how many are shown of every reachable asteroid, then each mark's words and its
-    count, then the asteroids with no brightness. Plotted diameters are the measured value or the median estimate,
-    and the line says so. A bound is a measurement, and a row not checked is an estimate (docs/design.md
-    section 3). As app.js draws it."""
+    """The legend before the field file loads, as app.js (legendHtml) writes it with All chosen in the chart: the
+    total; Diameter, measured, estimated from brightness, or no brightness and so not drawn; then the Mission
+    viability line, in place but unseen until a mission type is chosen (docs/design.md section 8). A bound is a
+    measurement, and a row not checked is an estimate (section 3)."""
     drawn = [r for r in recs if t.placed(r)]
     measured = sum(1 for r in drawn if plotted_measured(r))
-    mark = lambda key, g, word, n: f'<li data-k="{key}">{g}{word}<span class="n">{t.count(n)}</span></li>'
     loose = len(recs) - len(drawn)
-    total = (f'<li data-k="shown" class="tot"><span class="n">{t.count(len(drawn))}</span>'
-             + (f' of <span class="n">{t.count(len(recs))}</span>' if loose else "") + ' reachable asteroids</li>')
-    return ('<ul>' + total
-            + mark("measured", t.glyph("measured"), "Measured", measured)
-            + mark("estimated", t.glyph("prior"), "Estimated (median)", len(drawn) - measured)
-            + (mark("loose", "", "No brightness on file", loose) if loose else "") + '</ul>')
+    item = lambda key, g, word, n, after="": (f'<li class="c" data-k="{key}">{g}{word}<span class="n">{t.count(n)}</span>'
+                                              f'{after}</li>')
+    unseen = lambda g, word: f'<li class="c">{g}{word}<span class="n"></span></li>'
+    hide = ' aria-hidden="true"'
+    return ('<ul>'
+            f'<li data-k="shown" class="tot"><span class="n">{t.count(len(drawn))}</span> of '
+            f'<span class="n">{t.count(len(recs))}</span> reachable asteroids</li>'
+            '<li class="row"><span class="lab">Diameter</span><ul class="items">'
+            + item("measured", t.glyph("measured"), "Measured", measured)
+            + item("estimated", t.glyph("prior"), "Estimated from brightness", len(drawn) - measured)
+            + item("loose", "", "No brightness", loose, '<span class="aft">(not drawn)</span>')
+            + f'</ul></li><li class="row v"><span class="lab"{hide}>{t.VIABILITY}</span><ul class="items"{hide}>'
+            + unseen(t.glyph("pass"), "Viable") + unseen("", "Estimated") + unseen("", "Not viable")
+            + '</ul></li></ul>')
 
 
 def counts_table(recs: list) -> str:
@@ -187,8 +194,10 @@ def index_page(recs, assets, data_date, method, readout=None) -> str:
     dvs = [v for v in (t.delta_v(r) for r in recs) if v is not None] or [0.0, 12.0]
     lo, hi = math.floor(min(dvs) * 10) / 10, math.ceil(max(dvs) * 10) / 10
     named = (readout or {}).get("named") or []
-    seg = lambda name, items: "".join(
-        f'<label><input type="radio" name="{name}" value="{v}"{" checked" if i == 0 else ""}><span>{w}</span></label>'
+    # a segment's hover note, where it has one: a mission type's summary (docs/design.md section 8)
+    seg = lambda name, items, notes={}: "".join(
+        f'<label{f" title={chr(34)}{t.esc(notes[v])}{chr(34)}" if notes.get(v) else ""}><input type="radio" name="{name}" '
+        f'value="{v}"{" checked" if i == 0 else ""}><span>{w}</span></label>'
         for i, (v, w) in enumerate(items))
     preload = "".join(
         f'<link rel="modulepreload" href="{t.esc(url)}">\n' if kind == "module"
@@ -202,8 +211,8 @@ def index_page(recs, assets, data_date, method, readout=None) -> str:
         '<form class="strip" id="controls" action="index.html" method="get" onsubmit="return false">'
         '<div class="ctl view" role="radiogroup" aria-labelledby="l-view"><span class="lab" id="l-view">View</span>'
         f'<div class="seg">{seg("view", (("chart", "Chart"), ("table", "Table")))}</div></div>'
-        '<div class="ctl mission" role="radiogroup" aria-labelledby="l-m"><span class="lab" id="l-m">Mission</span>'
-        f'<div class="seg">{seg("m", (("", "Any"), ("surface", t.MISSION_LABELS["surface"]), ("capture", t.MISSION_LABELS["capture"])))}</div></div>'
+        '<div class="ctl mission" role="radiogroup" aria-labelledby="l-m"><span class="lab" id="l-m">Mission type</span>'
+        f'<div class="seg">{seg("m", (("", "All"), *t.MISSION_LABELS.items()), t.MISSION_SUMMARIES)}</div></div>'
         f'<div class="ctl dv"><label class="lab" for="dv">Max {dv} (km/s)</label><div class="dvrow">'
         f'<input id="dv" name="dv" type="range" min="{lo:g}" max="{hi:g}" step="0.1" value="{hi:g}">'
         f'<output name="dv-value" for="dv">{hi:.1f}</output></div></div>'
@@ -211,7 +220,7 @@ def index_page(recs, assets, data_date, method, readout=None) -> str:
         '<input id="q" name="q" type="search" placeholder="Name, number or designation" autocomplete="off"></div>'
         '</form>\n'
         '<section class="fig" aria-labelledby="fig-title"><h1 id="fig-title" class="vh">Reachable asteroids</h1>'
-        f'<div class="fig-head"><div id="legend" class="legend">{legend(recs)}</div>'
+        f'<div class="fig-head"><div id="legend" class="legend" data-m="0">{legend(recs)}</div>'
         '<div class="zoom" role="group" aria-label="Zoom">'
         '<button type="button" class="btn sq" name="zoom-out" form="controls" aria-label="Zoom out">−</button>'
         '<button type="button" class="btn sq" name="zoom-in" form="controls" aria-label="Zoom in">+</button>'
@@ -277,7 +286,7 @@ def size_cell(rec, sources) -> str:
     return f'<td class="num sz"><span>{mark}{t.esc(text)}</span></td>'
 
 
-OBSERVE_COLS = ("Rank", "Asteroid", "Δv (km/s)", "Diameter (m)", "Measure", "Mission", "Condition", "Telescope",
+OBSERVE_COLS = ("Rank", "Asteroid", "Δv (km/s)", "Diameter (m)", "Measure", "Mission type", "Condition", "Telescope",
                 "Window opens", "Window closes", "Peak brightness (mag)", "Not checked")
 MAG = '<abbr title="magnitude in visible light, as JPL predicts it: a lower number is brighter">mag</abbr>'
 
@@ -318,13 +327,13 @@ def observe_page(recs, sources, assets, data_date, method, observations=None, ta
             f'<td class="tel">{scope}</td><td class="num">{start}</td><td class="num">{end}</td>'
             f'<td class="num">{peak}</td><td class="chk">{f"<span>{check}</span>" if check else ""}</td></tr>')
     head = "<tr>" + "".join(f'<th scope="col"{NUM if c in NUM_COLS else ""}>{c.replace("(mag)", f"({MAG})")}</th>' for c in OBSERVE_COLS) + "</tr>"
-    table = (f'<table class="ltbl obs"><caption class="vh">Asteroids with an unclear verdict, ranked by how much one '
+    table = (f'<table class="ltbl obs"><caption class="vh">Asteroids with an estimated viability, ranked by how much one '
              f'observation would change it</caption><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table>'
-             if rows else '<p class="none">No asteroid with an unclear verdict has an observation ranked</p>')
+             if rows else '<p class="none">No asteroid with an estimated viability has an observation ranked</p>')
     order = ((tables or method_mod.load()).observe.get("rank") or {}).get("said")
     body = (
         '<main class="page wide"><div class="lhead"><h1>Observe next</h1><dl class="lmeta">'
-        f'<div><dt>Ranked</dt><dd>{t.count(len(ranked))} asteroids with an unclear verdict</dd></div>'
+        f'<div><dt>Ranked</dt><dd>{t.count(len(ranked))} asteroids with an estimated viability</dd></div>'
         + (f'<div><dt>Order</dt><dd>{t.esc(t.cap(order))}</dd></div>' if order else "")
         + '</dl></div>'
         f'<p class="cap">For each asteroid: what to measure, and the mission condition the result would settle. {t.esc(OBSERVE_DV)} '
@@ -598,22 +607,22 @@ NOT_GATED_WORDS = {"delta_v": "Δv"}
 
 
 def _rules(mis: dict, n_draws: int) -> str:
-    """How conditions become a verdict, in the site's words, with the method file's own figures."""
+    """How conditions become a viability, in the site's words, with the method file's own figures."""
     rules = mis.get("rules") or {}
     decide = rules.get("decide") or {}
     sigma, factor = decide.get("sigma"), decide.get("no_range_factor")
     lines = []
     if t.is_num(sigma) and t.is_num(factor):
-        lines.append(t.line("Met or failed", t.v(
+        lines.append(t.line("Yes or No", t.v(
             f"A measurement decides the condition. The measured value must clear the threshold by {t.num(sigma)} "
             f"times its stated 1σ error. With no stated error, it must clear it by a factor of {t.num(factor)}.", True)))
-    lines.append(t.line("Unclear", t.v(
+    lines.append(t.line("Estimated", t.v(
         f"No measurement decides it. Its chance is the share of {t.count(n_draws)} random draws that meet it. Each "
         "draw is one possible asteroid: a diameter, class, reflectivity, density and spin that fit what is on file. "
         "A share of none prints as &lt;1%, and a share of all as &gt;99%.", True)))
-    lines.append(t.line("A mission", t.v(
-        "It fits if every condition is met. It is ruled out if any condition fails. Otherwise it is unclear, and "
-        "its chance is the share of draws that meet every condition.", True)))
+    lines.append(t.line("Viability", t.v(
+        "Yes if every condition is met. No if any condition is not. Otherwise it is estimated, as the share of "
+        "draws that meet every condition. The legend counts these as viable, not viable and estimated.", True)))
     for name, word in (("period", "A spin period decides"), ("mass", "A mass decides"), ("size", "A diameter is set aside")):
         rule = rules.get(name) or {}
         text = rule.get("decides") or rule.get("implied")
@@ -623,11 +632,13 @@ def _rules(mis: dict, n_draws: int) -> str:
             text = t.cap(text)
         if text:
             lines.append(t.line(word, t.v(_pub(text), True), f'<span class="src">{_linked(_public(rule.get("cite")))}</span>' if rule.get("cite") else ""))
-    return f'<h3 id="m-rules">Fits, ruled out and unclear</h3><dl class="facts">{"".join(lines)}</dl>'
+    return f'<h3 id="m-rules">Yes, No and estimated</h3><dl class="facts">{"".join(lines)}</dl>'
 
 
 def _missions(m) -> str:
-    mis, out = m.missions, []
+    mis = m.missions
+    out = ['<p class="note">The site checks every asteroid against each mission type\'s conditions. A mission type is not a '
+           'planned or flown mission.</p>']
     for mid in mis["order"]:
         spec = mis[mid]
         out.append(f'<h3 id="m-{mid}">{t.MISSION_LABELS.get(mid, _pub(mid))}</h3>'
@@ -926,9 +937,9 @@ MARKS = (
                   "value shown is still an estimate. The asteroid's page names the source and the reason."),
 )
 VERDICTS = (
-    ("pass", "Measurements meet every condition. A heavier outline in the chart."),
-    ("fail", "A measurement fails a condition. Faint in the chart."),
-    ("untested", "At least one condition rests on an estimate. The site gives the chance that the asteroid fits."),
+    ("pass", "Yes: measurements meet every condition. Filled in the chart."),
+    ("untested", "A chance: at least one condition rests on an estimate. Its usual mark in the chart."),
+    ("fail", "No: a measurement fails a condition. Faint in the chart, and not in the table."),
 )
 # Terms Method uses beyond the record layer's, each defined in a hover note where it first appears.
 METHOD_TERMS = t.TERMS + (
@@ -969,7 +980,7 @@ def method_page(recs, sources, assets, data_date, method, tables=None) -> str:
             + t.line("Method", t.v(f"Version {t.esc(method)}", True), '<span class="gr">every figure is a proposal, not yet frozen</span>')
             + '</dl>')
         + sec("states", f'<table class="tbl marks"><tbody>{marks}</tbody></table>'
-              f'<h3>Mission verdicts</h3><table class="tbl marks"><tbody>{verdicts}</tbody></table>')
+              f'<h3>Mission viability</h3><table class="tbl marks"><tbody>{verdicts}</tbody></table>')
         + sec("ranges", '<ul class="stm">'
               '<li>An estimate\'s range is a 90% range: 9 in 10 asteroids of that brightness fall inside it.</li>'
               '<li>A mass is always a 90% range, since the site computes it from draws of diameter and density.</li>'
